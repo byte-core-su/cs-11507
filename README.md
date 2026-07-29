@@ -3,10 +3,10 @@
 這是上下學期共用的單一系統入口。
 
 - `index.html` 依日期自動導向 115 學年度的當期學生入口：8 月至隔年 1 月為上學期，2 月至 7 月為下學期。
-- `teacher.html` 依日期開啟當期教師後台；教師仍可直接使用各學期資料夾中的後台查看歷史資料。
+- `teacher.html` 依日期開啟當期教師後台；各學期中的 `teacher.html` 只是帶入學期範圍的轉接網址，實際後台只有一份。
 - `firebase-config.js` 是唯一 Firebase 設定檔；所有學期頁面均引用它。
-- `shared/` 放置共用登入識別與入口保護程式。
-- `terms/115-1` 和 `terms/115-2` 僅放該學期教材、任務與圖片。
+- `shared/portal.js` 是唯一的學生登入與入口網版型；`shared/teacher.html` 是唯一的教師後台版型。
+- `terms/115-1` 和 `terms/115-2` 僅放該學期教材、任務設定（`term-config.js`）與圖片。
 
 ## Firestore 資料規則
 

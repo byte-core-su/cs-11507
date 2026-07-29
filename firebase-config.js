@@ -21,6 +21,7 @@
   }
 
   const pathMatch = global.location.pathname.match(/\/terms\/(\d{3}-[12])(?:\/|$)/);
+  const requestedTerm = new URLSearchParams(global.location.search).get('term');
   const testTermStorageKey = 'learning-platform.test-term.v1';
   const requestedTestTerm = new URLSearchParams(global.location.search).get('testTerm');
   let testTermId = '';
@@ -30,7 +31,9 @@
     testTermId = global.sessionStorage.getItem(testTermStorageKey) || '';
   } catch (_) { testTermId = /^115-[12]$/.test(requestedTestTerm || '') ? requestedTestTerm : ''; }
   const activeTermId = testTermId || automaticTerm();
-  const currentTermId = pathMatch ? pathMatch[1] : activeTermId;
+  // The shared teacher template is outside /terms, so it carries its
+  // selected term in ?term=115-1 or ?term=115-2.
+  const currentTermId = /^115-[12]$/.test(requestedTerm || '') ? requestedTerm : (pathMatch ? pathMatch[1] : activeTermId);
   const rootPath = pathMatch ? '../../' : './';
   const storageKeys = Object.freeze({
     scratchUnits: `scratch-programming.${currentTermId}.unlocked-units.v1`,
