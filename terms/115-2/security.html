@@ -709,7 +709,7 @@
                 card.className = 'mt-6 overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm';
                 screen.append(card);
             }
-            card.innerHTML = '<div class="bg-gradient-to-r from-violet-700 to-indigo-700 p-5 text-white"><p class="text-xs font-black tracking-[0.18em] text-violet-200">ADVANCED REVIEW</p><h3 class="mt-1 text-xl font-black">🏆 知識大擂台</h3><p class="mt-1 text-sm text-violet-100">集滿八枚課程印章後開放進階挑戰。</p></div><div id="knowledge-arena-content" class="p-5"><div class="rounded-xl bg-violet-50 p-4 text-center text-sm font-bold text-violet-700">正在確認通關進度…</div></div>';
+            card.innerHTML = '<div class="bg-gradient-to-r from-violet-700 to-indigo-700 p-6 text-white"><p class="text-xs font-black tracking-[0.18em] text-violet-200">ADVANCED REVIEW</p><h3 class="mt-2 text-2xl font-black">🏆 知識大擂台</h3><p class="mt-2 text-sm text-violet-100">完成八個小節測驗後，解鎖進階複習與挑戰。</p></div><div id="knowledge-arena-content" class="p-5"><div class="rounded-2xl bg-violet-50 p-5 text-center font-bold text-violet-700">正在讀取集章進度…</div></div>';
             const content = document.getElementById('knowledge-arena-content');
             try {
                 if (!window.SCHOOL_APP?.isFirebaseConfigured() || !window.firebase) throw new Error('Firebase unavailable');
@@ -737,6 +737,48 @@
             }
         }
 
+        // Keep this course on the same visual template as the first-semester
+        // Information Life course.  Course titles and chapter counts vary,
+        // but the learning entry, chapter headers and challenge area do not.
+        function alignSharedCourseTemplate() {
+            const screen = document.getElementById('chapter-screen');
+            const chapterList = screen?.querySelector(':scope > div.space-y-6, :scope > div.space-y-7');
+            if (!screen || !chapterList) return;
+
+            chapterList.classList.remove('space-y-6');
+            chapterList.classList.add('space-y-7');
+            const header = screen.querySelector(':scope > header');
+            if (header) {
+                header.innerHTML = `<div><p class="text-xs font-black tracking-[0.18em] text-blue-600">SECURITY &amp; DIGITAL WORKS PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊安全與數位著作・測驗集章</h2><p class="mt-2 text-sm font-medium text-slate-500">完成第四、第五、第六章的小節測驗，收集八枚課程證書並解鎖知識大擂台。</p></div><button type="button" onclick="document.getElementById('knowledge-arena-unlock')?.scrollIntoView({behavior:'smooth',block:'start'})" class="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl">🏆 我的證書・集章牆</button>`;
+            }
+
+            const summaries = [
+                ['CH4', 'blue', '第四章重點回顧'],
+                ['CH5', 'emerald', '第五章重點回顧'],
+                ['CH6', 'violet', '第六章重點回顧']
+            ];
+            [...chapterList.children].filter(node => node.tagName === 'SECTION').forEach((section, index) => {
+                const [chapterKey, color, label] = summaries[index] || [];
+                const banner = section.firstElementChild;
+                if (!banner || !chapterKey || banner.querySelector('.chapter-summary')) return;
+                banner.classList.add('flex', 'flex-col', 'gap-5', 'sm:flex-row', 'sm:items-center', 'sm:justify-between');
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `chapter-summary rounded-2xl bg-white px-5 py-4 text-left text-${color}-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl`;
+                button.innerHTML = `<span class="block text-xs font-black text-${color}-500">📖 學習重點與章節概覽</span><span class="mt-1 block text-base font-black">開啟${label} →</span>`;
+                button.addEventListener('click', () => showStudyNotes(chapterKey));
+                banner.append(button);
+            });
+
+            if (!document.getElementById('knowledge-arena-unlock')) {
+                const arena = document.createElement('section');
+                arena.id = 'knowledge-arena-unlock';
+                arena.className = 'overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-sm';
+                arena.innerHTML = '<div class="bg-gradient-to-r from-violet-700 to-indigo-700 p-6 text-white"><p class="text-xs font-black tracking-[0.18em] text-violet-200">ADVANCED REVIEW</p><h3 class="mt-2 text-2xl font-black">🏆 知識大擂台</h3><p class="mt-2 text-sm text-violet-100">完成八個小節測驗後，解鎖進階複習與挑戰。</p></div><div id="knowledge-arena-content" class="p-5"><div class="rounded-2xl bg-violet-50 p-5 text-center font-bold text-violet-700">正在讀取集章進度…</div></div>';
+                chapterList.append(arena);
+            }
+        }
+
         window.onload = () => { connectSharedStudentSession(); goToChapters(); };
 
         function markCollectibleChapters() {
@@ -754,6 +796,7 @@
         function goToChapters() {
             const portalProfile = window.LearnerProfile && window.LearnerProfile.readLocalProfile();
             if (portalProfile && window.LearnerProfile.isValidStudentId(portalProfile.studentId)) {
+                alignSharedCourseTemplate();
                 currentUser = { studentId: portalProfile.studentId, class: portalProfile.classRoom, no: portalProfile.seatNo, name: portalProfile.name || '同學' };
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('chapter-screen').classList.remove('hidden');
