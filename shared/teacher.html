@@ -94,6 +94,13 @@
     function completedTasks(row) { return Object.values(row.data.terms?.[term]?.tasks || {}).filter(Boolean).length; }
     function certificates(row) { const source = row.data.terms?.[term]?.certificates || row.data.certificates || []; return Array.isArray(source) ? source : Object.values(source || {}); }
     function completedChallenges(row) { const source = row.data.teacherProgress?.[term]?.completedChallenges || []; return Array.isArray(source) ? source : Object.keys(source || {}).filter(key => source[key]); }
+    function latestTermActivity(data) {
+      const termData = data?.terms?.[term] || {};
+      const attendance = Object.values(termData.attendance || {}).map(item => item?.loginAt);
+      const values = [data?.updatedAt, termData.updatedAt, termData.startedAt, ...attendance].filter(Boolean);
+      const timestamp = value => value?.toMillis?.() ?? value?.toDate?.()?.getTime?.() ?? new Date(value).getTime();
+      return values.sort((a, b) => timestamp(b) - timestamp(a))[0] || null;
+    }
     function openModal(kicker, title, meta, content) { $('modal-kicker').textContent = kicker; $('modal-title').textContent = title; $('modal-meta').textContent = meta; $('modal-content').innerHTML = content; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); }
     function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; }
     function refreshAll() { renderRoster(); renderProgress(); }
@@ -193,7 +200,8 @@
       });
       return rosterRows.map(roster => {
         const user = usersByStudentId.get(roster.studentId);
-        const data = user?.data || { terms: {}, teacherProgress: {} };
+        const rawData = user?.data || { terms: {}, teacherProgress: {} };
+        const data = { ...rawData, updatedAt: latestTermActivity(rawData) };
         const profile = { ...deriveFromStudentId(roster.studentId), ...(data.profile || {}), ...roster, studentId: roster.studentId };
         return { id: user?.id || '', data, profile, hasStarted: Object.prototype.hasOwnProperty.call(data.terms || {}, term) };
       });

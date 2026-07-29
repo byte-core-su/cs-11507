@@ -55,5 +55,24 @@ function showPortal() {
   document.getElementById('portal-logout').onclick = () => signOut(auth);
   document.querySelectorAll('[data-task]').forEach(box => box.onchange = async () => { tasks[box.dataset.task] = box.checked ? new Date().toISOString() : false; await setDoc(doc(db,'users',user.uid),{terms:{[app.currentTermId]:{tasks,updatedAt:new Date()}}},{merge:true}); });
 }
-async function loadStudent(currentUser) { user=currentUser; const id=currentUser.email?.split('@')[0]||''; if(!app.studentIdPattern.test(id)) return; const roster=await getDoc(doc(db,'rosters',id)); const rosterData=roster.exists()?roster.data():{}; profile={...(rosterData||{}),studentId:id}; window.LearnerProfile?.startSession(profile); window.dispatchEvent(new Event('portal:authenticated')); await setDoc(doc(db,'users',user.uid),{studentId:id,profile,identity:{provider:'student-email',studentId:id},terms:{[app.currentTermId]:{startedAt:new Date(),attendance:{[taipeiDay()]:{loginAt:new Date()}}}}},{merge:true}); stop(); stop=onSnapshot(doc(db,'users',user.uid),snap=>{tasks=snap.data()?.terms?.[app.currentTermId]?.tasks||{}; showPortal();}); }
+async function loadStudent(currentUser) {
+  user = currentUser;
+  const id = currentUser.email?.split('@')[0] || '';
+  if (!app.studentIdPattern.test(id)) return;
+  const roster = await getDoc(doc(db,'rosters',id));
+  const rosterData = roster.exists() ? roster.data() : {};
+  profile = { ...(rosterData || {}), studentId:id };
+  window.LearnerProfile?.startSession(profile);
+  window.dispatchEvent(new Event('portal:authenticated'));
+  const now = new Date();
+  await setDoc(doc(db,'users',user.uid), {
+    studentId:id,
+    profile,
+    identity:{provider:'student-email',studentId:id},
+    updatedAt:now,
+    terms:{[app.currentTermId]:{startedAt:now,updatedAt:now,attendance:{[taipeiDay()]:{loginAt:now}}}}
+  }, {merge:true});
+  stop();
+  stop = onSnapshot(doc(db,'users',user.uid), snap => { tasks=snap.data()?.terms?.[app.currentTermId]?.tasks || {}; showPortal(); });
+}
 const firebaseApp=initializeApp(app.firebaseConfig); auth=getAuth(firebaseApp); db=getFirestore(firebaseApp); onAuthStateChanged(auth,current=>{if(current?.email) loadStudent(current).catch(()=>showLogin('資料載入失敗，請重新登入。',true)); else showLogin();});
