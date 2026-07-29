@@ -106,7 +106,7 @@
 
         <!-- 2. 章節選擇畫面 -->
         <div id="chapter-screen" class="glass-card p-8 hidden">
-            <header class="mb-7 flex flex-col gap-4 border-b border-gray-100 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-black tracking-[0.18em] text-blue-600">SECURITY &amp; DIGITAL WORKS PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊安全與數位著作・測驗集章</h2><p class="mt-2 text-sm font-medium text-slate-500">完成第四、第五、第六章的小節測驗，收集八枚課程證書並解鎖知識大擂台。</p></div><div class="rounded-2xl bg-blue-50 px-4 py-3 text-center text-blue-700"><span class="block text-3xl">🏅</span><span class="mt-1 block text-xs font-black">可集章挑戰</span></div></header>
+            <header class="mb-7 flex flex-col gap-4 border-b border-gray-100 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-black tracking-[0.18em] text-blue-600">SECURITY &amp; DIGITAL WORKS PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊安全與數位著作・測驗集章</h2><p class="mt-2 text-sm font-medium text-slate-500">完成所有章節測驗，收集 8 枚證書並解鎖「知識大擂台」。</p></div><div class="rounded-2xl bg-blue-50 px-4 py-3 text-center text-blue-700"><span class="block text-3xl">🏅</span><span class="mt-1 block text-xs font-black">可集章挑戰</span></div></header>
             
             <div class="space-y-6">
                 <!-- 第四章 -->
@@ -749,7 +749,7 @@
             chapterList.classList.add('space-y-7');
             const header = screen.querySelector(':scope > header');
             if (header) {
-                header.innerHTML = `<div><p class="text-xs font-black tracking-[0.18em] text-blue-600">SECURITY &amp; DIGITAL WORKS PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊安全與數位著作・測驗集章</h2><p class="mt-2 text-sm font-medium text-slate-500">完成第四、第五、第六章的小節測驗，收集八枚課程證書並解鎖知識大擂台。</p></div><button type="button" onclick="document.getElementById('knowledge-arena-unlock')?.scrollIntoView({behavior:'smooth',block:'start'})" class="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl">🏆 我的證書・集章牆</button>`;
+                header.innerHTML = `<div><p class="text-xs font-black tracking-[0.18em] text-blue-600">SECURITY &amp; DIGITAL WORKS PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊安全與數位著作・測驗集章</h2><p class="mt-2 text-sm font-medium text-slate-500">完成所有章節測驗，收集 8 枚證書並解鎖「知識大擂台」。</p></div><button type="button" onclick="document.getElementById('knowledge-arena-unlock')?.scrollIntoView({behavior:'smooth',block:'start'})" class="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl">🏆 我的證書・集章牆</button>`;
             }
 
             const summaries = [
