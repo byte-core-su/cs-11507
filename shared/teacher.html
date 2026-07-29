@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>資訊科技學習平台｜教師管理</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+  <script src="site-shell.js" defer></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-800">
+  <main class="min-h-screen p-5 md:p-8">
+    <section id="login-view" class="grid min-h-[calc(100vh-2.5rem)] place-items-center">
+      <form id="login-form" class="w-full max-w-md space-y-5 rounded-3xl bg-white p-8 shadow-xl">
+        <div class="text-center"><p data-term-label class="text-xs font-black tracking-[.2em] text-indigo-600">115-2 · 下學期</p><h1 class="mt-2 text-2xl font-black">資訊科技學習平台</h1><p class="mt-2 text-sm font-bold text-slate-600">教師管理</p><p class="mt-1 text-sm text-slate-500">登入後可管理名冊、學習進度與出席。</p></div>
+        <label class="block text-sm font-bold">教師信箱<input id="teacher-email" type="email" autocomplete="username" value="jimwang@mail.qfm.kh.edu.tw" class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"></label>
+        <label class="block text-sm font-bold">密碼<input id="teacher-password" type="password" autocomplete="current-password" required class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"></label>
+        <p id="login-message" class="text-sm text-slate-500" role="status"></p>
+        <button class="w-full rounded-xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700">登入</button>
+      </form>
+    </section>
+
+    <section id="dashboard-view" class="mx-auto hidden max-w-6xl">
+      <header class="mb-6 flex flex-col gap-3 rounded-2xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div><p data-term-label class="text-xs font-black tracking-[.2em] text-indigo-600">115-2 · 下學期</p><h1 class="mt-1 text-2xl font-black">資訊科技學習平台｜教師管理</h1><p class="mt-1 text-sm text-slate-500">以學生學號為唯一識別；班級、座號由學號自動判讀。</p></div>
+        <button id="logout-button" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold hover:bg-slate-50">登出</button>
+      </header>
+
+      <nav class="mb-6 flex gap-2 rounded-2xl bg-white p-2 shadow-sm" aria-label="教師功能">
+        <button data-tab="progress" class="tab-button flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white">學習進度</button>
+        <button data-tab="roster" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">學生帳號</button>
+      </nav>
+
+      <section id="progress-tab" class="tab-panel">
+        <section class="rounded-2xl bg-white p-6 shadow-sm">
+          <div class="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p class="font-bold text-emerald-600">LEARNING PROGRESS</p><h2 class="text-lg font-black">學生學習進度與出席</h2><p id="progress-note" class="mt-1 text-sm text-slate-500">正在讀取資料…</p></div><div class="flex items-end gap-3"><label class="text-sm font-bold text-slate-600">出席日期<input id="attendance-date" type="date" class="mt-1 block rounded-lg border border-slate-300 px-3 py-2 font-normal text-slate-700"></label><div id="progress-summary" class="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700">—</div></div></div>
+          <div id="progress-class-buttons" class="mb-5 flex flex-wrap gap-2" aria-label="選擇進度班級"></div>
+          <div class="grid gap-4 sm:grid-cols-3"><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">已登入學生</p><p id="student-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">平均完成項目</p><p id="average-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">班級總完成率</p><p id="class-rate" class="mt-1 text-2xl font-black">—</p></article></div>
+          <div class="mt-5 overflow-x-auto"><table class="w-full min-w-[1000px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">出席狀況</th><th class="p-3">學習項目</th><th class="p-3">完成率</th><th class="p-3">證書</th><th class="p-3">思考挑戰</th><th class="p-3">更新時間</th></tr></thead><tbody id="progress-body"></tbody></table></div>
+        </section>
+      </section>
+
+      <section id="roster-tab" class="tab-panel hidden">
+        <section class="mb-6 rounded-2xl bg-white p-6 shadow-sm"><div class="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-lg font-black">匯入學生名冊</h2><p class="mt-1 text-sm text-slate-500">每行一位學生，格式為「學號,姓名」；班級、座號與性別會由學號自動判讀。</p></div><span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">1510101 → 701 班 1 號</span></div><textarea id="roster-import" rows="7" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="1510101,王小明&#10;1520102,陳小華"></textarea><div class="mt-3 flex flex-wrap items-center gap-3"><button id="import-roster" class="rounded-xl bg-indigo-600 px-5 py-2.5 font-bold text-white hover:bg-indigo-700">匯入或更新名冊</button><p id="import-message" class="text-sm text-slate-500"></p></div></section>
+        <section class="rounded-2xl bg-white p-6 shadow-sm"><div class="mb-5"><h2 class="text-lg font-black">學生帳號與驗證碼</h2><p id="roster-note" class="mt-1 text-sm text-slate-500">正在讀取資料…</p><div id="roster-class-buttons" class="mt-4 flex flex-wrap gap-2" aria-label="選擇名冊班級"></div></div><div class="overflow-x-auto"><table class="w-full min-w-[680px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">驗證碼</th><th class="p-3 text-right">管理</th></tr></thead><tbody id="roster-body"></tbody></table></div></section>
+      </section>
+    </section>
+  </main>
+
+  <div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/50 p-4">
+    <section class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"><div class="flex items-start justify-between gap-4"><div><p id="modal-kicker" class="text-xs font-black tracking-[.15em] text-indigo-500"></p><h2 id="modal-title" class="mt-1 text-xl font-black"></h2><p id="modal-meta" class="mt-1 text-sm text-slate-500"></p></div><button id="close-modal" class="rounded-lg px-3 py-1 text-xl text-slate-400 hover:bg-slate-100" aria-label="關閉">×</button></div><div id="modal-content" class="mt-5"></div></section>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+    const config = window.SCHOOL_APP?.firebaseConfig;
+    const term = window.SCHOOL_APP?.currentTermId || '115-2';
+    const termLabel = `${term} · ${term.endsWith('-1') ? '上學期' : '下學期'}`;
+    const teacherEmail = 'jimwang@mail.qfm.kh.edu.tw';
+    const totalTasks = 24;
+    const classes = Array.from({ length: 11 }, (_, i) => `7${String(i + 1).padStart(2, '0')}`);
+    const thinkingChallenges = ['重排積木', '寶箱開鎖', '畢業手鍊', '彙整遊戲卡', '班級出遊', '夜市射氣球', '團隊攀岩', '誰的帽子'];
+    const $ = id => document.getElementById(id);
+    document.title = `${termLabel}｜資訊科技學習平台｜教師管理`;
+    document.querySelectorAll('[data-term-label]').forEach(element => { element.textContent = termLabel; });
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    const formatDate = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.toLocaleString('zh-TW', { hour12: false }) : '—'; };
+    const taipeiDateKey = (date = new Date()) => { const values = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type, part.value])); return `${values.year}-${values.month}-${values.day}`; };
+    const formatAttendanceTime = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '—'; };
+    const deriveFromStudentId = value => { const studentId = String(value || '').trim(); if (!/^15[12]\d{4}$/.test(studentId)) return null; const suffix = studentId.slice(-4); const classRoom = `7${suffix.slice(0, 2)}`; if (!classes.includes(classRoom)) return null; return { studentId, classRoom, seatNo: String(Number(suffix.slice(2))), gender: studentId[2] === '1' ? '男' : '女' }; };
+    const studentEmail = studentId => `${studentId}@${window.SCHOOL_APP.studentEmailDomain}`;
+    let app, auth, db, unsubscribeRoster, unsubscribeProgress, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
+    let activeProgressClass = classes[0], activeRosterClass = classes[0], selectedAttendanceDate = taipeiDateKey();
+
+    function setLoginMessage(text, error = false) { $('login-message').textContent = text; $('login-message').className = `mt-4 text-sm ${error ? 'text-rose-600' : 'text-slate-500'}`; }
+    function completedTasks(row) { return Object.values(row.data.terms?.[term]?.tasks || {}).filter(Boolean).length; }
+    function certificates(row) { const source = row.data.terms?.[term]?.certificates || row.data.certificates || []; return Array.isArray(source) ? source : Object.values(source || {}); }
+    function completedChallenges(row) { const source = row.data.teacherProgress?.[term]?.completedChallenges || []; return Array.isArray(source) ? source : Object.keys(source || {}).filter(key => source[key]); }
+    function openModal(kicker, title, meta, content) { $('modal-kicker').textContent = kicker; $('modal-title').textContent = title; $('modal-meta').textContent = meta; $('modal-content').innerHTML = content; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); }
+    function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; }
+    function refreshAll() { renderRoster(); renderProgress(); }
+
+    function renderRoster() {
+      const classRoom = activeRosterClass;
+      const rows = rosterRows.filter(row => row.classRoom === classRoom).sort((a, b) => Number(a.seatNo) - Number(b.seatNo));
+      $('roster-note').textContent = `${classRoom} 班共 ${rows.length} 位學生`;
+      $('roster-body').innerHTML = rows.length ? rows.map(row => `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.name || '—')}</td><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${/^\d{6}$/.test(row.verificationCode || '') ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${/^\d{6}$/.test(row.verificationCode || '') ? '已設定' : '未設定'}</span></td><td class="p-3 text-right"><button data-code="${escapeHtml(row.studentId)}" class="code-button rounded-lg px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50">驗證碼</button><button data-delete="${escapeHtml(row.studentId)}" class="delete-button rounded-lg px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50">刪除</button></td></tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
+      document.querySelectorAll('.code-button').forEach(button => button.addEventListener('click', () => manageCode(button.dataset.code)));
+      document.querySelectorAll('.delete-button').forEach(button => button.addEventListener('click', () => deleteRoster(button.dataset.delete)));
+    }
+
+    function mergedProgress() {
+      const usersByStudentId = new Map();
+      progressRows.forEach(row => {
+        const profile = row.data.profile || {};
+        const studentId = profile.studentId || row.data.studentId || '';
+        if (studentId) usersByStudentId.set(studentId, row);
+      });
+      return rosterRows.map(roster => {
+        const user = usersByStudentId.get(roster.studentId);
+        const data = user?.data || { terms: {}, teacherProgress: {} };
+        const profile = { ...deriveFromStudentId(roster.studentId), ...(data.profile || {}), ...roster, studentId: roster.studentId };
+        return { id: user?.id || '', data, profile, hasStarted: Object.prototype.hasOwnProperty.call(data.terms || {}, term) };
+      });
+    }
+    function renderProgress() {
+      const classRoom = activeProgressClass;
+      const rows = mergedProgress().filter(row => row.profile.classRoom === classRoom).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
+      const completeTotal = rows.reduce((sum, row) => sum + completedTasks(row), 0);
+      const startedCount = rows.filter(row => row.hasStarted).length;
+      const presentCount = rows.filter(row => row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt).length;
+      $('student-count').textContent = rows.length;
+      $('average-count').textContent = rows.length ? `${(completeTotal / rows.length).toFixed(1)} / ${totalTasks}` : `0 / ${totalTasks}`;
+      $('class-rate').textContent = rows.length ? `${Math.round(completeTotal / (rows.length * totalTasks) * 100)}%` : '—';
+      $('progress-note').textContent = `${classRoom} 班名冊共 ${rows.length} 位；本學期已開始 ${startedCount} 位；${selectedAttendanceDate} 出席 ${presentCount} 位`;
+      $('progress-summary').textContent = rows.length ? `出席率 ${Math.round(presentCount / rows.length * 100)}%` : '此班尚未建立名冊';
+      $('progress-body').innerHTML = rows.length ? rows.map(row => { const completed = completedTasks(row); const certs = certificates(row); const challenges = completedChallenges(row); const attendance = row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt; const attendanceCell = attendance ? `<span class="font-bold text-emerald-700">已登入 ${formatAttendanceTime(attendance)}</span>` : '<span class="font-bold text-rose-600">未登入</span>'; const status = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>'; const rate = row.hasStarted ? `${Math.round(completed / totalTasks * 100)}%` : '—'; const certificateCell = row.hasStarted && certs.length ? `<button data-cert="${escapeHtml(row.profile.studentId)}" class="cert-button rounded-lg bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">${certs.length} 張</button>` : '<span class="text-slate-400">—</span>'; const thinkingCell = row.hasStarted ? `<span class="font-bold text-emerald-700">${challenges.length} / ${thinkingChallenges.length}</span><button data-thinking="${escapeHtml(row.profile.studentId)}" class="thinking-button ml-2 rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">核定</button>` : '<span class="text-slate-400">—</span>'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}</td><td class="p-3">${attendanceCell}</td><td class="p-3">${status}</td><td class="p-3 font-bold text-emerald-700">${rate}</td><td class="p-3">${certificateCell}</td><td class="p-3">${thinkingCell}</td><td class="p-3 text-xs text-slate-500">${row.hasStarted ? escapeHtml(formatDate(row.data.updatedAt || row.data.terms?.[term]?.updatedAt)) : '—'}</td></tr>`; }).join('') : '<tr><td colspan="9" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
+      document.querySelectorAll('.thinking-button').forEach(button => button.addEventListener('click', () => manageThinking(button.dataset.thinking)));
+      document.querySelectorAll('.cert-button').forEach(button => button.addEventListener('click', () => showCertificates(button.dataset.cert)));
+    }
+
+    async function syncStudentAccountCode(studentId, previousCode, nextCode) {
+      const secondary = firebase.initializeApp(config, `code-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      const secondaryAuth = secondary.auth();
+      try {
+        let signInError;
+        if (/^\d{6}$/.test(previousCode || '')) { try { await secondaryAuth.signInWithEmailAndPassword(studentEmail(studentId), previousCode); await secondaryAuth.currentUser.updatePassword(nextCode); return; } catch (error) { signInError = error; } }
+        try { await secondaryAuth.createUserWithEmailAndPassword(studentEmail(studentId), nextCode); } catch (error) { if (error.code === 'auth/email-already-in-use' && signInError) throw signInError; throw error; }
+      } finally { await secondary.delete(); }
+    }
+    function manageCode(studentId) {
+      const student = rosterRows.find(row => row.studentId === studentId); if (!student) return;
+      verificationStudentId = studentId;
+      openModal('學生帳號', '設定登入驗證碼', `${student.name || '未命名'} · ${student.classRoom} 班 ${student.seatNo} 號 · ${student.studentId}`, `<label class="block text-sm font-bold">六位數驗證碼<input id="code-input" inputmode="numeric" maxlength="6" type="password" value="${/^\d{6}$/.test(student.verificationCode || '') ? escapeHtml(student.verificationCode) : ''}" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3"></label><label class="mt-3 flex items-center gap-2 text-sm"><input id="show-code" type="checkbox">顯示驗證碼</label><p id="code-message" class="mt-3 text-sm text-slate-500">首次設定會建立學生登入帳號；變更時會同步更新帳號密碼。</p><button id="save-code" class="mt-5 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white">儲存驗證碼</button>`);
+      $('show-code').addEventListener('change', event => { $('code-input').type = event.target.checked ? 'text' : 'password'; }); $('save-code').addEventListener('click', saveCode);
+    }
+    async function saveCode() {
+      const code = $('code-input').value.trim(); const student = rosterRows.find(row => row.studentId === verificationStudentId); if (!student || !/^\d{6}$/.test(code)) { $('code-message').textContent = '請輸入六位數字驗證碼。'; return; }
+      $('save-code').disabled = true; $('code-message').textContent = '正在同步學生帳號…';
+      try { await syncStudentAccountCode(student.studentId, student.verificationCode || '', code); await db.collection('rosters').doc(student.studentId).update({ verificationCode: code, verificationCodeUpdatedAt: firebase.firestore.FieldValue.serverTimestamp() }); $('code-message').textContent = '已同步學生帳號與名冊驗證碼。'; }
+      catch (error) { console.error(error); $('code-message').textContent = '儲存失敗。若帳號已存在，請確認名冊中的舊驗證碼正確。'; }
+      finally { $('save-code').disabled = false; }
+    }
+    async function deleteRoster(studentId) { const row = rosterRows.find(item => item.studentId === studentId); if (!row || !confirm(`確定刪除 ${row.name || studentId} 的名冊資料？學生的學習進度不會被刪除。`)) return; try { await db.collection('rosters').doc(studentId).delete(); } catch (error) { alert('刪除失敗，請確認教師權限。'); } }
+    function manageThinking(studentId) { const row = mergedProgress().find(item => item.profile.studentId === studentId); if (!row) return; thinkingStudent = row; const passed = new Set(completedChallenges(row)); openModal('教師核定', '思考挑戰通關', `${row.profile.name || '未命名'} · ${row.profile.studentId}`, `<p class="text-sm leading-6 text-slate-500">勾選後會寫入教師核定紀錄，學生無法自行修改。</p><div class="mt-4 space-y-2">${thinkingChallenges.map((challenge, index) => `<label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-bold"><input class="challenge-input h-4 w-4" type="checkbox" value="challenge-${index + 1}" ${passed.has(`challenge-${index + 1}`) ? 'checked' : ''}>${challenge}</label>`).join('')}</div><p id="thinking-message" class="mt-3 text-sm text-slate-500"></p><button id="save-thinking" class="mt-5 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">儲存核定結果</button>`); $('save-thinking').addEventListener('click', saveThinking); }
+    async function saveThinking() { if (!thinkingStudent) return; const completedChallenges = [...document.querySelectorAll('.challenge-input:checked')].map(input => input.value); $('save-thinking').disabled = true; try { await db.collection('users').doc(thinkingStudent.id).update({ teacherProgress: { [term]: { completedChallenges, updatedAt: new Date().toISOString() } }, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); $('thinking-message').textContent = '已儲存教師核定結果。'; } catch (error) { console.error(error); $('thinking-message').textContent = '儲存失敗，請確認學生已建立入口網資料。'; } finally { $('save-thinking').disabled = false; } }
+    function showCertificates(studentId) { const row = mergedProgress().find(item => item.profile.studentId === studentId); if (!row) return; const list = certificates(row); openModal('學習證書', `${row.profile.name || '學生'}的證書`, row.profile.studentId, list.length ? `<ul class="space-y-2">${list.map((item, index) => `<li class="rounded-xl bg-indigo-50 p-3 text-sm"><b>${escapeHtml(item?.title || item?.name || `證書 ${index + 1}`)}</b>${item?.issuedAt ? `<span class="ml-2 text-slate-500">${escapeHtml(formatDate(item.issuedAt))}</span>` : ''}</li>`).join('')}</ul>` : '<p class="text-sm text-slate-500">尚無證書資料。</p>'); }
+    async function importRoster() { const lines = $('roster-import').value.split(/\r?\n/).map(line => line.trim()).filter(Boolean); const parsed = []; const invalid = []; lines.forEach((line, index) => { const [id, ...nameParts] = line.split(/[,，]/); const derived = deriveFromStudentId(id); const name = nameParts.join(',').trim(); if (!derived || !name) invalid.push(index + 1); else parsed.push({ ...derived, name }); }); if (!parsed.length) { $('import-message').textContent = '請輸入至少一筆正確的「學號,姓名」資料。'; return; } if (invalid.length && !confirm(`第 ${invalid.join('、')} 行格式不正確，將略過。是否繼續匯入其餘 ${parsed.length} 位學生？`)) return; $('import-message').textContent = '正在寫入名冊…'; try { const batch = db.batch(); parsed.forEach(row => batch.set(db.collection('rosters').doc(row.studentId), { ...row, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })); await batch.commit(); $('import-message').textContent = `已匯入或更新 ${parsed.length} 位學生。`; $('roster-import').value = ''; } catch (error) { console.error(error); $('import-message').textContent = '匯入失敗，請確認教師權限與網路。'; } }
+    function subscribeData() { unsubscribeRoster?.(); unsubscribeProgress?.(); unsubscribeRoster = db.collection('rosters').onSnapshot(snapshot => { rosterRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); refreshAll(); }, () => { $('roster-note').textContent = '無法讀取名冊，請確認 Firestore Rules。'; }); unsubscribeProgress = db.collection('users').onSnapshot(snapshot => { progressRows = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })); refreshAll(); }, () => { $('progress-note').textContent = '無法讀取學習進度，請確認 Firestore Rules。'; }); }
+    function showDashboard() { if (!$('dashboard-view').classList.contains('hidden')) return; $('login-view').classList.add('hidden'); $('dashboard-view').classList.remove('hidden'); subscribeData(); }
+    function classButtons(containerId, type) { const active = type === 'progress' ? activeProgressClass : activeRosterClass; $(containerId).innerHTML = classes.map(value => `<button data-class="${value}" class="class-button rounded-lg px-3 py-2 text-sm font-bold ${value === active ? (type === 'progress' ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white') : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${value}</button>`).join(''); $(containerId).querySelectorAll('.class-button').forEach(button => button.addEventListener('click', () => { if (type === 'progress') activeProgressClass = button.dataset.class; else activeRosterClass = button.dataset.class; populateClasses(); refreshAll(); })); }
+    function populateClasses() { classButtons('progress-class-buttons', 'progress'); classButtons('roster-class-buttons', 'roster'); }
+    $('close-modal').addEventListener('click', closeModal); $('modal').addEventListener('click', event => { if (event.target === $('modal')) closeModal(); });
+    document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'progress' ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white') : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); }));
+    $('import-roster').addEventListener('click', importRoster);
+    $('attendance-date').value = selectedAttendanceDate;
+    $('attendance-date').addEventListener('change', event => { selectedAttendanceDate = event.target.value || taipeiDateKey(); renderProgress(); });
+    $('logout-button').addEventListener('click', async () => { unsubscribeRoster?.(); unsubscribeProgress?.(); await auth.signOut(); location.reload(); });
+    $('login-form').addEventListener('submit', async event => { event.preventDefault(); if (!auth) return; const email = $('teacher-email').value.trim(); try { setLoginMessage('正在登入…'); const credential = await auth.signInWithEmailAndPassword(email, $('teacher-password').value); if (credential.user.email !== teacherEmail) { await auth.signOut(); throw new Error('not-teacher'); } showDashboard(); } catch (error) { console.error(error); setLoginMessage('登入失敗，請確認教師帳號、密碼與 Firestore Rules。', true); } });
+    if (!config || !window.firebase) { setLoginMessage('Firebase 設定尚未完成，無法使用教師端。', true); return; }
+    app = firebase.initializeApp(config); auth = firebase.auth(); db = firebase.firestore(); auth.setPersistence(firebase.auth.Auth.Persistence.SESSION); populateClasses(); auth.onAuthStateChanged(user => { if (user?.email === teacherEmail && $('dashboard-view').classList.contains('hidden')) showDashboard(); });
+  })();
+  </script>
+</body>
+</html>
