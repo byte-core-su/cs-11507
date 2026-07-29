@@ -13,6 +13,7 @@
 - `rosters/{studentId}`：共用名冊。
 - `users/{uid}.profile`：共用學生身分。
 - `users/{uid}.terms.{termId}`：該學期任務、證書與成績。
+- `users/{uid}.terms.{termId}.attendance.{YYYY-MM-DD}`：學生當日登入時間；教師可依日期查詢出席。
 - `users/{uid}.teacherProgress.{termId}`：該學期教師核定資料。
 
 部署前請將根目錄的 `firestore.rules` 發佈至 Firebase，並以本目錄作為網站部署根目錄。

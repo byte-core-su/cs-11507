@@ -52,9 +52,9 @@
 
     <section id="progress-panel">
     <section class="rounded-2xl bg-white p-6 shadow-sm">
-      <div class="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p class="font-bold text-emerald-600">LEARNING PROGRESS</p><h2 class="text-lg font-black">學生學習進度</h2><p id="progress-count" class="mt-1 text-sm text-slate-500">載入中…</p></div><div id="progress-summary" class="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700"></div></div>
+      <div class="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p class="font-bold text-emerald-600">LEARNING PROGRESS</p><h2 class="text-lg font-black">學生學習進度與出席</h2><p id="progress-count" class="mt-1 text-sm text-slate-500">載入中…</p></div><div class="flex items-end gap-3"><label class="text-sm font-bold text-slate-600">出席日期<input id="attendance-date" type="date" class="mt-1 block rounded-lg border border-slate-300 px-3 py-2 font-normal text-slate-700"></label><div id="progress-summary" class="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700"></div></div></div>
       <div id="progress-class-buttons" class="mb-5 flex flex-wrap gap-2" aria-label="快速切換班級"></div>
-      <div class="overflow-x-auto"><table class="w-full min-w-[900px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">完成任務</th><th class="p-3">完成率</th><th class="p-3">證書紀錄</th><th class="p-3">運算思維</th><th class="p-3">最後更新</th></tr></thead><tbody id="progress-body"></tbody></table></div>
+      <div class="overflow-x-auto"><table class="w-full min-w-[1000px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">出席狀況</th><th class="p-3">完成任務</th><th class="p-3">完成率</th><th class="p-3">證書紀錄</th><th class="p-3">運算思維</th><th class="p-3">最後更新</th></tr></thead><tbody id="progress-body"></tbody></table></div>
       <section id="thinking-manager" class="hidden mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
         <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-black tracking-wider text-emerald-600">COMPUTATIONAL THINKING REVIEW</p><h3 id="thinking-student-name" class="mt-1 text-lg font-black text-slate-800"></h3><p id="thinking-student-meta" class="mt-1 text-sm text-slate-500"></p></div><button id="close-thinking-manager" class="rounded-lg px-2 py-1 text-lg font-bold text-slate-400 hover:bg-white hover:text-slate-700" aria-label="關閉通關核定">×</button></div>
         <p class="mt-3 text-sm font-medium text-emerald-800">請依學生實際完成情況核定；勾選後儲存，學生端會即時更新。</p>
@@ -96,6 +96,7 @@
     let thinkingProgressStudentId = '';
     let thinkingProgressDocumentId = '';
     let certificateStudentId = '';
+    let selectedAttendanceDate = taipeiDateKey();
     let classroomCourses = [];
     let classroomAssignments = [];
     let classroomSubmissions = [];
@@ -369,6 +370,14 @@
       const milliseconds = asMillis(value);
       return milliseconds ? new Date(milliseconds).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '尚未更新';
     }
+    function formatAttendanceTime(value) {
+      const milliseconds = asMillis(value);
+      return milliseconds ? new Date(milliseconds).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '—';
+    }
+    function taipeiDateKey(date = new Date()) {
+      const values = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+      return `${values.year}-${values.month}-${values.day}`;
+    }
     function renderAccountClassButtons() {
       const container = document.getElementById('account-class-buttons');
       container.innerHTML = classes.map((classRoom) => `<button data-class="${classRoom}" class="account-class rounded-xl px-4 py-2 text-sm font-bold ${classRoom === activeAccountClass ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-indigo-50'}">${classRoom}</button>`).join('');
@@ -406,10 +415,12 @@
         || ordered[ordered.length - 1];
       const tasks = {};
       const certificates = {};
+      const attendance = {};
       const completedChallenges = {};
       ordered.forEach((record) => {
         const termData = record.terms?.[currentTermId] || {};
         Object.assign(tasks, termData.tasks || {});
+        Object.assign(attendance, termData.attendance || {});
         Object.values(termData.certificates || {}).forEach((certificate) => {
           if (!certificate) return;
           const key = `infolife-${certificate.chapterKey || ''}`;
@@ -422,7 +433,7 @@
       return {
         ...canonical,
         profile: ordered[ordered.length - 1].profile,
-        terms: { [currentTermId]: { tasks, certificates } },
+        terms: { [currentTermId]: { tasks, certificates, attendance } },
         teacherProgress: { [currentTermId]: { completedChallenges } },
         updatedAt: ordered[ordered.length - 1].updatedAt
       };
@@ -535,8 +546,9 @@
         const completedTotal = rows.reduce((sum, row) => sum + Object.values(row.terms?.[currentTermId]?.tasks || {}).filter(Boolean).length, 0);
         const startedCount = rows.filter(row => row.hasStarted).length;
         const possibleTotal = rows.length * totalTasks;
-        document.getElementById('progress-count').textContent = `${classRoom} 班名冊共 ${rows.length} 位；本學期已開始 ${startedCount} 位`;
-        document.getElementById('progress-summary').textContent = rows.length ? `班級總完成率 ${Math.round((completedTotal / possibleTotal) * 100)}%` : '此班尚未建立名冊';
+        const presentCount = rows.filter(row => row.terms?.[currentTermId]?.attendance?.[selectedAttendanceDate]?.loginAt).length;
+        document.getElementById('progress-count').textContent = `${classRoom} 班名冊共 ${rows.length} 位；本學期已開始 ${startedCount} 位；${selectedAttendanceDate} 出席 ${presentCount} 位`;
+        document.getElementById('progress-summary').textContent = rows.length ? `出席率 ${Math.round((presentCount / rows.length) * 100)}%` : '此班尚未建立名冊';
         document.getElementById('progress-body').innerHTML = rows.length ? rows.map((row) => {
           const completed = Object.values(row.terms?.[currentTermId]?.tasks || {}).filter(Boolean).length;
           const percentage = Math.round((completed / totalTasks) * 100);
@@ -546,10 +558,12 @@
             : '<span class="text-slate-400">—</span>';
           const thinkingPassed = getThinkingPassedIds(row);
           const thinkingSummary = row.hasStarted ? `<span class="font-bold text-emerald-700">${thinkingPassed.length} / ${thinkingChallenges.length}</span><button data-id="${escapeHtml(row.profile.studentId)}" class="manage-thinking mt-1 block rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">核定通關</button>` : '<span class="text-slate-400">—</span>';
+          const attendance = row.terms?.[currentTermId]?.attendance?.[selectedAttendanceDate]?.loginAt;
+          const attendanceSummary = attendance ? `<span class="font-bold text-emerald-700">已登入 ${formatAttendanceTime(attendance)}</span>` : '<span class="font-bold text-rose-600">未登入</span>';
           const taskSummary = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>';
           const rateSummary = row.hasStarted ? `<span class="font-bold text-emerald-700">${percentage}%</span>` : '<span class="text-slate-400">—</span>';
-          return `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name)}</td><td class="p-3">${taskSummary}</td><td class="p-3">${rateSummary}</td><td class="p-3">${certificateSummary}</td><td class="p-3">${thinkingSummary}</td><td class="p-3 text-slate-500">${row.hasStarted ? formatUpdatedAt(row.updatedAt) : '—'}</td></tr>`;
-        }).join('') : '<tr><td colspan="8" class="p-8 text-center text-slate-400">尚無學生從入口網登入。</td></tr>';
+          return `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name)}</td><td class="p-3">${attendanceSummary}</td><td class="p-3">${taskSummary}</td><td class="p-3">${rateSummary}</td><td class="p-3">${certificateSummary}</td><td class="p-3">${thinkingSummary}</td><td class="p-3 text-slate-500">${row.hasStarted ? formatUpdatedAt(row.updatedAt) : '—'}</td></tr>`;
+        }).join('') : '<tr><td colspan="9" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
         document.querySelectorAll('.manage-thinking').forEach((button) => button.addEventListener('click', () => openThinkingManager(button.dataset.id)));
         document.querySelectorAll('.show-certificates').forEach((button) => button.addEventListener('click', () => openCertificateManager(button.dataset.id)));
     }
@@ -561,6 +575,8 @@
     });
     document.getElementById('close-thinking-manager').addEventListener('click', closeThinkingManager);
     document.getElementById('save-thinking-progress').addEventListener('click', saveThinkingProgress);
+    document.getElementById('attendance-date').value = selectedAttendanceDate;
+    document.getElementById('attendance-date').addEventListener('change', (event) => { selectedAttendanceDate = event.target.value || taipeiDateKey(); renderProgress(); });
     document.getElementById('close-certificate-manager').addEventListener('click', closeCertificateManager);
     document.getElementById('classroom-authorize').addEventListener('click', () => {
       const endpoint = getClassroomEndpoint();
