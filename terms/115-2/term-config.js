@@ -7,9 +7,9 @@ window.TERM_PORTAL_CONFIG = Object.freeze({
     ['演算法與流程圖', '演算法與流程圖實作。', 'project.html', '🗺️', 'linear-gradient(135deg,#10b981,#059669)'],
     ['5016B 專題實作', 'Arduino 與智慧控制專題。', '5016b.html', '🤖', 'linear-gradient(135deg,#f97316,#ef4444)'],
     ['知識大擂台', '挑戰資訊科技知識。', 'quiz.html', '🏆', 'linear-gradient(135deg,#f43f5e,#db2777)'],
-    ['課間遊戲', '短暫休息，輕鬆挑戰。', 'line.html', '🎮', 'linear-gradient(135deg,#4f46e5,#7c3aed)'],
     ['小小李斯特', '音樂創作延伸。', 'music.html', '🎵', 'linear-gradient(135deg,#0891b2,#06b6d4)']
   ],
+  easterEgg: ['line.html', '課間小遊戲：一筆畫解謎', '✏️'],
   taskGroups: [
     ['任務一', [['1-2','資訊生活：1-1 資訊科技與人類生活'],['1-1','Scratch 程式設計：2-2-3 動畫實作'],['1-3','運算思維：(1) 重排積木']]],
     ['任務二', [['2-2','資訊生活：1-2 資訊科技及其相關議題'],['2-1','Scratch 程式設計：2-3-1 循序結構'],['2-3','運算思維：(2) 寶箱開鎖']]],
