@@ -712,6 +712,39 @@
         }
         let wrongCount = 0; // 新增：記錄累積答錯次數
 
+        function taipeiDateKey() {
+            const values = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts().filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+            return `${values.year}-${values.month}-${values.day}`;
+        }
+
+        // The shared portal signs the student in. This bridge waits for that
+        // persisted Firebase session instead of treating the restore delay as
+        // a logout, then records direct course visits for teacher attendance.
+        function connectSharedStudentSession() {
+            if (!window.SCHOOL_APP?.isFirebaseConfigured() || !window.firebase) return;
+            const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(window.SCHOOL_APP.firebaseConfig);
+            firebase.auth(app).onAuthStateChanged(async user => {
+                if (!user) return;
+                const profile = window.LearnerProfile?.readLocalProfile();
+                const studentId = profile?.studentId || '';
+                if (!window.LearnerProfile?.isValidStudentId(studentId)) return;
+                try {
+                    await firebase.firestore(app).collection('users').doc(user.uid).set({
+                        studentId,
+                        profile,
+                        terms: {
+                            [window.SCHOOL_APP.currentTermId]: {
+                                startedAt: new Date(),
+                                attendance: { [taipeiDateKey()]: { loginAt: new Date() } },
+                                updatedAt: new Date()
+                            }
+                        }
+                    }, { merge: true });
+                } catch (error) { console.warn('Unable to sync course attendance:', error); }
+                refreshKnowledgeArenaUnlock();
+            });
+        }
+
         async function refreshKnowledgeArenaUnlock() {
             const screen = document.getElementById('chapter-screen');
             if (!screen) return;
@@ -750,7 +783,7 @@
             }
         }
 
-        window.onload = () => { goToChapters(); };
+        window.onload = () => { connectSharedStudentSession(); goToChapters(); };
 
         function markCollectibleChapters() {
             document.querySelectorAll('#chapter-screen button[onclick^="showStudyNotes"]').forEach((button) => {
