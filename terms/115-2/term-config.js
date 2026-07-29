@@ -7,6 +7,7 @@ window.TERM_PORTAL_CONFIG = Object.freeze({
     ['演算法與流程圖', '演算法與流程圖實作。', 'project.html', '🗺️', 'linear-gradient(135deg,#10b981,#059669)'],
     ['5016B 專題實作', 'Arduino 與智慧控制專題，另含音樂創作補充單元。', '5016b.html', '🤖', 'linear-gradient(135deg,#f97316,#ef4444)']
   ],
+  courseGridColumns: 3,
   easterEgg: ['line.html', '課間小遊戲：一筆畫解謎', '✏️'],
   taskGroups: [
     ['任務一', [['1-2','資訊安全與數位著作：4-1 個人資料的定義'],['1-1','Scratch 程式設計：分身與互動設計'],['1-3','運算思維：(1) 點心時間']]],
