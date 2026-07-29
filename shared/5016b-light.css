@@ -1,0 +1,102 @@
+/* Shared light presentation for the 5016B project courses. */
+body {
+  background: #f8fafc !important;
+  color: #334155;
+}
+
+#about {
+  background: linear-gradient(135deg, #eff6ff 0%, #ecfeff 52%, #f0fdf4 100%) !important;
+  color: #0f172a !important;
+}
+
+#about h1,
+#about h2,
+#about h3 {
+  color: #0f172a !important;
+}
+
+#about p {
+  color: #475569 !important;
+}
+
+#about [class*="bg-slate-800"],
+#about [class*="bg-slate-900"],
+#about [class*="bg-slate-700"] {
+  background-color: rgba(255, 255, 255, .88) !important;
+  border-color: #cbd5e1 !important;
+}
+
+#about [class*="text-white"] {
+  color: #0f172a !important;
+}
+
+#about .bg-primary.text-white,
+#about [class*="bg-primary"] .text-white {
+  color: #fff !important;
+}
+
+#detail-view {
+  background: #f8fafc !important;
+  color: #334155 !important;
+}
+
+#detail-view > div > button {
+  color: #475569 !important;
+}
+
+#detail-view [class*="bg-slate-900"],
+#detail-view [class*="bg-slate-800"],
+#detail-view [class*="bg-slate-700"] {
+  background-color: #fff !important;
+  border-color: #dbeafe !important;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .06);
+}
+
+#detail-view [class*="bg-slate-"][class*="text-white"] {
+  color: #0f172a !important;
+}
+
+#detail-view h2,
+#detail-view h3,
+#detail-view h4 {
+  color: #0f172a !important;
+}
+
+#detail-view p,
+#detail-view [class*="text-slate-300"],
+#detail-view [class*="text-slate-400"] {
+  color: #475569 !important;
+}
+
+#detail-demo-container {
+  background: linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%) !important;
+}
+
+#detail-demo-container pre,
+#detail-demo-container textarea {
+  background: #0f172a !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+footer {
+  background: #eff6ff !important;
+  color: #64748b !important;
+  border-color: #dbeafe !important;
+}
+
+footer [class*="text-slate-"] {
+  color: #64748b !important;
+}
+
+pre::-webkit-scrollbar-track,
+textarea::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+pre::-webkit-scrollbar-thumb,
+textarea::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+}
