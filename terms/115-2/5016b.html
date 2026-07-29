@@ -302,7 +302,10 @@
                     <!-- 裝飾 Icon -->
                     <i id="detail-bg-icon" class="absolute -right-10 -top-10 w-48 h-48 text-slate-700/30"></i>
                     
-                    <div class="relative z-10">
+                    <button id="music-supplement-button" type="button" onclick="openMusicSupplement()" class="hidden absolute right-6 top-6 z-20 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-indigo-200 bg-white/90 text-indigo-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-indigo-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400" title="開啟小小李斯特音樂創作" aria-label="開啟小小李斯特音樂創作">
+                        <i data-lucide="music-4" class="h-5 w-5"></i>
+                    </button>
+                    <div class="relative z-10 pr-14">
                         <div class="flex items-center gap-3 mb-4">
                             <span id="detail-badge" class="text-sm font-bold bg-slate-700 text-white px-3 py-1 rounded-full border border-slate-600">單元 X</span>
                         </div>
@@ -344,6 +347,24 @@
             </div>
         </div>
     </section>
+
+    <!-- 第四節課補充教材：小小李斯特浮動視窗 -->
+    <div id="music-supplement-modal" class="hidden fixed inset-0 z-[80] overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="music-supplement-title">
+        <div class="mx-auto flex min-h-full max-w-6xl items-center">
+            <section class="my-6 w-full overflow-hidden rounded-3xl border border-indigo-200 bg-white shadow-2xl">
+                <header class="flex items-center justify-between gap-4 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-sky-50 px-5 py-4 sm:px-7 sm:py-5">
+                    <div>
+                        <p class="text-xs font-black tracking-[.18em] text-indigo-600">第四節課・補充單元</p>
+                        <h2 id="music-supplement-title" class="mt-1 text-xl font-black text-slate-800 sm:text-2xl">🎹 小小李斯特・音樂創作</h2>
+                    </div>
+                    <button type="button" onclick="closeMusicSupplement()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-indigo-200 bg-white text-slate-500 transition hover:bg-indigo-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400" aria-label="關閉小小李斯特教材" title="關閉">
+                        <i data-lucide="x" class="h-5 w-5"></i>
+                    </button>
+                </header>
+                <iframe id="music-supplement-frame" data-src="music.html" title="小小李斯特音樂創作補充教材" class="h-[78vh] min-h-[560px] w-full border-0 bg-slate-100"></iframe>
+            </section>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="bg-slate-950 text-slate-500 py-12 text-center border-t border-slate-800">
@@ -1093,16 +1114,6 @@
                         </div>
                     </div>
 
-                    <div class="border-t border-slate-800 pt-10">
-                        <div class="mb-5 flex flex-wrap items-center gap-3">
-                            <span class="rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold tracking-wider text-white">補充單元</span>
-                            <h3 class="flex items-center gap-2 text-xl font-bold text-white"><i data-lucide="music-4" class="h-6 w-6 text-indigo-400"></i> 🎹 小小李斯特・音樂創作</h3>
-                        </div>
-                        <p class="mb-5 text-sm leading-6 text-slate-400">把本節學到的無源蜂鳴器頻率控制延伸到旋律創作：閱讀數字簡譜、選擇曲目，並用琴鍵探索每個音符的頻率。</p>
-                        <div class="overflow-hidden rounded-2xl border border-indigo-200 bg-white shadow-xl">
-                            <iframe src="music.html" title="小小李斯特音樂創作補充教材" class="h-[1120px] w-full border-0 bg-slate-100" loading="lazy"></iframe>
-                        </div>
-                    </div>
                 `
             },
             5: {
@@ -1489,6 +1500,7 @@
             document.getElementById('detail-badge').textContent = data.badge;
             document.getElementById('detail-title').textContent = data.title;
             document.getElementById('detail-desc').textContent = data.desc;
+            document.getElementById('music-supplement-button').classList.toggle('hidden', unitId !== 4);
 
             document.getElementById('detail-header-bg').className = `bg-gradient-to-r ${data.headerClass} p-8 border-b border-slate-200 relative overflow-hidden`;
             document.getElementById('detail-badge').className = `text-sm font-bold text-white px-3 py-1 rounded-full shadow-sm ${data.colorBg}`;
@@ -1542,6 +1554,7 @@
         }
 
         function closeCourseDetail() {
+            closeMusicSupplement();
             document.getElementById('detail-view').classList.add('hidden');
             document.getElementById('about').classList.remove('hidden');
             document.getElementById('curriculum').classList.remove('hidden');
@@ -1549,6 +1562,20 @@
             document.getElementById('detail-demo-container').innerHTML = '';
             
             scrollToCurriculum();
+        }
+
+        function openMusicSupplement() {
+            const modal = document.getElementById('music-supplement-modal');
+            const frame = document.getElementById('music-supplement-frame');
+            if (!frame.getAttribute('src')) frame.src = frame.dataset.src;
+            modal.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+            lucide.createIcons();
+        }
+
+        function closeMusicSupplement() {
+            document.getElementById('music-supplement-modal').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
         }
 
 
