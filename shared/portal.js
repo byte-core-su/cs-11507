@@ -14,7 +14,7 @@ const taipeiDay = () => {
 const courseList = config.courses.map(([title,description,href,icon,background]) => ({title,description,href,icon,background}));
 const groups = config.taskGroups.map(([title,tasks]) => ({title,tasks:tasks.map(([id,label])=>({id,label}))}));
 const total = groups.flatMap(group=>group.tasks).length;
-let auth, db, user, profile, tasks = {}, stop = () => {};
+let auth, db, user, profile, tasks = {}, stop = () => {}, isFinishingInitialSetup = false;
 
 function shell(content) { root.innerHTML = `<style>
   #portal-root{min-height:100vh;background:#f8fafc;color:#1e293b;font-family:system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif} .portal-wrap{max-width:1120px;margin:auto;padding:40px 16px 72px}.portal-card{border:1px solid #e2e8f0;border-radius:24px;background:#fff;box-shadow:0 10px 24px #0f172a0d}.portal-button{border:0;border-radius:14px;background:#4f46e5;padding:13px 18px;color:#fff;font:inherit;font-weight:800;cursor:pointer}.portal-button:hover{background:#4338ca}.portal-input{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:14px;padding:13px;font:inherit}.portal-input:focus{outline:3px solid #c7d2fe;border-color:#4f46e5}.portal-term{font-size:12px;font-weight:900;letter-spacing:.16em;color:#c7d2fe}.course-grid,.task-grid{display:grid;gap:18px}.course-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.task-grid{grid-template-columns:repeat(auto-fit,minmax(245px,1fr))}.course-card{min-height:240px;border-radius:28px;padding:24px;color:#fff;text-decoration:none;box-shadow:0 12px 24px #0f172a26;transition:.2s}.course-card:hover{transform:translateY(-5px)}.task-card{padding:20px}.task-item{display:flex;gap:10px;padding:9px 0;font-size:14px;line-height:1.45}.task-item input{margin-top:3px;accent-color:#4f46e5}.muted{color:#64748b}.error{color:#be123c}.progress{height:10px;overflow:hidden;border-radius:999px;background:#ffffff33}.progress>span{display:block;height:100%;border-radius:inherit;background:#67e8f9}@media(max-width:640px){.portal-wrap{padding-top:28px}}
@@ -57,16 +57,26 @@ async function completeInitialSetup(id, code, confirmation) {
   if (!roster.exists()) throw new Error('roster-not-found');
   const email = `${id}@${app.studentEmailDomain}`;
   if (/^\d{6}$/.test(String(roster.data()?.verificationCode || ''))) {
-    try { await signInWithEmailAndPassword(auth, email, code); return { alreadySet: true }; }
-    catch (_) { throw new Error('verification-code-mismatch'); }
+    await signOut(auth);
+    return { needsLogin: true, alreadySet: true };
   }
+  isFinishingInitialSetup = true;
   try {
-    await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email, code));
+    try {
+      await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email, code));
+    } catch (error) {
+      if (error.code !== 'auth/email-already-in-use' && error.code !== 'auth/credential-already-in-use') throw error;
+      await signInWithEmailAndPassword(auth, email, code);
+    }
+    await setDoc(rosterRef, { verificationCode: code, verificationCodeUpdatedAt: new Date() }, { merge: true });
   } catch (error) {
-    if (error.code !== 'auth/email-already-in-use' && error.code !== 'auth/credential-already-in-use') throw error;
-    await signInWithEmailAndPassword(auth, email, code);
+    await signOut(auth);
+    throw error;
+  } finally {
+    isFinishingInitialSetup = false;
   }
-  await setDoc(rosterRef, { verificationCode: code, verificationCodeUpdatedAt: new Date() }, { merge: true });
+  await signOut(auth);
+  return { needsLogin: true };
 }
 function showInitialSetup(id, suggestedCode = '') {
   shell(`<main class="portal-wrap" style="max-width:480px;display:grid;min-height:calc(100vh - 80px);place-items:center"><section id="initial-code-setup" class="portal-card" style="width:100%;padding:32px;box-sizing:border-box"><p style="margin:0;color:#4f46e5;font-size:12px;font-weight:900;letter-spacing:.18em">${esc(config.termLabel)}</p><h1 style="margin:12px 0 4px;font-size:30px">設定登入驗證碼</h1><p style="margin:0 0 20px;font-weight:800;color:#475569">學號：${esc(id)}</p><p class="muted" style="margin:0 0 22px;font-size:14px;line-height:1.7">這是首次登入，請自行設定六位數驗證碼。完成後，教師可協助查看、重設或更改。</p><form id="initial-code-form" style="display:grid;gap:16px"><label style="font-weight:800">設定六位數驗證碼<input id="initial-code" class="portal-input" type="password" inputmode="numeric" maxlength="6" required value="${esc(suggestedCode)}"></label><label style="font-weight:800">再次確認驗證碼<input id="initial-code-confirmation" class="portal-input" type="password" inputmode="numeric" maxlength="6" required></label><button class="portal-button">設定並進入 ${esc(config.termLabel)}</button></form><p id="initial-code-message" class="muted" style="margin:16px 0 0;font-size:14px"></p></section></main>`);
@@ -75,7 +85,11 @@ function showInitialSetup(id, suggestedCode = '') {
     const code = document.getElementById('initial-code').value.trim();
     const confirmation = document.getElementById('initial-code-confirmation').value.trim();
     const message = document.getElementById('initial-code-message');
-    try { message.textContent = '正在設定登入帳號…'; await completeInitialSetup(id, code, confirmation); }
+    try {
+      message.textContent = '正在設定登入帳號…';
+      const result = await completeInitialSetup(id, code, confirmation);
+      if (result?.needsLogin) showLogin(result.alreadySet ? '此帳號已完成設定，請使用原本的驗證碼登入。' : '驗證碼設定完成，請使用剛設定的驗證碼登入。');
+    }
     catch (error) {
       console.error(error);
       const text = error.message === 'invalid-initial-code' ? '請輸入相同的六位數字驗證碼。' : error.message === 'verification-code-mismatch' ? '此帳號已完成設定，請輸入原本設定的六位數驗證碼。' : '設定失敗，請確認名冊資料後再試一次。';
@@ -126,4 +140,4 @@ async function loadStudent(currentUser) {
   stop();
   stop = onSnapshot(doc(db,'users',user.uid), snap => { tasks=snap.data()?.terms?.[app.currentTermId]?.tasks || {}; showPortal(); });
 }
-const firebaseApp=initializeApp(app.firebaseConfig); auth=getAuth(firebaseApp); db=getFirestore(firebaseApp); onAuthStateChanged(auth,current=>{if(current?.email) loadStudent(current).catch(()=>showLogin('資料載入失敗，請重新登入。',true)); else if (!document.getElementById('initial-code-setup')) showLogin();});
+const firebaseApp=initializeApp(app.firebaseConfig); auth=getAuth(firebaseApp); db=getFirestore(firebaseApp); onAuthStateChanged(auth,current=>{if(current?.email && !isFinishingInitialSetup) loadStudent(current).catch(()=>showLogin('資料載入失敗，請重新登入。',true)); else if (!current && !document.getElementById('initial-code-setup')) showLogin();});
