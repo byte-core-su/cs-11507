@@ -55,8 +55,11 @@ async function completeInitialSetup(id, code, confirmation) {
   const rosterRef = doc(db, 'rosters', id);
   const roster = await getDoc(rosterRef);
   if (!roster.exists()) throw new Error('roster-not-found');
-  if (/^\d{6}$/.test(String(roster.data()?.verificationCode || ''))) throw new Error('code-already-set');
   const email = `${id}@${app.studentEmailDomain}`;
+  if (/^\d{6}$/.test(String(roster.data()?.verificationCode || ''))) {
+    try { await signInWithEmailAndPassword(auth, email, code); return { alreadySet: true }; }
+    catch (_) { throw new Error('verification-code-mismatch'); }
+  }
   try {
     await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email, code));
   } catch (error) {
@@ -75,7 +78,7 @@ function showInitialSetup(id, suggestedCode = '') {
     try { message.textContent = '正在設定登入帳號…'; await completeInitialSetup(id, code, confirmation); }
     catch (error) {
       console.error(error);
-      const text = error.message === 'invalid-initial-code' ? '請輸入相同的六位數字驗證碼。' : error.message === 'code-already-set' ? '此帳號已完成設定，請使用驗證碼登入。' : '設定失敗，請確認名冊資料後再試一次。';
+      const text = error.message === 'invalid-initial-code' ? '請輸入相同的六位數字驗證碼。' : error.message === 'verification-code-mismatch' ? '此帳號已完成設定，請輸入原本設定的六位數驗證碼。' : '設定失敗，請確認名冊資料後再試一次。';
       message.className = 'error'; message.textContent = text;
     }
   });
