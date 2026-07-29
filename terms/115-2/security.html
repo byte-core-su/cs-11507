@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>一一五學年度下學期 資訊科技學習系統</title>
+    <title>115-2 下學期｜資訊生活：安全與隱私</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -83,6 +83,17 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 6px rgba(185, 28, 28, 0.3);
         }
+        /* 與上學期「資訊生活」共用的章節卡片語言；教材內容仍由本學期提供。 */
+        #chapter-screen > .space-y-6 > div { overflow: hidden; border: 1px solid #bfdbfe; border-radius: 1.5rem; background: white; box-shadow: 0 1px 3px rgb(15 23 42 / .08); }
+        #chapter-screen > .space-y-6 > div:nth-child(2) { border-color: #a7f3d0; }
+        #chapter-screen > .space-y-6 > div:nth-child(3) { border-color: #ddd6fe; }
+        #chapter-screen > .space-y-6 > div > div:first-child { margin: 0; padding: 1.5rem; background: linear-gradient(90deg,#2563eb,#0891b2); color: white; }
+        #chapter-screen > .space-y-6 > div:nth-child(2) > div:first-child { background: linear-gradient(90deg,#059669,#0f766e); }
+        #chapter-screen > .space-y-6 > div:nth-child(3) > div:first-child { background: linear-gradient(90deg,#7c3aed,#4f46e5); }
+        #chapter-screen > .space-y-6 > div > div:first-child span { color: white; font-size: 1.25rem; }
+        #chapter-screen > .space-y-6 > div > div:first-child .pdf-link { background: rgba(255,255,255,.95); color: #1d4ed8; box-shadow: none; }
+        #chapter-screen > .space-y-6 > div > div:last-child { padding: 1.25rem; }
+        #chapter-screen > .space-y-6 > div button { min-height: 4.5rem; border: 1px solid currentColor; border-radius: 1rem; padding: .75rem 1rem; text-align: left; }
     </style>
     <script src="../../firebase-config.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
@@ -101,28 +112,12 @@
                 <h1 class="text-3xl font-black text-gray-800 mt-2 leading-tight">一一五學年度下學期<br><span class="text-blue-600">資訊科技學習系統</span></h1>
             </div>
             
-            <div class="space-y-6">
-                <div>
-                    <label class="block text-sm font-bold text-gray-600 mb-2">選擇班級</label>
-                    <select id="class-select" class="w-full p-4 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"></select>
-                </div>
-                <div>
-                    <label class="block text-sm font-bold text-gray-600 mb-2">選擇座號</label>
-                    <select id="no-select" class="w-full p-4 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"></select>
-                </div>
-                <div>
-                    <label class="block text-sm font-bold text-gray-600 mb-2">學生姓名</label>
-                    <input type="text" id="name-input" placeholder="請輸入姓名" class="w-full p-4 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
-                </div>
-                <button onclick="goToChapters()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl shadow-lg shadow-blue-200 transition duration-300 transform active:scale-95 text-lg">
-                    進入學習系統
-                </button>
-            </div>
+            <div class="space-y-6"><div class="rounded-xl border border-blue-100 bg-blue-50 p-5 text-center font-medium text-blue-800">正在讀取入口網的共用學生資料…</div></div>
         </div>
 
         <!-- 2. 章節選擇畫面 -->
         <div id="chapter-screen" class="glass-card p-8 hidden">
-            <div class="mb-8 overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 p-6 text-white shadow-lg"><div class="flex flex-wrap items-center justify-between gap-4"><div><p class="text-xs font-black tracking-[0.22em] text-blue-200">INFORMATION SECURITY</p><h2 class="mt-2 text-3xl font-black">資訊安全・章節選擇</h2><p class="mt-2 text-sm text-blue-100">完成各小節測驗，收集八枚安全印章並解鎖知識大擂台。</p></div><div class="rounded-2xl bg-white/15 px-4 py-3 text-center backdrop-blur"><span class="block text-3xl">🏅</span><span class="mt-1 block text-xs font-black">可集章挑戰</span></div></div></div>
+            <header class="mb-7 flex flex-col gap-4 border-b border-gray-100 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-black tracking-[0.18em] text-blue-600">INFO LIFE PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊生活・安全與隱私</h2><p class="mt-2 text-sm font-medium text-slate-500">完成各小節測驗，收集八枚資訊生活證書並解鎖知識大擂台。</p></div><div class="rounded-2xl bg-blue-50 px-4 py-3 text-center text-blue-700"><span class="block text-3xl">🏅</span><span class="mt-1 block text-xs font-black">可集章挑戰</span></div></header>
             
             <div class="space-y-6">
                 <!-- 第 04 章 -->
@@ -755,24 +750,7 @@
             }
         }
 
-        window.onload = () => {
-            const classSel = document.getElementById('class-select');
-            const noSel = document.getElementById('no-select');
-            
-            // 加入預設提示選項，並移除選單中的「班」與「號」
-            let classOptions = '<option value="" disabled selected>請選擇班級</option>';
-            for(let i=701; i<=712; i++) {
-                classOptions += `<option value="${i}">${i}</option>`;
-            }
-            classSel.innerHTML = classOptions;
-
-            let noOptions = '<option value="" disabled selected>請選擇座號</option>';
-            for(let i=1; i<=30; i++) {
-                let noStr = i < 10 ? '0' + i : i;
-                noOptions += `<option value="${noStr}">${noStr}</option>`;
-            }
-            noSel.innerHTML = noOptions;
-        };
+        window.onload = () => { goToChapters(); };
 
         function markCollectibleChapters() {
             document.querySelectorAll('#chapter-screen button[onclick^="showStudyNotes"]').forEach((button) => {
@@ -789,7 +767,7 @@
         function goToChapters() {
             const portalProfile = window.LearnerProfile && window.LearnerProfile.readLocalProfile();
             if (portalProfile && window.LearnerProfile.isValidStudentId(portalProfile.studentId)) {
-                currentUser = { studentId: portalProfile.studentId, name: portalProfile.name || '同學' };
+                currentUser = { studentId: portalProfile.studentId, class: portalProfile.classRoom, no: portalProfile.seatNo, name: portalProfile.name || '同學' };
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('chapter-screen').classList.remove('hidden');
                 markCollectibleChapters();
@@ -797,20 +775,6 @@
                 return;
             }
             location.replace('index.html');
-            return;
-            const classVal = document.getElementById('class-select').value;
-            const noVal = document.getElementById('no-select').value;
-            const name = document.getElementById('name-input').value.trim();
-            
-            // 強制檢查是否都有選取與填寫
-            if(!classVal) return showModal("提醒", "請選擇班級");
-            if(!noVal) return showModal("提醒", "請選擇座號");
-            if(!name) return showModal("提醒", "請填寫學生姓名");
-            
-            currentUser = { class: classVal, no: noVal, name };
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('chapter-screen').classList.remove('hidden');
-            document.getElementById('welcome-info').textContent = `${currentUser.class} 班 ${currentUser.no} 號 ${currentUser.name}`;
         }
 
         function showStudyNotes(id) {
