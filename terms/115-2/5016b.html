@@ -15,7 +15,7 @@
                     colors: {
                         primary: '#0ea5e9', // Sky 500
                         secondary: '#3b82f6', // Blue 500
-                        accent: '#f59e0b', // Amber 500
+                        accent: '#10b981', // Emerald 500
                         darkbg: '#0f172a', // Slate 900
                         cardbg: '#1e293b'  // Slate 800
                     }
@@ -91,7 +91,7 @@
     <nav class="bg-white/90 backdrop-blur-md shadow-sm fixed w-full z-50 top-0 border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16 items-center">
-                <div class="flex items-center gap-3 cursor-pointer" onclick="closeMusicSupplement(); closeCourseDetail(); window.scrollTo(0, 0);">
+                <div class="flex items-center gap-3 cursor-pointer" onclick="closeCourseDetail(); window.scrollTo(0, 0);">
                     <div class="bg-primary p-2 rounded-lg">
                         <i data-lucide="building" class="text-white w-6 h-6"></i>
                     </div>
@@ -123,7 +123,7 @@
                 </div>
                 <h1 class="text-4xl md:text-5xl font-black leading-tight">
                     大樓電梯升降控制 <br>
-                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-500">五節課微型課程</span>
+                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-emerald-400">五節課微型課程</span>
                 </h1>
                 <p class="text-lg text-slate-400 leading-relaxed">
                     本課程將帶領學生從零開始，將蜂鳴器、馬達、燈條與LED矩陣等基礎模組，逐步整合成一個具備聲光提示與動力控制的「智慧大樓電梯系統」。
@@ -181,12 +181,12 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 
                 <!-- Unit 1 -->
-                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-red-300" onclick="openCourseDetail(1)">
-                    <div class="w-14 h-14 bg-red-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-red-500 transition-colors">
-                        <i data-lucide="grid-3x3" class="w-7 h-7 text-red-500 group-hover:text-white transition-colors"></i>
+                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-cyan-300" onclick="openCourseDetail(1)">
+                    <div class="w-14 h-14 bg-cyan-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-cyan-500 transition-colors">
+                        <i data-lucide="grid-3x3" class="w-7 h-7 text-cyan-500 group-hover:text-white transition-colors"></i>
                     </div>
                     <div class="flex justify-between items-center mb-4">
-                        <span class="text-sm font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">第一節課</span>
+                        <span class="text-sm font-bold text-cyan-700 bg-cyan-100 px-3 py-1 rounded-full">第一節課</span>
                     </div>
                     <h3 class="text-xl font-bold text-slate-800 mb-3">8x8 LED：電梯樓層顯示</h3>
                     <p class="text-slate-600 mb-4 h-16">模擬電梯門上方的樓層顯示器。運用變數「現在樓層」，在矩陣上精準繪製對應的數字 (1-8樓)。</p>
@@ -219,12 +219,12 @@
                 </div>
 
                 <!-- Unit 3 -->
-                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-cyan-300" onclick="openCourseDetail(3)">
-                    <div class="w-14 h-14 bg-cyan-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-cyan-500 transition-colors">
-                        <i data-lucide="fan" class="w-7 h-7 text-cyan-500 group-hover:text-white transition-colors"></i>
+                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-yellow-300" onclick="openCourseDetail(3)">
+                    <div class="w-14 h-14 bg-yellow-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-yellow-500 transition-colors">
+                        <i data-lucide="fan" class="w-7 h-7 text-yellow-500 group-hover:text-white transition-colors"></i>
                     </div>
                     <div class="flex justify-between items-center mb-4">
-                        <span class="text-sm font-bold text-cyan-600 bg-cyan-100 px-3 py-1 rounded-full">第三節課</span>
+                        <span class="text-sm font-bold text-yellow-700 bg-yellow-100 px-3 py-1 rounded-full">第三節課</span>
                     </div>
                     <h3 class="text-xl font-bold text-slate-800 mb-3">直流馬達：電梯升降動力</h3>
                     <p class="text-slate-600 mb-4 h-16">控制電梯的「捲揚機」。學習比較目前樓層與目標樓層，決定馬達正反轉（上升與下降）。</p>
@@ -238,12 +238,12 @@
                 </div>
 
                 <!-- Unit 4 -->
-                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-amber-300" onclick="openCourseDetail(4)">
-                    <div class="w-14 h-14 bg-amber-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-amber-500 transition-colors">
-                        <i data-lucide="speaker" class="w-7 h-7 text-amber-500 group-hover:text-white transition-colors"></i>
+                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-emerald-300" onclick="openCourseDetail(4)">
+                    <div class="w-14 h-14 bg-emerald-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-emerald-500 transition-colors">
+                        <i data-lucide="speaker" class="w-7 h-7 text-emerald-500 group-hover:text-white transition-colors"></i>
                     </div>
                     <div class="flex justify-between items-center mb-4">
-                        <span class="text-sm font-bold text-amber-600 bg-amber-100 px-3 py-1 rounded-full">第四節課</span>
+                        <span class="text-sm font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">第四節課</span>
                     </div>
                     <h3 class="text-xl font-bold text-slate-800 mb-3">蜂鳴器：抵達提示音效</h3>
                     <p class="text-slate-600 mb-4 h-16">學習頻率控制與聲音輸出，為電梯設計「叮咚」的抵達確認與按鈕回饋音效。</p>
@@ -257,7 +257,7 @@
                 </div>
 
                 <!-- Unit 5 -->
-                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group lg:col-span-2 cursor-pointer hover:shadow-xl hover:border-primary" onclick="openCourseDetail(5)">
+                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group lg:col-span-3 cursor-pointer hover:shadow-xl hover:border-primary" onclick="openCourseDetail(5)">
                     <div class="flex flex-col md:flex-row gap-6 items-start md:items-center h-full">
                         <div class="w-14 h-14 bg-sky-50 rounded-xl flex shrink-0 items-center justify-center group-hover:bg-primary transition-colors">
                             <i data-lucide="cpu" class="w-7 h-7 text-primary group-hover:text-white transition-colors"></i>
@@ -285,37 +285,6 @@
                     </div>
                 </div>
 
-                <!-- 補充單元：小小李斯特 -->
-                <div class="unit-card bg-gradient-to-br from-indigo-50 via-white to-sky-50 rounded-2xl p-8 border border-indigo-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-indigo-400" onclick="openMusicSupplement()">
-                    <div class="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center mb-6 group-hover:bg-indigo-500 transition-colors">
-                        <i data-lucide="music-4" class="w-7 h-7 text-indigo-500 group-hover:text-white transition-colors"></i>
-                    </div>
-                    <div class="flex justify-between items-center mb-4">
-                        <span class="text-sm font-bold text-indigo-700 bg-indigo-100 px-3 py-1 rounded-full">補充單元</span>
-                    </div>
-                    <h3 class="text-xl font-bold text-slate-800 mb-3">🎹 小小李斯特</h3>
-                    <p class="text-slate-600 mb-4">結合無源蜂鳴器頻率與音樂基礎知識，閱讀數字簡譜並用琴鍵探索旋律。</p>
-                    <div class="border-t border-indigo-100 pt-4 mt-auto text-sm font-bold text-indigo-600 flex items-center gap-2">
-                        <i data-lucide="music" class="w-4 h-4"></i> 開啟音樂創作補充教材
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </section>
-
-    <!-- 補充單元：小小李斯特 -->
-    <section id="music-supplement" class="hidden pt-24 pb-20 bg-slate-50 min-h-screen animate-fade-in">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <button onclick="closeMusicSupplement()" class="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition mb-8 font-medium">
-                <i data-lucide="arrow-left" class="w-5 h-5"></i> 返回課程總覽
-            </button>
-            <div class="overflow-hidden rounded-3xl border border-indigo-100 bg-white shadow-xl">
-                <div class="flex flex-col gap-3 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-sky-50 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-                    <div><p class="text-xs font-black tracking-[.18em] text-indigo-600">SUPPLEMENTARY UNIT</p><h2 class="mt-1 text-2xl font-black text-slate-800">🎹 小小李斯特・音樂創作</h2></div>
-                    <span class="rounded-full bg-white px-3 py-1 text-sm font-bold text-indigo-700 shadow-sm">無源蜂鳴器 × 數字簡譜</span>
-                </div>
-                <iframe src="music.html" title="小小李斯特音樂創作補充教材" class="h-[1120px] w-full border-0 bg-slate-100" loading="lazy"></iframe>
             </div>
         </div>
     </section>
@@ -543,8 +512,9 @@
             1: {
                 title: "8x8 LED：電梯樓層顯示",
                 badge: "第一節課",
-                colorText: "text-red-400",
-                colorBg: "bg-red-500",
+                colorText: "text-cyan-500",
+                colorBg: "bg-cyan-500",
+                headerClass: "from-cyan-100 to-blue-50",
                 icon: "grid-3x3",
                 requireUnlock: false, // 新增：必須驗證拼圖正確才能解鎖實作
                 desc: "LED 矩陣模擬安裝於電梯內的顯示器。不僅能以數字形式即時顯示電梯目前所在的樓層，還能透過動畫顯示電梯運行方向。",
@@ -768,6 +738,7 @@
                 badge: "第二節課",
                 colorText: "text-purple-400",
                 colorBg: "bg-purple-500",
+                headerClass: "from-purple-100 to-pink-50",
                 icon: "ellipsis-vertical",
                 requireUnlock: false, // 新增：鎖定實作內容，須完成動動腦拼圖
                 desc: "全彩燈條垂直安裝，用來模擬大樓的高度與電梯的位置。將燈條上的 LED 對應到樓層，電梯移動時光點也隨之移動，並在抵達時提供視覺回饋。",
@@ -898,8 +869,9 @@
             3: {
                 title: "直流馬達：電梯升降動力",
                 badge: "第三節課",
-                colorText: "text-cyan-400",
-                colorBg: "bg-cyan-500",
+                colorText: "text-yellow-500",
+                colorBg: "bg-yellow-500",
+                headerClass: "from-yellow-100 to-orange-50",
                 icon: "fan",
                 requireUnlock: false, // 新增：鎖定實作內容，須完成動動腦拼圖
                 desc: "直流減速馬達模擬電梯的「捲揚機」。透過驅動模組，控制馬達正反轉讓電梯升降。我們必須建立邏輯判斷，讓系統自動決定移動方向與安全邊界。",
@@ -1035,8 +1007,9 @@
             4: {
                 title: "蜂鳴器：抵達提示音效",
                 badge: "第四節課",
-                colorText: "text-amber-400",
-                colorBg: "bg-amber-500",
+                colorText: "text-emerald-500",
+                colorBg: "bg-emerald-500",
+                headerClass: "from-emerald-100 to-teal-50",
                 icon: "speaker",
                 requireUnlock: false, // 新增：鎖定實作內容，須完成動動腦拼圖
                 desc: "蜂鳴器在電梯系統中扮演「聲音提示」的角色。當使用者選定樓層，或電梯到達指定樓層時，蜂鳴器會發出不同頻率的聲音，提供操作回饋。",
@@ -1044,9 +1017,10 @@
                     "理解蜂鳴器發聲原理與 tone() 函數應用",
                     "學習控制聲音頻率與持續時間",
                     "基礎：設計抵達提示音 (Do-So-Do-So 旋律)",
-                    "進階：設計故障警報急促音"
+                    "進階：設計故障警報急促音",
+                    "補充：用數字簡譜設計自己的蜂鳴器旋律"
                 ],
-                materials: ["5016B 主控制板", "無源蜂鳴器模組", "傳輸線"],
+                materials: ["5016B 主控制板", "無源蜂鳴器模組", "傳輸線", "小小李斯特：數字簡譜補充教材"],
                 puzzle: {
                     blocks: [
                         { id: "b4_1", text: "按下樓層 (設定目標)", color: "slate", icon: "keyboard" },
@@ -1118,6 +1092,17 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="border-t border-slate-800 pt-10">
+                        <div class="mb-5 flex flex-wrap items-center gap-3">
+                            <span class="rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold tracking-wider text-white">補充單元</span>
+                            <h3 class="flex items-center gap-2 text-xl font-bold text-white"><i data-lucide="music-4" class="h-6 w-6 text-indigo-400"></i> 🎹 小小李斯特・音樂創作</h3>
+                        </div>
+                        <p class="mb-5 text-sm leading-6 text-slate-400">把本節學到的無源蜂鳴器頻率控制延伸到旋律創作：閱讀數字簡譜、選擇曲目，並用琴鍵探索每個音符的頻率。</p>
+                        <div class="overflow-hidden rounded-2xl border border-indigo-200 bg-white shadow-xl">
+                            <iframe src="music.html" title="小小李斯特音樂創作補充教材" class="h-[1120px] w-full border-0 bg-slate-100" loading="lazy"></iframe>
+                        </div>
+                    </div>
                 `
             },
             5: {
@@ -1125,6 +1110,7 @@
                 badge: "第五節課",
                 colorText: "text-primary",
                 colorBg: "bg-primary",
+                headerClass: "from-sky-100 to-blue-50",
                 icon: "cpu",
                 requireUnlock: false, // 新增：鎖定實作內容，須完成動動腦拼圖才能解鎖
                 desc: "整合所有硬體模組。透過電腦鍵盤輸入指令，控制馬達升降、同步燈條位置與矩陣顯示，並在抵達目標後觸發蜂鳴器。",
@@ -1494,7 +1480,6 @@
             // 隱藏首頁區塊
             document.getElementById('about').classList.add('hidden');
             document.getElementById('curriculum').classList.add('hidden');
-            document.getElementById('music-supplement').classList.add('hidden');
             
             // 顯示詳細頁面
             const detailView = document.getElementById('detail-view');
@@ -1504,6 +1489,9 @@
             document.getElementById('detail-badge').textContent = data.badge;
             document.getElementById('detail-title').textContent = data.title;
             document.getElementById('detail-desc').textContent = data.desc;
+
+            document.getElementById('detail-header-bg').className = `bg-gradient-to-r ${data.headerClass} p-8 border-b border-slate-200 relative overflow-hidden`;
+            document.getElementById('detail-badge').className = `text-sm font-bold text-white px-3 py-1 rounded-full shadow-sm ${data.colorBg}`;
             
             const bgIcon = document.getElementById('detail-bg-icon');
             bgIcon.setAttribute('data-lucide', data.icon);
@@ -1563,29 +1551,6 @@
             scrollToCurriculum();
         }
 
-        function openMusicSupplement() {
-            if (window.LearnerProfile && window.SCHOOL_APP) {
-                const storageKey = window.SCHOOL_APP.storageKeys.elevatorUnits;
-                const opened = window.LearnerProfile.readTermStorage(storageKey, {});
-                opened.music = true;
-                window.LearnerProfile.writeTermStorage(storageKey, opened);
-            }
-            document.getElementById('about').classList.add('hidden');
-            document.getElementById('curriculum').classList.add('hidden');
-            document.getElementById('detail-view').classList.add('hidden');
-            document.getElementById('music-supplement').classList.remove('hidden');
-            window.scrollTo(0, 0);
-            lucide.createIcons();
-        }
-
-        function closeMusicSupplement() {
-            const supplement = document.getElementById('music-supplement');
-            if (!supplement || supplement.classList.contains('hidden')) return;
-            supplement.classList.add('hidden');
-            document.getElementById('about').classList.remove('hidden');
-            document.getElementById('curriculum').classList.remove('hidden');
-            scrollToCurriculum();
-        }
 
         // --- 環境建置指南 Modal 邏輯 ---
         function openSetupGuide() {
