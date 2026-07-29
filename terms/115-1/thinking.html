@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>運算思維挑戰系統</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="../../firebase-config.js"></script>
     <script src="../../shared/learner-profile.js"></script>
     <script defer src="../../shared/site-shell.js"></script>
@@ -41,20 +38,6 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-
-        if (!firebase.apps.length) firebase.initializeApp(window.LEARNING_FIREBASE_CONFIG);
-        const thinkingDb = firebase.firestore();
-        const currentTermId = '115-1';
-        const getThinkingUser = async () => {
-            const current = firebase.auth().currentUser;
-            if (current && !current.isAnonymous) return current;
-            const user = await new Promise((resolve, reject) => {
-                let unsubscribe = () => {};
-                unsubscribe = firebase.auth().onAuthStateChanged((value) => { unsubscribe(); resolve(value); }, reject);
-            });
-            if (!user || user.isAnonymous) throw new Error('請先由入口網完成學生登入');
-            return user;
-        };
 
         // --- Icon 組件 (SVG) ---
         const Icon = ({ path, className }) => (
@@ -93,8 +76,6 @@
             }); 
             const [selectedChallenge, setSelectedChallenge] = useState(null);
             const [loading, setLoading] = useState(false);
-            const [passedChallengeIds, setPassedChallengeIds] = useState([]);
-            const [progressStatus, setProgressStatus] = useState('loading');
             
             // 計時與日期狀態
             const [currentDate, setCurrentDate] = useState(new Date());
@@ -174,22 +155,6 @@
                 }
             }, [user]);
 
-            useEffect(() => {
-                if (!user) return undefined;
-                let unsubscribe = null;
-                let active = true;
-                getThinkingUser().then((firebaseUser) => {
-                    if (!active) return;
-                    unsubscribe = thinkingDb.collection('users').doc(firebaseUser.uid).onSnapshot((snapshot) => {
-                        const completed = snapshot.exists ? (snapshot.data().teacherProgress?.[currentTermId]?.completedChallenges || {}) : {};
-                        const passed = Object.keys(completed).filter((id) => completed[id] === true).map(Number).filter(Number.isInteger);
-                        setPassedChallengeIds(passed);
-                        setProgressStatus('ready');
-                    }, () => setProgressStatus('error'));
-                }).catch(() => setProgressStatus('error'));
-                return () => { active = false; if (unsubscribe) unsubscribe(); };
-            }, [user]);
-
             // --- 處理函式 ---
             // 開啟挑戰視窗
             const handleOpenChallenge = (challenge) => {
@@ -230,7 +195,7 @@
                             <div className="bg-indigo-600 p-6 text-center">
                                 <Icons.Monitor className="w-12 h-12 text-white mx-auto mb-2" />
                                 <h1 className="text-2xl font-bold text-white">運算思維挑戰平台</h1>
-                                <p className="text-indigo-200 text-sm mt-1">入口網共用學生資料</p>
+                                <p className="text-indigo-200 text-sm mt-1">學生登入系統</p>
                             </div>
                             
                             <div className="p-8 space-y-5 text-center">
@@ -263,30 +228,20 @@
                         
                         {/* 左側：挑戰列表 */}
                         <aside className="w-full lg:w-1/3 xl:w-1/4 flex flex-col gap-4 h-full">
-                            <div className="learning-content-card bg-white rounded-xl shadow-sm overflow-hidden flex flex-col h-full border border-gray-200">
+                            <div className="bg-white rounded-xl shadow-sm overflow-hidden flex flex-col h-full border border-gray-200">
                                 <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between shrink-0">
                                     <h2 className="font-bold text-gray-700 flex items-center">
                                         <Icons.BookOpen className="w-5 h-5 mr-2 text-indigo-500" />
                                         挑戰清單
                                     </h2>
-                                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">共 {challenges.length} 題</span>
-                                    </div>
-                                <div className="learning-progress-panel mx-4 mt-4 p-4">
-                                    <div className="learning-progress-head">
-                                        <span className="learning-progress-title">教師核定通關進度</span>
-                                        <span className="learning-progress-count">{progressStatus === 'loading' ? '讀取中…' : `${passedChallengeIds.length} / ${challenges.length}`}</span>
-                                    </div>
-                                    <div className="learning-progress-track mt-2">
-                                        <div className="learning-progress-fill" style={{ width: `${(passedChallengeIds.length / challenges.length) * 100}%` }}></div>
-                                    </div>
-                                    <p className="learning-progress-note">{progressStatus === 'error' ? '暫時無法讀取教師核定紀錄，請稍後再試。' : '開啟題目不會增加進度；通關後由教師端核定。'}</p>
+                                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">共 {challenges.length} 題</span>
                                 </div>
                                 <div className="overflow-y-auto p-2 space-y-2 flex-1">
                                     {challenges.map((challenge) => (
                                         <button
                                             key={challenge.id}
                                             onClick={() => handleOpenChallenge(challenge)}
-                                            className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center justify-between group ${
+                                            className={`w-full text-left p-4 rounded-lg transition-all duration-200 flex items-center justify-between group ${
                                                 selectedChallenge?.id === challenge.id 
                                                 ? 'bg-indigo-600 text-white shadow-md' 
                                                 : 'hover:bg-indigo-50 text-gray-700'
@@ -307,7 +262,6 @@
                                                     }`}>
                                                         {challenge.difficulty}
                                                     </span>
-                                                    <span className={`${passedChallengeIds.includes(challenge.id) ? (selectedChallenge?.id === challenge.id ? 'text-emerald-200' : 'text-emerald-600') : (selectedChallenge?.id === challenge.id ? 'text-indigo-200' : 'text-slate-400')} ml-2 text-xs font-bold`}>{passedChallengeIds.includes(challenge.id) ? '✓ 教師已核定' : '待教師核定'}</span>
                                                 </div>
                                             </div>
                                             <Icons.Play className={`w-6 h-6 ${selectedChallenge?.id === challenge.id ? 'text-white' : 'text-gray-300 group-hover:text-indigo-400'}`} />
@@ -320,15 +274,34 @@
                         {/* 右側：資訊顯示區域 */}
                         <section className="flex-1 flex flex-col gap-4 h-full">
                             
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 shrink-0">
+                                <div className="flex items-center space-x-4 mb-2">
+                                    <div className="bg-indigo-100 p-3 rounded-full">
+                                        <Icons.User className="w-8 h-8 text-indigo-600" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-800">{user.name}</h2>
+                                        <div className="text-gray-500 flex items-center mt-1">
+                                            <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-sm font-medium mr-2">
+                                                學號 {user.studentId}
+                                            </span>
+                                            <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-sm font-medium">
+                                                11501
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* 中間：留白區域 */}
-                            <div className="learning-content-card flex-1 bg-white rounded-xl shadow-sm border border-gray-200 relative overflow-hidden flex items-center justify-center min-h-[200px]">
+                            <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 relative overflow-hidden flex items-center justify-center min-h-[200px]">
                                 {selectedChallenge ? (
                                     <div className="text-center text-gray-400 p-8">
                                         <Icons.Monitor className="w-16 h-16 mx-auto mb-4 text-indigo-100" />
                                         <p>挑戰「{selectedChallenge.title}」正在新視窗中執行...</p>
                                         <button 
                                             onClick={() => handleOpenChallenge(selectedChallenge)}
-                                            className="learning-action-secondary mt-4 px-4 text-sm"
+                                            className="mt-4 text-indigo-600 hover:text-indigo-800 underline text-sm"
                                         >
                                             沒有開啟視窗？點此重新開啟
                                         </button>
@@ -341,7 +314,7 @@
                             </div>
 
                             {/* 下排：日期與計時功能 */}
-                            <div className="learning-progress-panel bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
                                 {/* 日期 */}
                                 <div className="flex items-center space-x-3">
                                     <Icons.Calendar className="w-6 h-6 text-indigo-500" />
