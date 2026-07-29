@@ -470,13 +470,14 @@
         const pendingProfile = state.pendingProfile || {};
         appContainer.innerHTML = `
           <div class="min-h-screen flex items-center justify-center p-4 bg-slate-100">
-            <div class="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
+            <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/70 max-w-md w-full">
               <div class="text-center mb-8">
                 <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
                 </div>
-                <p class="text-indigo-600 font-semibold mb-1">一一五學年度上學期</p>
-                <h2 class="text-2xl font-bold text-slate-800">資訊科技任務系統</h2>
+                <p class="text-xs font-black tracking-[.2em] text-indigo-600 mb-2">115-1 · 上學期</p>
+                <h2 class="text-2xl font-black text-slate-800">資訊科技學習平台</h2>
+                <p class="mt-1 text-sm font-bold text-slate-600">學生登入</p>
                 <p class="text-slate-500 text-sm mt-2">${isStudentIdStep ? '輸入學號後，系統會帶入班級、座號與姓名。' : (isSetupCode ? '首次登入，請設定專屬的六位數驗證碼。' : '請輸入你的六位數驗證碼。')}</p>
               </div>
               <div class="space-y-4">
@@ -599,8 +600,9 @@
                 <div class="inline-block bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mb-2 border border-indigo-100">
                   ${escapeHtml(state.profile.classRoom)} 班 ${escapeHtml(state.profile.seatNo)} 號・${escapeHtml(state.profile.name)}（${state.studentId}）
                 </div>
-                <h1 class="text-2xl md:text-3xl font-bold text-slate-800 tracking-wide">一一五學年度上學期資訊科技</h1>
-                <p class="text-slate-500 mt-2 font-medium">任務自我確認介面</p>
+                <p class="text-xs font-black tracking-[.2em] text-indigo-600">115-1 · 上學期 · LEARNING PORTAL</p>
+                <h1 class="mt-1 text-2xl md:text-3xl font-black text-slate-800 tracking-wide">資訊科技學習平台</h1>
+                <p class="text-slate-500 mt-2 font-medium">學生學習與任務自我確認</p>
               </div>
 
               <div class="flex-1 w-full max-w-md bg-slate-50 rounded-xl p-4 border border-slate-100">
