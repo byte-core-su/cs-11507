@@ -512,8 +512,8 @@
       if (state.status === 'main') {
         // 生成便利貼網格
         const notesHtml = initialData.map((note, index) => {
-          const rotations = ['rotate-1', '-rotate-1', 'rotate-2', '-rotate-2', 'rotate-0'];
-          const rotationClass = rotations[index % rotations.length];
+          const accentColors = ['#4f46e5', '#0284c7', '#db2777', '#059669', '#7c3aed', '#ea580c', '#0f766e', '#e11d48'];
+          const accentColor = accentColors[index % accentColors.length];
           const noteTasks = note.tasks;
           const completedCount = noteTasks.filter(t => state.tasks[t.id]).length;
           const isNoteDone = completedCount === noteTasks.length;
@@ -531,7 +531,7 @@
               <li class="flex items-start group">
                 <label class="flex items-start gap-3 w-full ${isAutomatic ? 'cursor-default' : 'cursor-pointer task-label'}" ${isAutomatic ? 'aria-label="資訊生活測驗通過後自動記錄"' : `data-task-id="${task.id}"`}>
                   <div class="relative flex-shrink-0 mt-0.5">
-                    <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isCompleted ? 'bg-current border-current' : 'border-current opacity-50 group-hover:opacity-100'}">
+                    <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isCompleted ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 group-hover:border-indigo-400'}">
                       ${isCompleted ? `<svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>` : ''}
                     </div>
                   </div>
@@ -547,14 +547,13 @@
           }).join('');
 
           return `
-            <div class="relative p-5 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 ${note.theme} ${rotationClass} hover:rotate-0 hover:-translate-y-1 hover:z-10">
-              <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 w-16 h-6 ${note.tape} backdrop-blur-sm -rotate-2 z-10"></div>
-              <div class="flex justify-between items-start mb-4 border-b border-black/10 pb-2">
-                <h3 class="font-bold text-lg">${note.title}</h3>
-                ${isNoteDone ? `<svg class="w-5 h-5 opacity-80" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>` : ''}
+            <div class="relative rounded-3xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+              <div class="flex justify-between items-start mb-4 border-b border-slate-100 pb-3">
+                <div><span class="rounded-full px-3 py-1 text-xs font-black text-white" style="background:${accentColor}">${note.title}</span><p class="mt-3 text-xs font-bold text-slate-400">本週學習任務</p></div>
+                ${isNoteDone ? `<span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">已完成</span>` : ''}
               </div>
               <ul class="space-y-3">${tasksHtml}</ul>
-              <div class="mt-5 text-right text-xs font-semibold opacity-60">
+              <div class="mt-5 text-right text-xs font-bold text-slate-400">
                 完成度：${completedCount} / ${noteTasks.length}
               </div>
             </div>
@@ -594,27 +593,27 @@
             <nav class="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm">
               <a href="index.html" class="font-black text-indigo-700 text-base">資訊科技學習平台</a>
             </nav>
-            <header class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative">
+            <header class="rounded-3xl bg-gradient-to-br from-indigo-700 to-violet-700 p-7 text-white shadow-xl shadow-indigo-200 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative">
               
               <div class="text-center md:text-left mt-4 md:mt-0">
-                <div class="inline-block bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mb-2 border border-indigo-100">
+                <div class="inline-block bg-white/15 text-white px-3 py-1 rounded-full text-xs font-bold mb-2 border border-white/25">
                   ${escapeHtml(state.profile.classRoom)} 班 ${escapeHtml(state.profile.seatNo)} 號・${escapeHtml(state.profile.name)}（${state.studentId}）
                 </div>
-                <p class="text-xs font-black tracking-[.2em] text-indigo-600">115-1 · 上學期 · LEARNING PORTAL</p>
-                <h1 class="mt-1 text-2xl md:text-3xl font-black text-slate-800 tracking-wide">資訊科技學習平台</h1>
-                <p class="text-slate-500 mt-2 font-medium">學生學習與任務自我確認</p>
+                <p class="text-xs font-black tracking-[.2em] text-indigo-200">115-1 · 上學期 · LEARNING PORTAL</p>
+                <h1 class="mt-1 text-2xl md:text-3xl font-black text-white tracking-wide">資訊科技學習平台</h1>
+                <p class="text-indigo-100 mt-2 font-medium">學生學習與任務自我確認</p>
               </div>
 
-              <div class="flex-1 w-full max-w-md bg-slate-50 rounded-xl p-4 border border-slate-100">
+              <div class="flex-1 w-full max-w-md rounded-2xl bg-white/15 p-4 backdrop-blur border border-white/15">
                 <div class="flex justify-between items-end mb-2">
-                  <span class="text-sm font-semibold text-slate-600">學期總進度</span>
-                  <span class="text-2xl font-bold text-indigo-600">${state.progress}%</span>
+                  <span class="text-sm font-semibold text-white">學期總進度</span>
+                  <span class="text-2xl font-bold text-cyan-200">${state.progress}%</span>
                 </div>
-                <div class="w-full bg-slate-200 rounded-full h-3 mb-2 overflow-hidden">
-                  <div class="bg-indigo-600 h-3 rounded-full transition-all duration-1000 ease-out" style="width: ${state.progress}%"></div>
+                <div class="w-full bg-white/20 rounded-full h-3 mb-2 overflow-hidden">
+                  <div class="bg-cyan-300 h-3 rounded-full transition-all duration-1000 ease-out" style="width: ${state.progress}%"></div>
                 </div>
                 <div class="flex justify-end">
-                  <button id="reset-btn" class="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 transition-colors">
+                  <button id="reset-btn" class="flex items-center gap-1 text-xs text-indigo-100 hover:text-white transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                     重設手動進度
                   </button>
