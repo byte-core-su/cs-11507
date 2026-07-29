@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小小李斯特</title>
+    <!-- 引入高質感字體與圖示 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* 隱藏捲軸但保持可滾動以防畫面過小 */
+        body { overflow-x: hidden; }
+        
+        /* 隱藏/自訂捲軸樣式 (樂譜區用) */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* 樂譜筆記本樣式 */
+        .sheet-music-area {
+            resize: none; 
+            font-family: 'Fira Code', ui-monospace, SFMono-Regular, monospace; 
+            transition: opacity 0.3s ease-in-out;
+            background-image: repeating-linear-gradient(transparent, transparent 3.4rem, #e2e8f0 3.4rem, #e2e8f0 3.5rem);
+            line-height: 3.5rem !important;
+            padding-top: 1rem !important;
+            letter-spacing: 0.1em;
+        }
+        
+        /* 毛玻璃面板 */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 1);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 琴鍵按下的視覺回饋 */
+        .white-key:active, .white-key.active { background-color: #e5e7eb; transform: translateY(2px); border-bottom-width: 2px; }
+        .black-key:active, .black-key.active { background-color: #374151; transform: translateY(2px); }
+        
+        /* 讓文字不可選取，避免點擊時反白 */
+        .unselectable { user-select: none; -webkit-user-select: none; }
+    </style>
+    <script src="../../firebase-config.js"></script>
+    <script src="../../shared/learner-profile.js"></script>
+    <script src="../../shared/site-shell.js" defer></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center font-sans p-4">
+
+    <!-- 標題與說明區塊 -->
+    <div class="max-w-2xl w-full bg-white rounded-2xl shadow-lg p-8 mb-8 text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">🎹 小小李斯特</h1>
+        <p class="text-gray-600 mb-6">結合無源蜂鳴器頻率與音樂基礎知識</p>
+    </div>
+
+    <!-- 簡易樂譜範例功能區塊 -->
+    <div class="glass-card w-full max-w-3xl rounded-[2.5rem] mx-auto overflow-hidden my-4 mb-8">
+        
+        <!-- Header 區塊 -->
+        <header class="text-center pt-8 pb-6 px-6 relative">
+            <h2 class="font-serif text-2xl md:text-3xl font-bold text-slate-800 flex items-center justify-center gap-3 tracking-wide">
+                <i data-lucide="music-4" class="w-7 h-7 text-indigo-500"></i>
+                數字簡譜檢視器
+            </h2>
+        </header>
+
+        <!-- Main Content 區塊 -->
+        <div class="px-6 md:px-12 pb-8">
+            
+            <!-- 曲目選擇下拉選單 -->
+            <div class="mb-6 max-w-2xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <!-- 第一層：選擇分類 -->
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                        <i data-lucide="folder-open" class="w-5 h-5 text-indigo-400 group-hover:text-indigo-600 transition-colors"></i>
+                    </div>
+                    <select id="category-select" class="w-full bg-white/50 hover:bg-white border-2 border-indigo-50/50 hover:border-indigo-200 text-slate-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 block p-3 pl-12 shadow-sm transition-all appearance-none cursor-pointer font-medium text-left">
+                        <option value="kids">🐣 經典兒歌與童謠</option>
+                        <option value="classical">🎼 西方古典與節慶</option>
+                        <option value="folk">🌸 台灣民謠與經典流行</option>
+                        <option value="anime">🎬 動漫與電影名曲</option>
+                        <option value="pop">🎤 華語流行金曲</option>
+                    </select>
+                    <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-slate-400"></i>
+                    </div>
+                </div>
+
+                <!-- 第二層：選擇曲目 -->
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                        <i data-lucide="list-music" class="w-5 h-5 text-indigo-400 group-hover:text-indigo-600 transition-colors"></i>
+                    </div>
+                    <select id="song-select" class="w-full bg-white/50 hover:bg-white border-2 border-indigo-50/50 hover:border-indigo-200 text-slate-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 block p-3 pl-12 shadow-sm transition-all appearance-none cursor-pointer font-medium text-left">
+                        <!-- 選項將由 JavaScript 動態生成 -->
+                    </select>
+                    <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-slate-400"></i>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 樂譜顯示區域 (筆記本樣式) -->
+            <div class="bg-amber-50/30 rounded-3xl shadow-inner border border-amber-100/50 p-2 md:p-6 mb-6 relative">
+                <!-- 裝飾用小夾子/釘書針視覺 -->
+                <div class="absolute -top-3 left-1/2 -translate-x-1/2 w-12 h-6 bg-slate-200/50 rounded-full blur-[2px]"></div>
+                <div class="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-4 bg-white rounded-full shadow-sm border border-slate-200"></div>
+
+                <textarea id="jianpu-input" rows="6" class="sheet-music-area w-full bg-transparent outline-none text-xl md:text-2xl text-slate-700 text-center font-medium" spellcheck="false" readonly></textarea>
+            </div>
+
+            <!-- 閱讀指南 (Cheat Sheet) -->
+            <div class="flex flex-col items-center">
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-slate-100/80 rounded-full text-xs font-semibold text-slate-500 mb-4 uppercase tracking-wider">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    圖例說明
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3 text-xs md:text-sm text-slate-600 font-medium">
+                    <div class="flex items-center gap-3"><span class="w-6 h-6 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-indigo-600 font-bold">1</span> 基本音符</div>
+                    <div class="flex items-center gap-3"><span class="w-6 h-6 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-indigo-600 font-bold">1'</span> 高音</div>
+                    <div class="flex items-center gap-3"><span class="w-6 h-6 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-indigo-600 font-bold">1,</span> 低音</div>
+                    <div class="flex items-center gap-3"><span class="w-6 h-6 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-indigo-600 font-bold">-</span> 延長一拍</div>
+                    <div class="flex items-center gap-3"><span class="w-6 h-6 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-indigo-600 font-bold">_</span> 半拍連結</div>
+                    <div class="flex items-center gap-3"><span class="w-6 h-6 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-indigo-600 font-bold">0</span> 休止符</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 鋼琴琴鍵區塊 (外層加上滾動軸，適應新增的琴鍵寬度) -->
+    <div class="w-full overflow-x-auto flex justify-start lg:justify-center px-4 pb-8">
+        <div class="flex unselectable min-w-max" id="pianoContainer">
+            
+            <!-- ================= 低音區 ================= -->
+            
+            <!-- 低 1 = Do -->
+            <div class="relative">
+                <div data-key="q" data-freq="131" class="white-key w-16 h-64 bg-white border-2 border-gray-300 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">C3</span>
+                    <span class="text-green-600 font-bold text-xl mb-1 relative">1<span class="absolute left-1/2 -translate-x-1/2 -bottom-3">&bull;</span></span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">低Do</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(131)</span>
+                </div>
+                <!-- 黑鍵 C#3 -->
+                <div data-key="c3-sharp" data-freq="139" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">C#3</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(139)</span>
+                </div>
+            </div>
+
+            <!-- 低 2 = Re -->
+            <div class="relative">
+                <div data-key="w" data-freq="147" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">D3</span>
+                    <span class="text-green-600 font-bold text-xl mb-1 relative">2<span class="absolute left-1/2 -translate-x-1/2 -bottom-3">&bull;</span></span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">低Re</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(147)</span>
+                </div>
+                <!-- 黑鍵 D#3 -->
+                <div data-key="d3-sharp" data-freq="156" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">D#3</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(156)</span>
+                </div>
+            </div>
+
+            <!-- 低 3 = Mi (Mi跟Fa之間沒有黑鍵) -->
+            <div class="relative">
+                <div data-key="e" data-freq="165" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">E3</span>
+                    <span class="text-green-600 font-bold text-xl mb-1 relative">3<span class="absolute left-1/2 -translate-x-1/2 -bottom-3">&bull;</span></span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">低Mi</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(165)</span>
+                </div>
+            </div>
+
+            <!-- 低 4 = Fa -->
+            <div class="relative">
+                <div data-key="r" data-freq="175" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">F3</span>
+                    <span class="text-green-600 font-bold text-xl mb-1 relative">4<span class="absolute left-1/2 -translate-x-1/2 -bottom-3">&bull;</span></span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">低Fa</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(175)</span>
+                </div>
+                <!-- 黑鍵 F#3 -->
+                <div data-key="f3-sharp" data-freq="185" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">F#3</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(185)</span>
+                </div>
+            </div>
+
+            <!-- 低 5 = Sol -->
+            <div class="relative">
+                <div data-key="t" data-freq="196" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">G3</span>
+                    <span class="text-green-600 font-bold text-xl mb-1 relative">5<span class="absolute left-1/2 -translate-x-1/2 -bottom-3">&bull;</span></span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">低Sol</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(196)</span>
+                </div>
+                <!-- 黑鍵 G#3 -->
+                <div data-key="g3-sharp" data-freq="208" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">G#3</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(208)</span>
+                </div>
+            </div>
+
+            <!-- 低 6 = La -->
+            <div class="relative">
+                <div data-key="y" data-freq="220" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">A3</span>
+                    <span class="text-green-600 font-bold text-xl mb-1 relative">6<span class="absolute left-1/2 -translate-x-1/2 -bottom-3">&bull;</span></span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">低La</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(220)</span>
+                </div>
+                <!-- 黑鍵 A#3 -->
+                <div data-key="a3-sharp" data-freq="233" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">A#3</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(233)</span>
+                </div>
+            </div>
+
+            <!-- 低 7 = Si -->
+            <div class="relative">
+                <div data-key="u" data-freq="247" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">B3</span>
+                    <span class="text-green-600 font-bold text-xl mb-1 relative">7<span class="absolute left-1/2 -translate-x-1/2 -bottom-3">&bull;</span></span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">低Si</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(247)</span>
+                </div>
+            </div>
+
+            <!-- ================= 中音/高音區 ================= -->
+            
+            <!-- 1 = Do -->
+            <div class="relative">
+                <div data-key="1" data-freq="262" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">C4</span>
+                    <span class="text-green-600 font-bold text-xl mb-1">1</span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">Do</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(262)</span>
+                </div>
+                <!-- 黑鍵 C#4 -->
+                <div data-key="c4-sharp" data-freq="277" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">C#4</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(277)</span>
+                </div>
+            </div>
+
+            <!-- 2 = Re -->
+            <div class="relative">
+                <div data-key="2" data-freq="294" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">D4</span>
+                    <span class="text-green-600 font-bold text-xl mb-1">2</span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">Re</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(294)</span>
+                </div>
+                <!-- 黑鍵 D#4 -->
+                <div data-key="d4-sharp" data-freq="311" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">D#4</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(311)</span>
+                </div>
+            </div>
+
+            <!-- 3 = Mi -->
+            <div class="relative">
+                <div data-key="3" data-freq="330" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">E4</span>
+                    <span class="text-green-600 font-bold text-xl mb-1">3</span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">Mi</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(330)</span>
+                </div>
+            </div>
+
+            <!-- 4 = Fa -->
+            <div class="relative">
+                <div data-key="4" data-freq="349" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">F4</span>
+                    <span class="text-green-600 font-bold text-xl mb-1">4</span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">Fa</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(349)</span>
+                </div>
+                <!-- 黑鍵 F#4 -->
+                <div data-key="f4-sharp" data-freq="370" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">F#4</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(370)</span>
+                </div>
+            </div>
+
+            <!-- 5 = Sol -->
+            <div class="relative">
+                <div data-key="5" data-freq="392" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">G4</span>
+                    <span class="text-green-600 font-bold text-xl mb-1">5</span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">Sol</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(392)</span>
+                </div>
+                <!-- 黑鍵 G#4 -->
+                <div data-key="g4-sharp" data-freq="415" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">G#4</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(415)</span>
+                </div>
+            </div>
+
+            <!-- 6 = La -->
+            <div class="relative">
+                <div data-key="6" data-freq="440" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">A4</span>
+                    <span class="text-green-600 font-bold text-xl mb-1">6</span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">La</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(440)</span>
+                </div>
+                <!-- 黑鍵 A#4 -->
+                <div data-key="a4-sharp" data-freq="466" class="black-key absolute top-0 -right-5 w-10 h-40 bg-black rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer z-10 transition-transform duration-75">
+                    <span class="text-gray-300 font-bold text-xs">A#4</span>
+                    <span class="text-gray-500 text-[9px] font-mono">(466)</span>
+                </div>
+            </div>
+
+            <!-- 7 = Si -->
+            <div class="relative">
+                <div data-key="7" data-freq="494" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">B4</span>
+                    <span class="text-green-600 font-bold text-xl mb-1">7</span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">Si</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(494)</span>
+                </div>
+            </div>
+
+            <!-- 高音 Do -->
+            <div class="relative">
+                <div data-key="8" data-freq="523" class="white-key w-16 h-64 bg-white border-2 border-gray-300 border-l-0 rounded-b-md shadow-md flex flex-col justify-end items-center pb-2 cursor-pointer relative z-0 transition-transform duration-75">
+                    <span class="text-gray-400 font-bold text-lg mb-1">C5</span>
+                    <span class="text-green-600 font-bold text-xl mb-1 relative">1<span class="absolute left-1/2 -translate-x-1/2 -top-3">&bull;</span></span>
+                    <span class="text-red-500 font-bold leading-none mb-1 text-sm">高Do</span>
+                    <span class="text-gray-400 text-[11px] font-mono">(523)</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 頁尾宣告 -->
+    <div class="mt-12 text-gray-400 text-sm">
+        搭配 FabLab-NKNU 課程專案設計
+    </div>
+
+    <script>
+        // --- Web Audio API 設定 ---
+        let audioCtx;
+        let isBuzzerMode = true; // 預設為蜂鳴器模式 (方波)
+        const activeOscillators = {}; // 追蹤目前正在發聲的振盪器
+        const activeKeys = {}; // 追蹤目前按下的實體按鍵狀態
+
+        // 初始化 Audio Context (需要使用者互動後才能啟動)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // 發出聲音
+        function playSound(freq, keyId) {
+            initAudio();
+
+            // 如果該按鍵已經在發聲，就不要重複觸發
+            if (activeOscillators[keyId]) return;
+
+            // 建立振盪器與音量控制節點
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            // 設定波形：'square' 像蜂鳴器，'sine' 像純淨的電子琴
+            osc.type = isBuzzerMode ? 'square' : 'sine';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+            // 音量控制 (Envelope)，避免聲音開始與結束時產生爆音 (Click)
+            const volume = isBuzzerMode ? 0.1 : 0.3; // 方波較刺耳，調低音量
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(volume, audioCtx.currentTime + 0.02);
+
+            // 連接並播放
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+
+            // 將這個節點存起來，以便放開按鍵時停止
+            activeOscillators[keyId] = { osc, gainNode };
+        }
+
+        // 停止聲音
+        function stopSound(keyId) {
+            if (activeOscillators[keyId]) {
+                const { osc, gainNode } = activeOscillators[keyId];
+                
+                // 平滑降低音量至停止
+                gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                
+                osc.stop(audioCtx.currentTime + 0.1);
+                delete activeOscillators[keyId];
+            }
+        }
+
+        // --- UI 互動邏輯 ---
+
+        // 取得所有琴鍵元素
+        const keys = document.querySelectorAll('.white-key, .black-key');
+
+        // 滑鼠事件處理
+        keys.forEach(key => {
+            // 滑鼠按下去：發聲並增加 active class
+            key.addEventListener('mousedown', (e) => {
+                const freq = parseFloat(key.dataset.freq);
+                const keyId = key.dataset.key;
+                playSound(freq, keyId);
+                key.classList.add('active');
+            });
+
+            // 滑鼠放開或移出：停止發聲並移除 active class
+            const stopAction = () => {
+                const keyId = key.dataset.key;
+                stopSound(keyId);
+                key.classList.remove('active');
+            };
+            key.addEventListener('mouseup', stopAction);
+            key.addEventListener('mouseleave', stopAction);
+
+            // 觸控螢幕支援
+            key.addEventListener('touchstart', (e) => {
+                e.preventDefault(); // 避免觸發滑鼠事件
+                const freq = parseFloat(key.dataset.freq);
+                const keyId = key.dataset.key;
+                playSound(freq, keyId);
+                key.classList.add('active');
+            }, { passive: false });
+            
+            key.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                stopAction();
+            }, { passive: false });
+        });
+
+        // 電腦鍵盤事件處理
+        window.addEventListener('keydown', (e) => {
+            // 防止按住同一個鍵重複觸發
+            if (e.repeat) return;
+            
+            // 轉換為小寫，支援大寫輸入(例如 Q, W 等)
+            const keyChar = e.key.toLowerCase();
+            // 尋找對應的琴鍵 HTML 元素
+            const keyElement = document.querySelector(`[data-key="${keyChar}"]`);
+            
+            if (keyElement) {
+                const freq = parseFloat(keyElement.dataset.freq);
+                playSound(freq, keyChar);
+                keyElement.classList.add('active');
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const keyChar = e.key.toLowerCase();
+            const keyElement = document.querySelector(`[data-key="${keyChar}"]`);
+            
+            if (keyElement) {
+                stopSound(keyChar);
+                keyElement.classList.remove('active');
+            }
+        });
+
+        // --- 簡易樂譜範例功能邏輯 ---
+        
+        // 初始化圖示
+        lucide.createIcons();
+
+        // 音樂資料庫
+        const musicDatabase = {
+            kids: {
+                twinkle: { title: "⭐ 小星星", content: `1  1  5  5  | 6  6  5  -  |\n4  4  3  3  | 2  2  1  -  |\n5  5  4  4  | 3  3  2  -  |\n5  5  4  4  | 3  3  2  -  |\n1  1  5  5  | 6  6  5  -  |\n4  4  3  3  | 2  2  1  -  ||` },
+                mary: { title: "🐑 瑪莉有隻小綿羊", content: `3  2  1  2  | 3  3  3  -  |\n2  2  2  -  | 3  5  5  -  |\n3  2  1  2  | 3  3  3  3  |\n2  2  3  2  | 1  -  -  -  ||` },
+                tiger: { title: "🐯 兩隻老虎", content: `1  2  3  1  | 1  2  3  1  |\n3  4  5  -  | 3  4  5  -  |\n5_6 5_4 3  1 | 5_6 5_4 3  1 |\n2  5, 1  -  | 2  5, 1  -  ||` },
+                london: { title: "🌉 倫敦鐵橋垮下來", content: `5  6  5  4  | 3  4  5  -  |\n2  3  4  -  | 3  4  5  -  |\n5  6  5  4  | 3  4  5  -  |\n2  -  5  -  | 3  -  1  -  ||` },
+                bee: { title: "🐝 小蜜蜂", content: `5  3  3  -  | 4  2  2  -  |\n1  2  3  4  | 5  5  5  -  |\n5  3  3  -  | 4  2  2  -  |\n1  3  5  5  | 3  -  -  -  ||` },
+                donkey: { title: "🐴 小毛驢", content: `1  1  1  3  | 5  5  5  -  |\n4  4  4  6  | 5  -  -  -  |\n3  3  3  5  | 2  2  2  -  |\n1  1  2  3  | 1  -  -  -  ||` }
+            },
+            classical: {
+                ode: { title: "🎹 歡樂頌 (貝多芬)", content: `3  3  4  5  | 5  4  3  2  |\n1  1  2  3  | 3.   2_ 2  -  |\n3  3  4  5  | 5  4  3  2  |\n1  1  2  3  | 2.   1_ 1  -  |\n2  2  3  1  | 2  3_4 3  1 |\n2  3_4 3  2 | 1  2  5, -  |\n3  3  4  5  | 5  4  3  2  |\n1  1  2  3  | 2.   1_ 1  -  ||` },
+                birthday: { title: "🎂 生日快樂歌", content: `5, 5, | 6,  5,  1  | 7, -   \n5, 5, | 6,  5,  2  | 1  -   \n5, 5, | 5   3   1  | 7, 6,  \n4  4  | 3   1   2  | 1  -  ||` },
+                jingle: { title: "🔔 聖誕鈴聲", content: `3  3  3  -  | 3  3  3  -  |\n3  5  1  2  | 3  -  -  -  |\n4  4  4  4  | 4  3  3  3  |\n3  2  2  3  | 2  -  5  -  ||` },
+                grace: { title: "🕊️ 奇異恩典", content: `5, | 1  -  3_1 | 3  -  2  | 1  -  6, |\n5, -  5, | 1  -  3_1 | 3  -  2  | 5  -  -  |\n5  -  3_5 | 5  -  3_1 | 3  -  2  | 1  -  6, |\n5, -  5, | 1  -  3_1 | 3  -  2  | 1  -  -  ||` },
+                elise: { title: "🩰 給愛麗絲 (片段)", content: `3  2' 3  2' | 3  7  2' 1' |\n6  -  0  1  | 3  6  7  -  |\n0  3  5  7  | 1' -  -  -  ||` },
+                canon: { title: "🎻 卡農 (Canon in D)", content: `3  -  2  -  | 1  -  7, -  |\n6, -  5, -  | 6, -  7, -  |\n3  -  2  -  | 1  -  7, -  |\n6, -  5, -  | 6, -  7, -  ||` }
+            },
+            folk: {
+                rain: { title: "🌧️ 雨夜花", content: `3  5  6  3  | 2  -  3  -  |\n5  6  3  2  | 1  -  -  -  |\n3  2  1  6, | 1  -  2  -  |\n3  5  3  2  | 1  -  -  -  |\n2  3  5  5  | 6  -  5  -  |\n6  5  3  2  | 3  -  -  -  |\n3  2  1  6, | 1  -  2  -  |\n3  5  3  2  | 1  -  -  -  ||` },
+                spring: { title: "🍃 望春風", content: `5  5  6  1' | 5  3  2  3  |\n5  5  3  1  | 2  -  -  -  |\n3  5  3  2  | 1  6, 1  2  |\n3  5  6  5  | 3  -  -  -  ||` },
+                jasmine: { title: "🌼 茉莉花", content: `3  3  5  6  | 1' 1' 6  5  |\n5  6  5  -  | 3  3  5  6  |\n1' 1' 6  5  | 5  6  5  -  |\n5  5  5  3  | 2  3  5  -  |\n3  2  1  1  | 2  3  1  -  ||` },
+                moon: { title: "🌕 月亮代表我的心", content: `1  5, | 1  3  5  1' | 7  3  5  5  |\n6  7  1' 6  | 5  -  -  3  |\n2  3  4  4_3| 2  3  4  4_3|\n2  1  2  3  | 2  -  -  ||` },
+                sweet: { title: "🍯 甜蜜蜜", content: `3  5  6  3  | 5  2  3  -  |\n3  5  6  1' | 6  5  6  -  |\n1' 1' 6  5  | 3  2  3  -  |\n1' 1' 6  5  | 3  2  3  -  |\n3  2  1  2  | 1  -  -  -  ||` },
+                diudiu: { title: "🚂 丟丟銅仔", content: `3  5  3  2  | 1  2  3  -  |\n3  3  5  3  | 2  1  2  -  |\n3  2  1  6, | 1  1  2  -  |\n3  5  3  2  | 1  -  -  -  ||` }
+            },
+            anime: {
+                always: { title: "🐉 永遠同在", content: `1  2  | 3  1' 7  | 6  5  3  | \n4  3  2  1  | 2  -  1  2  |\n3  1' 7  | 6  5  3  |\n4  5  3  2  | 1  -  -   ||` },
+                totoro: { title: "🌳 鄰家的龍貓", content: `5  5  1' -  | 6  6  1' -  |\n5  5  4  3  | 4  -  -  -  |\n4  4  7  -  | 5  5  7  -  |\n4  4  3  2  | 3  -  -  -  ||` },
+                laputa: { title: "🏰 天空之城", content: `6  7  | 1' 7  1' 3' | 7  -  -  3  |\n6  5  6  1' | 5  -  -  3  |\n4  3  4  1' | 3  -  -  3  |\n2  3  4  7  | 7  -  -  ||` },
+                titanic: { title: "🚢 鐵達尼號", content: `1  1  1  1  | 7, 1  1  -  |\n1  7, 1  -  | 2  3  4  3  |\n2  -  -  -  || 1  1  1  1  |\n7, 1  1  -  | 1  -  5, -  |\n1  -  -  -  ||` },
+                ponyo: { title: "🌊 崖上的波妞", content: `1  1  1  1  | 3  3  3  3  |\n5  5  6  5  | 3  -  -  -  |\n4  4  4  4  | 3  3  3  3  |\n2  2  3  2  | 1  -  -  -  ||` },
+                doraemon: { title: "🚪 哆啦A夢", content: `5  5  3  5  | 1' -  6  -  |\n5  6  5  3  | 2  -  -  -  |\n4  4  2  4  | 7  -  6  -  |\n5  6  5  2  | 3  -  -  -  ||` }
+            },
+            pop: {
+                fairytale: { title: "📖 童話 (光良)", content: `5  4  3  3  | 3  4  5  5  |\n5  6  1' 1' | 1' 2' 3' 3' |\n3' 2' 1' 2' | 2' -  -  -  ||` },
+                wings: { title: "🕊️ 隱形的翅膀", content: `1  2  3  5  | 3  -  2  1  |\n2  3  5  3  | 2  -  -  -  |\n1  2  3  5  | 3  -  2  1  |\n2  3  2  1  | 1  -  -  -  ||` },
+                friend: { title: "🤝 朋友 (周華健)", content: `5  5  5  5  | 5  3  2  1  |\n2  2  2  2  | 2  1  6, 1  |\n5  5  5  5  | 5  3  2  1  |\n2  2  3  2  | 1  -  -  -  ||` },
+                chrysanthemum: { title: "🌼 菊花台 (周杰倫)", content: `3  5  6  1' | 6  5  3  2  |\n3  5  6  1' | 6  5  6  -  |\n3  5  6  1' | 2' 3' 2' 1' |\n6  1' 5  3  | 2  3  1  -  ||` },
+                years: { title: "🏫 那些年", content: `3  5  6  1' | 1' -  7  1' |\n6  -  5  3  | 2  -  -  -  |\n3  5  6  1' | 1' -  7  1' |\n6  -  5  3  | 2  -  -  -  ||` },
+                lucky: { title: "🍀 小幸運", content: `1' 1' 1' 7  | 6  -  5  -  |\n6  6  6  5  | 3  -  -  -  |\n4  4  4  3  | 2  -  1  -  |\n2  2  3  4  | 5  -  -  -  ||` }
+            }
+        };
+
+        const inputArea = document.getElementById('jianpu-input');
+        const categorySelect = document.getElementById('category-select');
+        const songSelect = document.getElementById('song-select');
+
+        function updateSongOptions(categoryKey) {
+            songSelect.innerHTML = '';
+            const categoryData = musicDatabase[categoryKey];
+            
+            for (const [songKey, songData] of Object.entries(categoryData)) {
+                const option = document.createElement('option');
+                option.value = songKey;
+                option.textContent = songData.title;
+                songSelect.appendChild(option);
+            }
+        }
+
+        function loadScore(categoryKey, songKey) {
+            inputArea.style.opacity = '0';
+            setTimeout(() => {
+                inputArea.value = musicDatabase[categoryKey][songKey].content;
+                inputArea.style.opacity = '1';
+            }, 250);
+        }
+
+        categorySelect.addEventListener('change', (e) => {
+            const newCategory = e.target.value;
+            updateSongOptions(newCategory);
+            const firstSongKey = Object.keys(musicDatabase[newCategory])[0];
+            loadScore(newCategory, firstSongKey);
+        });
+
+        songSelect.addEventListener('change', (e) => {
+            loadScore(categorySelect.value, e.target.value);
+        });
+
+        // 初始化樂譜
+        updateSongOptions('kids');
+        inputArea.value = musicDatabase['kids']['twinkle'].content;
+
+    </script>
+</body>
+</html>

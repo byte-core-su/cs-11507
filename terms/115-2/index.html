@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>一一五學年度下學期資訊科技｜入口網</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../../firebase-config.js"></script>
+  <script src="../../shared/learner-profile.js"></script>
+  <script>if (window.LearnerProfile?.hasActiveSession()) document.documentElement.classList.add('restoring-session');</script>
+  <script src="../../shared/site-shell.js" defer></script>
+  <style>.restoring-session #login-view{display:none!important}.restoring-session #session-loading{display:flex}</style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+  <div id="session-loading" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-50"><div class="rounded-2xl bg-white px-6 py-5 text-center shadow-sm"><div class="mx-auto h-7 w-7 animate-spin rounded-full border-4 border-indigo-100 border-t-indigo-600"></div><p class="mt-3 text-sm font-bold text-slate-600">正在開啟學習大廳…</p></div></div>
+  <main class="max-w-7xl mx-auto px-4 py-10">
+    <section id="login-view" class="max-w-md mx-auto mt-10 rounded-3xl bg-white p-8 shadow-xl shadow-slate-200/70 border border-slate-100">
+      <p class="text-xs font-black tracking-[.22em] text-indigo-500">11502 · SECOND TERM</p>
+      <h1 class="mt-2 text-3xl font-black">資訊科技學習總覽</h1>
+      <p class="mt-3 text-sm leading-6 text-slate-500">以學校帳號登入後，學習進度會保存在本學期的獨立紀錄中。</p>
+      <form id="login-form" class="mt-7 space-y-4">
+        <label class="block"><span class="mb-1 block text-sm font-bold">學號</span><input id="student-id" inputmode="numeric" maxlength="7" required placeholder="例如 1510211" class="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"></label>
+        <label class="block"><span class="mb-1 block text-sm font-bold">密碼</span><input id="password" type="password" autocomplete="current-password" class="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"></label>
+        <button class="w-full rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700">進入學習總覽</button>
+      </form>
+      <p id="login-message" class="mt-4 text-sm text-slate-500" role="status"></p>
+    </section>
+
+    <section id="dashboard-view" class="hidden">
+      <header class="rounded-3xl bg-gradient-to-br from-indigo-700 to-violet-700 p-7 text-white shadow-xl shadow-indigo-200">
+        <div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div><p class="text-xs font-bold tracking-[.2em] text-indigo-200">LEARNING PORTAL</p><h1 class="mt-2 text-3xl font-black">一一五學年度下學期資訊科技</h1><p id="student-meta" class="mt-2 text-indigo-100"></p></div>
+          <div class="min-w-56 rounded-2xl bg-white/15 p-4 backdrop-blur"><div class="flex justify-between text-sm"><span>完成度</span><b id="progress-text">0 / 32</b></div><div class="mt-3 h-3 overflow-hidden rounded-full bg-white/20"><div id="progress-bar" class="h-full rounded-full bg-cyan-300 transition-all duration-500"></div></div></div>
+        </div>
+      </header>
+      <div id="preview-notice" class="hidden mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"></div>
+      <section class="mt-8"><div class="flex flex-wrap items-end justify-between gap-3"><div><p class="text-xs font-black tracking-[.2em] text-indigo-500">COURSE CENTER</p><h2 class="mt-1 text-2xl font-black">選擇課程開始學習</h2><p class="mt-1 text-sm text-slate-500">課程圖卡只負責開啟課程。</p></div><a href="line.html" class="rounded-lg px-3 py-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50">課間遊戲 →</a></div><section id="course-grid" class="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4"></section></section>
+      <section class="mt-10"><div><p class="text-xs font-black tracking-[.2em] text-indigo-500">MY PROGRESS</p><h2 class="mt-1 text-2xl font-black">本學期任務進度</h2><p class="mt-1 text-sm text-slate-500">完成後由學生自行勾選；資訊生活測驗通過的項目由系統自動填寫。</p></div><section id="task-progress-grid" class="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4"></section></section>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+    import { getFirestore, doc, getDoc, onSnapshot, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+    const { SCHOOL_APP, LearnerProfile } = window;
+    const currentTermId = SCHOOL_APP.currentTermId;
+    const courses = [
+      ['u01', '資訊生活：安全與隱私', 'infolife.html', 'amber'],
+      ['u02', 'Scratch：程式積木', 'scratch.html', 'sky'],
+      ['u03', '運算思維：拆解問題', 'thinking.html', 'violet'],
+      ['u04', '演算法與流程圖', 'project.html', 'emerald'],
+      ['u05', '5016B：控制專題', '5016b.html', 'orange'],
+      ['u06', '知識大擂台', 'quiz.html', 'rose'],
+      ['u07', '一筆畫解謎', 'line.html', 'indigo'],
+      ['u08', '小小李斯特', 'music.html', 'cyan']
+    ].map(([id, title, href, color]) => ({
+      id, title, href, color,
+      tasks: ['閱讀教材', '完成練習', '實作挑戰', '反思與繳交'].map((label, index) => ({ id: `${id}-${index + 1}`, label, automatic: id === 'u01' && index === 1 }))
+    }));
+    courses.find(course => course.href === 'line.html').title = '課間遊戲';
+    const courseVisuals = Object.freeze({
+      'infolife.html': { title: '資訊安全', description: '安全、隱私與數位公民', icon: '🛡️', background: 'linear-gradient(135deg, #2563eb, #0f3c8c)' },
+      'scratch.html': { title: 'Scratch 程式設計', description: '完成流程圖後，將想法寫成積木程式', icon: '🧩', background: 'linear-gradient(135deg, #f97316, #ea580c)' },
+      'thinking.html': { title: '運算思維', description: '拆解問題並找出解法', icon: '🧠', background: 'linear-gradient(135deg, #8b5cf6, #c026d3)' },
+      'project.html': { title: '流程圖', description: '演算法與流程圖實作', icon: '🗺️', background: 'linear-gradient(135deg, #10b981, #059669)' },
+      '5016b.html': { title: '5016B 專題實作', description: 'Arduino 與智慧控制專題', icon: '🤖', background: 'linear-gradient(135deg, #f97316, #ef4444)' },
+      'quiz.html': { title: '知識測驗', description: '挑戰資訊科技知識', icon: '🏆', background: 'linear-gradient(135deg, #f43f5e, #db2777)' },
+      'line.html': { title: '課間遊戲', description: '短暫休息，輕鬆挑戰', icon: '🎮', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' },
+      'music.html': { title: '音樂創作', description: '探索節奏與數位聲音', icon: '🎵', background: 'linear-gradient(135deg, #06b6d4, #0e7490)' }
+    });
+    const courseOrder = Object.freeze([
+      { href: 'infolife.html' },
+      { href: 'scratch.html', extension: { href: 'music.html', label: '音樂創作延伸' } },
+      { href: 'thinking.html' },
+      { href: '5016b.html' }
+    ]);
+    const courseBackgroundOverrides = Object.freeze({
+      // 5016B uses the same blue hardware-lab palette as its course page.
+      '5016b.html': 'linear-gradient(135deg, #0ea5e9, #2563eb)'
+    });
+    const taskGroups = Object.freeze([
+      { title: '任務一', color: 'amber', tasks: [{ id: '1-2', label: '資訊生活：1-1 資訊科技與人類生活' }, { id: '1-1', label: 'Scratch 程式設計：2-2-3 動畫實作' }, { id: '1-3', label: '運算思維：(1) 重排積木' }] },
+      { title: '任務二', color: 'sky', tasks: [{ id: '2-2', label: '資訊生活：1-2 資訊科技及其相關議題' }, { id: '2-1', label: 'Scratch 程式設計：2-3-1 循序結構' }, { id: '2-3', label: '運算思維：(2) 寶箱開鎖' }] },
+      { title: '任務三', color: 'pink', tasks: [{ id: '3-2', label: '資訊生活：第一章 資訊科技導論' }, { id: '3-1', label: 'Scratch 程式設計：2-3-2 選擇結構' }, { id: '3-3', label: '運算思維：(3) 畢業手鍊' }] },
+      { title: '任務四', color: 'emerald', tasks: [{ id: '4-2', label: '資訊生活：2-1 認識演算法與程式語言' }, { id: '4-1', label: 'Scratch 程式設計：2-3-3 重複結構' }, { id: '4-3', label: '運算思維：(4) 彙整遊戲卡' }] },
+      { title: '任務五', color: 'purple', tasks: [{ id: '5-2', label: '資訊生活：2-2 Scratch 程式設計－基礎篇' }, { id: '5-1', label: 'Scratch 程式設計：限時猜數字遊戲' }, { id: '5-3', label: '運算思維：(5) 班級出遊' }] },
+      { title: '任務六', color: 'orange', tasks: [{ id: '6-2', label: '資訊生活：2-3 Scratch 程式設計－計算篇' }, { id: '6-1', label: 'Scratch 程式設計：第一次程式挑戰賽' }, { id: '6-3', label: '運算思維：(6) 夜市射氣球' }] },
+      { title: '任務七', color: 'teal', tasks: [{ id: '7-2', label: '資訊生活：2-4 Scratch 程式設計－繪圖篇' }, { id: '7-1', label: 'Scratch 程式設計：2-4 畫正方形' }, { id: '7-3', label: '運算思維：(7) 團隊攀岩' }] },
+      { title: '任務八', color: 'rose', tasks: [{ id: '8-2', label: '資訊生活：第二章 基礎程式設計(1)' }, { id: '8-1', label: 'Scratch 程式設計：小小繪圖家' }, { id: '8-3', label: '運算思維：(8) 誰的帽子' }] }
+    ]);
+    const automaticTaskIds = Object.freeze(['1-2', '2-2', '3-2', '4-2', '5-2', '6-2', '7-2', '8-2']);
+    const totalTasks = taskGroups.reduce((count, group) => count + group.tasks.length, 0);
+    const previewStorageKey = `learning-platform.${currentTermId}.tasks-preview.v1`;
+
+    let firebaseApp, auth, db, unsubscribe, currentUser, tasks = {}, automaticTasks = {}, profile = null;
+    const byId = id => document.getElementById(id);
+    const isLive = SCHOOL_APP.isFirebaseConfigured();
+
+    function setMessage(message, error = false) {
+      const target = byId('login-message'); target.textContent = message; target.className = `mt-4 text-sm ${error ? 'text-rose-600' : 'text-slate-500'}`;
+    }
+    function getPreviewTasks() { try { return JSON.parse(localStorage.getItem(previewStorageKey) || '{}'); } catch (_) { return {}; } }
+    function loadTermTasks(termData = {}) { automaticTasks = Object.fromEntries(automaticTaskIds.filter(taskId => termData.tasks?.[taskId]).map(taskId => [taskId, termData.tasks[taskId]])); tasks = { ...(termData.tasks || {}), ...automaticTasks }; }
+    function countCompleted() { return taskGroups.flatMap(group => group.tasks).filter(task => tasks[task.id]).length; }
+    function formatName() { return (profile && profile.name) || (profile && profile.studentId) || '同學'; }
+
+    function renderDashboard() {
+      const done = countCompleted();
+      queueMicrotask(() => {
+        renderCourseLinks();
+        renderTaskProgress();
+        return;
+        const automaticInput = document.querySelector('[data-task-id="u01-2"]');
+        if (!automaticInput) return;
+        automaticInput.disabled = true;
+        automaticInput.closest('label')?.classList.remove('cursor-pointer');
+        automaticInput.closest('label')?.classList.add('cursor-default');
+        if (!automaticInput.nextElementSibling.querySelector('.system-recorded')) automaticInput.nextElementSibling.insertAdjacentHTML('beforeend', '<small class="system-recorded ml-1 text-xs text-emerald-600">系統登記</small>');
+      });
+      byId('student-name').textContent = formatName();
+      byId('student-meta').textContent = `${currentTermId} ｜ 學號 ${profile?.studentId || ''}`;
+      byId('progress-text').textContent = `${done} / ${totalTasks}`;
+      byId('progress-bar').style.width = `${Math.round(done / totalTasks * 100)}%`;
+      byId('preview-notice').classList.toggle('hidden', isLive);
+      byId('preview-notice').textContent = '目前是本機預覽模式：尚未填入 jimwang-4b0ca 的 Firebase Web 設定，資料只存於此瀏覽器，尚未同步到學校系統。';
+      byId('course-grid').innerHTML = courses.map(course => {
+        const completed = course.tasks.filter(task => tasks[task.id]).length;
+        return `<article class="rounded-2xl border border-${course.color}-100 bg-white p-5 shadow-sm"><div class="flex items-start justify-between gap-3"><h2 class="font-black leading-6">${course.title}</h2><a class="rounded-lg bg-${course.color}-50 px-2 py-1 text-xs font-bold text-${course.color}-700" href="${course.href}">開啟</a></div><p class="mt-2 text-xs font-bold text-slate-400">${completed} / ${course.tasks.length} 項完成</p><div class="mt-4 space-y-2">${course.tasks.map(task => `<label class="flex cursor-pointer items-center gap-2 text-sm"><input data-task-id="${task.id}" type="checkbox" ${tasks[task.id] ? 'checked' : ''} class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"><span class="${tasks[task.id] ? 'text-slate-400 line-through' : ''}">${task.label}</span></label>`).join('')}</div></article>`;
+      }).join('');
+    }
+
+    function renderCourseCards() {
+      byId('course-grid').innerHTML = courses.map(course => {
+        const visual = courseVisuals[course.href] || { title: course.title, description: '開啟課程，完成本學期任務。', icon: '📘', background: 'linear-gradient(135deg, #475569, #334155)' };
+        const completed = course.tasks.filter(task => tasks[task.id]).length;
+        return `<article class="group overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl"><div class="relative h-32 p-5 text-white" style="background:${visual.background}"><span class="text-5xl drop-shadow-sm" aria-hidden="true">${visual.icon}</span><a class="absolute right-4 top-4 rounded-xl bg-white/20 px-3 py-2 text-xs font-black text-white backdrop-blur hover:bg-white/30" href="${course.href}">開啟課程</a></div><div class="p-5"><div class="flex items-start justify-between gap-3"><div><h2 class="text-lg font-black">${visual.title}</h2><p class="mt-1 text-sm text-slate-500">${visual.description}</p></div><span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">${completed}/${course.tasks.length}</span></div><div class="mt-4 border-t border-slate-100 pt-3 space-y-2">${course.tasks.map(task => `<label class="flex items-center gap-2 text-sm ${task.automatic ? 'cursor-default' : 'cursor-pointer'}"><input data-task-id="${task.id}" type="checkbox" ${tasks[task.id] ? 'checked' : ''} ${task.automatic ? 'disabled' : ''} class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed"><span class="${tasks[task.id] ? 'text-slate-400 line-through' : 'text-slate-700'}">${task.label}${task.automatic ? '<small class="ml-1 text-xs text-emerald-600">系統登記</small>' : ''}</span></label>`).join('')}</div></div></article>`;
+      }).join('');
+    }
+
+    function renderCourseLinks() {
+      byId('course-grid').innerHTML = courseOrder.map((course, index) => {
+        const visual = { ...courseVisuals[course.href], background: courseBackgroundOverrides[course.href] || courseVisuals[course.href].background };
+        const number = String(index + 1).padStart(2, '0');
+        return `<article class="group relative isolate min-h-[270px] overflow-hidden rounded-[2rem] text-white shadow-lg shadow-slate-300/60 transition duration-300 hover:-translate-y-2 hover:shadow-2xl" style="background:${visual.background}"><div class="pointer-events-none absolute -right-12 -top-14 h-44 w-44 rounded-full bg-white/15 transition duration-500 group-hover:scale-125" aria-hidden="true"></div><div class="pointer-events-none absolute -bottom-20 -left-14 h-48 w-48 rounded-full border-[18px] border-white/15" aria-hidden="true"></div><div class="pointer-events-none absolute inset-0 opacity-25" style="background-image:radial-gradient(circle at 1px 1px, white 1px, transparent 0);background-size:18px 18px" aria-hidden="true"></div><a href="${course.href}" class="relative flex min-h-[270px] flex-col p-6"><div class="flex items-start justify-between"><span class="rounded-full border border-white/30 bg-white/15 px-3 py-1 text-[10px] font-black tracking-[.22em] backdrop-blur">COURSE ${number}</span><span class="text-4xl font-black leading-none text-white/35" aria-hidden="true">${number}</span></div><div class="mt-auto"><span class="mb-4 block text-6xl drop-shadow-md transition duration-300 group-hover:scale-110 group-hover:rotate-3" aria-hidden="true">${visual.icon}</span><p class="text-[11px] font-black tracking-[.18em] text-white/70">LEARNING STUDIO</p><h2 class="mt-1 text-2xl font-black tracking-tight">${visual.title}</h2><p class="mt-2 max-w-[18rem] text-sm leading-6 text-white/85">${visual.description}</p><span class="mt-5 inline-flex items-center gap-2 text-sm font-black">開始探索 <span class="grid h-8 w-8 place-items-center rounded-full bg-white/20 text-lg transition group-hover:translate-x-1 group-hover:bg-white group-hover:text-slate-800">↗</span></span></div></a>${course.extension ? `<a href="${course.extension.href}" class="absolute bottom-4 left-6 right-6 z-10 rounded-xl border border-white/30 bg-white/15 px-3 py-2 text-center text-sm font-black text-white backdrop-blur transition hover:bg-white hover:text-sky-700">${course.extension.label} →</a>` : ''}</article>`;
+      }).join('');
+    }
+
+    function renderTaskProgress() {
+      byId('task-progress-grid').innerHTML = taskGroups.map(group => {
+        const completed = group.tasks.filter(task => tasks[task.id]).length;
+        return `<article class="rounded-3xl border border-${group.color}-100 bg-white p-5 shadow-sm"><div class="flex items-center justify-between gap-3"><h3 class="text-lg font-black">${group.title}</h3><span class="rounded-full bg-${group.color}-50 px-3 py-1 text-xs font-bold text-${group.color}-700">完成度：${completed} / ${group.tasks.length}</span></div><div class="mt-4 space-y-3">${group.tasks.map(task => { const automatic = automaticTaskIds.includes(task.id); return `<label class="flex items-start gap-3 text-sm ${automatic ? 'cursor-default' : 'cursor-pointer'}"><input data-task-id="${task.id}" type="checkbox" ${tasks[task.id] ? 'checked' : ''} ${automatic ? 'disabled' : ''} class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed"><span class="leading-5 ${tasks[task.id] ? 'text-slate-400 line-through' : 'text-slate-700'}">${task.label}${automatic ? '<small class="ml-1 whitespace-nowrap text-xs text-emerald-600">系統登記</small>' : ''}</span></label>`; }).join('')}</div></article>`;
+      }).join('');
+    }
+
+    async function persistTasks() {
+      if (!isLive) { localStorage.setItem(previewStorageKey, JSON.stringify(tasks)); return; }
+      const userRef = doc(db, 'users', currentUser.uid);
+      await setDoc(userRef, { terms: { [currentTermId]: { tasks, updatedAt: new Date().toISOString() } } }, { merge: true });
+    }
+
+    async function loadUserData() {
+      const userRef = doc(db, 'users', currentUser.uid);
+      const snapshot = await getDoc(userRef);
+      const saved = snapshot.exists() ? snapshot.data() : {};
+      profile = {
+        ...(LearnerProfile.readLocalProfile() || {}),
+        ...(saved.profile || {}),
+        studentId: saved.profile?.studentId || currentUser.email.split('@')[0]
+      };
+      loadTermTasks(saved.terms?.[currentTermId] || {});
+      unsubscribe?.();
+      unsubscribe = onSnapshot(userRef, next => { const data = next.data() || {}; loadTermTasks(data.terms?.[currentTermId] || {}); profile = data.profile || profile; renderDashboard(); });
+    }
+
+    async function ensureUserProfile(studentId) {
+      profile = { ...(profile || {}), studentId };
+      await setDoc(doc(db, 'users', currentUser.uid), {
+        profile: { studentId, name: profile.name || '' },
+        identity: { provider: 'student-email', studentId },
+        // A term entry is created at login, not only after the first task is checked.
+        // This lets the teacher console list every student who has entered 11502.
+        terms: { [currentTermId]: { startedAt: new Date().toISOString() } }
+      }, { merge: true });
+    }
+
+    async function enterPreview(studentId) {
+      profile = LearnerProfile.startSession({ studentId }); tasks = getPreviewTasks(); showDashboard(); window.dispatchEvent(new Event('portal:authenticated'));
+    }
+    function showDashboard() { document.documentElement.classList.remove('restoring-session'); byId('session-loading').classList.add('hidden'); byId('login-view').classList.add('hidden'); byId('dashboard-view').classList.remove('hidden'); renderDashboard(); }
+
+    byId('login-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const studentId = LearnerProfile.normalizeStudentId(byId('student-id').value);
+      if (!LearnerProfile.isValidStudentId(studentId)) return setMessage('學號需為 151 或 152 開頭的 7 碼數字。', true);
+      if (!isLive) return enterPreview(studentId);
+      const password = byId('password').value;
+      if (!password) return setMessage('請輸入學校帳號密碼。', true);
+      try {
+        setMessage('正在登入並讀取 11502 學習紀錄…');
+        const credential = await signInWithEmailAndPassword(auth, LearnerProfile.studentEmail(studentId), password);
+        currentUser = credential.user;
+        await loadUserData();
+        await ensureUserProfile(studentId);
+        showDashboard();
+        profile = LearnerProfile.startSession(profile || { studentId });
+        window.dispatchEvent(new Event('portal:authenticated'));
+      } catch (error) { setMessage('登入失敗，請確認學號、密碼與 Firebase 設定。', true); console.error(error); }
+    });
+
+    byId('task-progress-grid').addEventListener('change', async event => {
+      const id = event.target.dataset.taskId; if (!id) return;
+      tasks[id] = event.target.checked ? new Date().toISOString() : false;
+      automaticTaskIds.forEach(taskId => { if (tasks[taskId] === undefined) tasks[taskId] = automaticTasks[taskId] || false; });
+      renderDashboard();
+      try { await persistTasks(); } catch (error) { console.error(error); alert('儲存失敗，請稍後重試。'); }
+    });
+
+    if (isLive) {
+      firebaseApp = initializeApp(SCHOOL_APP.firebaseConfig); auth = getAuth(firebaseApp); db = getFirestore(firebaseApp);
+      onAuthStateChanged(auth, async user => {
+        if (!user) { document.documentElement.classList.remove('restoring-session'); byId('session-loading').classList.add('hidden'); return; }
+        if (currentUser || !LearnerProfile.isValidStudentId(user.email?.split('@')[0] || '')) { document.documentElement.classList.remove('restoring-session'); byId('session-loading').classList.add('hidden'); return; }
+        try {
+          currentUser = user;
+          await loadUserData();
+          await ensureUserProfile(user.email.split('@')[0]);
+          profile = LearnerProfile.startSession(profile || { studentId: user.email.split('@')[0] });
+          showDashboard();
+          window.dispatchEvent(new Event('portal:authenticated'));
+        } catch (error) { console.error('Unable to restore student lobby:', error); }
+      });
+    }
+    else setMessage('Firebase 設定尚未填入；可先輸入學號進行本機預覽。');
+  </script>
+</body>
+</html>

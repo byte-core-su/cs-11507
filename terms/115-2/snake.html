@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>貪食蛇挑戰｜11502</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../../firebase-config.js"></script>
+  <script src="../../shared/learner-profile.js"></script>
+  <script src="../../shared/site-shell.js" defer></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 font-sans">
+  <main class="max-w-xl mx-auto px-5 py-10 text-center">
+    <p class="text-cyan-300 font-bold tracking-[.25em] text-xs">11502 MINI GAME</p>
+    <h1 class="text-3xl font-black mt-2">貪食蛇挑戰</h1>
+    <div class="mt-6 flex justify-between items-center bg-slate-800 rounded-xl px-5 py-3"><span>分數 <b id="score">0</b></span><button id="restart" class="rounded-lg bg-cyan-500 px-4 py-2 text-slate-950 font-bold">重新開始</button></div>
+    <canvas id="game" width="400" height="400" class="w-full max-w-[400px] aspect-square mt-5 rounded-2xl border-4 border-slate-700 bg-slate-900 shadow-2xl"></canvas>
+    <p class="text-sm text-slate-400 mt-4">使用方向鍵或 WASD 操作。最高分只保存在這台裝置。</p>
+  </main>
+  <script>
+    (() => {
+      const canvas = document.querySelector('#game'), ctx = canvas.getContext('2d'), cells = 20;
+      let snake, food, direction, queued, score, timer;
+      const randomCell = () => Math.floor(Math.random() * cells);
+      const reset = () => { snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}]; direction = {x:1,y:0}; queued = direction; score = 0; placeFood(); clearInterval(timer); timer = setInterval(tick, 120); draw(); };
+      const placeFood = () => { do { food = {x:randomCell(), y:randomCell()}; } while (snake.some(p => p.x === food.x && p.y === food.y)); };
+      const tick = () => { direction = queued; const head = {x:(snake[0].x + direction.x + cells) % cells, y:(snake[0].y + direction.y + cells) % cells}; if (snake.some(p => p.x === head.x && p.y === head.y)) return reset(); snake.unshift(head); if (head.x === food.x && head.y === food.y) { score++; document.querySelector('#score').textContent = score; placeFood(); } else snake.pop(); draw(); };
+      const drawCell = (p, color) => { ctx.fillStyle = color; ctx.fillRect(p.x * 20 + 1, p.y * 20 + 1, 18, 18); };
+      const draw = () => { ctx.fillStyle = '#0f172a'; ctx.fillRect(0,0,400,400); snake.forEach((p,i) => drawCell(p, i ? '#22d3ee' : '#a5f3fc')); drawCell(food, '#fb7185'); };
+      document.addEventListener('keydown', e => { const key = e.key.toLowerCase(); const next = key === 'arrowup'||key==='w' ? {x:0,y:-1} : key === 'arrowdown'||key==='s' ? {x:0,y:1} : key === 'arrowleft'||key==='a' ? {x:-1,y:0} : key === 'arrowright'||key==='d' ? {x:1,y:0} : null; if (next && next.x !== -direction.x && next.y !== -direction.y) { e.preventDefault(); queued = next; } });
+      document.querySelector('#restart').addEventListener('click', reset); reset();
+    })();
+  </script>
+</body>
+</html>
