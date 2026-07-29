@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>園遊會規劃四大流程與應用工具</title>
+    <script defer src="../../shared/site-shell.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            scroll-behavior: smooth;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .fade-in { animation: fadeIn 0.4s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 互動特效 */
+        @keyframes pulse-target {
+            0%, 100% { background-color: #fef08a; border-color: #eab308; box-shadow: inset 0 0 0 2px #eab308; }
+            50% { background-color: #fef9c3; border-color: #ca8a04; box-shadow: inset 0 0 0 3px #ca8a04; }
+        }
+        .highlight-target { animation: pulse-target 1.5s infinite; font-weight: bold; color: #b45309; }
+        .highlight-source { background-color: #e0f2fe; box-shadow: inset 0 0 0 2px #38bdf8; font-weight: bold; }
+        .cell-completed { background-color: #dcfce7; box-shadow: inset 0 0 0 1px #86efac; color: #166534; font-weight: bold; }
+    </style>
+  <script src="../../firebase-config.js"></script>
+  <script src="../../shared/learner-profile.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+    <!-- 頂部導覽與標題 -->
+    <header class="bg-slate-800 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-6 md:py-8 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold mb-2 text-white">
+                <i class="fa-solid fa-flag text-blue-400 mr-3"></i>園遊會規劃四大流程
+            </h1>
+            <p class="text-slate-300 text-sm md:text-base">運用數位工具，打造高效率的活動籌備體驗</p>
+        </div>
+        
+        <!-- 四大頁籤導覽 -->
+        <div class="max-w-5xl mx-auto px-4 mt-4">
+            <div class="flex justify-start md:justify-center space-x-2 bg-slate-700/50 p-1.5 rounded-t-xl overflow-x-auto no-scrollbar">
+                <button onclick="switchTab('stage1')" id="tab-stage1" class="tab-btn active px-4 py-3 md:px-6 md:py-3 rounded-lg text-sm md:text-base font-medium transition-all duration-300 bg-white text-slate-800 shadow flex-shrink-0">
+                    <i class="fa-solid fa-magnifying-glass text-blue-500 mr-2"></i>1. 資料蒐集
+                </button>
+                <button onclick="switchTab('stage2')" id="tab-stage2" class="tab-btn px-4 py-3 md:px-6 md:py-3 rounded-lg text-sm md:text-base font-medium text-slate-200 hover:bg-slate-600 transition-all duration-300 flex-shrink-0">
+                    <i class="fa-solid fa-file-word text-blue-400 mr-2"></i>2. 撰寫計畫書
+                </button>
+                <button onclick="switchTab('stage3')" id="tab-stage3" class="tab-btn px-4 py-3 md:px-6 md:py-3 rounded-lg text-sm md:text-base font-medium text-slate-200 hover:bg-slate-600 transition-all duration-300 flex-shrink-0">
+                    <i class="fa-solid fa-file-excel text-green-400 mr-2"></i>3. 製作記帳本
+                </button>
+                <button onclick="switchTab('stage4')" id="tab-stage4" class="tab-btn px-4 py-3 md:px-6 md:py-3 rounded-lg text-sm md:text-base font-medium text-slate-200 hover:bg-slate-600 transition-all duration-300 flex-shrink-0">
+                    <i class="fa-solid fa-file-powerpoint text-yellow-400 mr-2"></i>4. 成果報告
+                </button>
+            </div>
+        </div>
+        <div class="max-w-5xl mx-auto px-4 pb-5">
+            <div class="learning-progress-panel p-4 md:px-5 md:py-4">
+                <div class="learning-progress-head">
+                    <span class="learning-progress-title">園遊會數位規劃・學習地圖</span>
+                    <span id="course-progress-count" class="learning-progress-count">1 / 4 階段</span>
+                </div>
+                <div class="learning-progress-track mt-2.5">
+                    <div id="course-progress-fill" class="learning-progress-fill" style="width: 25%"></div>
+                </div>
+                <p id="course-progress-note" class="learning-progress-note">目前：資料蒐集，先建立可靠的籌備資訊。</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要內容區 -->
+    <main class="max-w-5xl mx-auto px-4 py-8 mb-12">
+
+        <!-- ==================== 頁面 1: 資料蒐集 ==================== -->
+        <section id="section-stage1" class="fade-in block max-w-4xl mx-auto">
+            <div class="learning-content-card bg-white rounded-2xl shadow-sm border-l-8 border-blue-500 p-6 md:p-8 mb-8 flex flex-col md:flex-row items-center gap-6">
+                <div class="w-20 h-20 flex-shrink-0 bg-blue-50 rounded-full flex items-center justify-center">
+                    <i class="fa-solid fa-magnifying-glass text-4xl text-blue-500"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">利用搜尋引擎找尋情報</h2>
+                    <p class="text-slate-600 leading-relaxed">
+                        在籌備初期，透過強大的搜尋引擎蒐集過去園遊會的案例、熱門攤位點子、場地租借資訊以及預算行情。廣泛的情報能幫助團隊在發想階段激發更多創意，並避免重複過去的錯誤。
+                    </p>
+                </div>
+            </div>
+
+            <div class="bg-[#f0f9ff] rounded-xl shadow-md border-2 border-blue-200 overflow-hidden mb-8">
+                <div class="bg-blue-500 text-white px-6 py-4 flex items-center justify-between">
+                    <h3 class="text-lg font-bold"><i class="fa-solid fa-gamepad mr-2"></i>互動小教室：精準搜尋技巧</h3>
+                    <span class="text-sm bg-blue-600 px-3 py-1 rounded-full font-medium" id="wiz1-counter">步驟 1 / 2</span>
+                </div>
+                <div class="p-6">
+                    <div class="bg-slate-100 p-6 rounded-lg mb-6 border shadow-inner flex flex-col items-center min-h-[100px] transition-all duration-500" id="wiz1-mockup-container">
+                        <!-- 搜尋列 -->
+                        <div class="w-full max-w-lg bg-white rounded-full px-5 py-3 flex items-center shadow-md border border-slate-200 transition-all duration-300 z-10 relative" id="wiz1-mockup-bar">
+                            <i class="fa-brands fa-google text-slate-400 mr-3 text-lg transition-colors" id="wiz1-mockup-icon"></i>
+                            <span id="wiz1-mockup-text" class="text-slate-400 select-none transition-colors">請在下方選擇適合的關鍵字...</span>
+                        </div>
+                        <!-- 搜尋結果區塊 (初始隱藏) -->
+                        <div id="wiz1-mockup-results" class="w-full max-w-lg mt-4 flex flex-col gap-3 opacity-0 hidden transition-opacity duration-500">
+                            <!-- JS 動態注入結果 -->
+                        </div>
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="flex-1 bg-white p-5 rounded-lg border border-blue-100 shadow-sm relative">
+                            <h4 class="text-lg font-bold text-blue-800 mb-2" id="wiz1-title"></h4>
+                            <p class="text-slate-600 leading-relaxed mb-4" id="wiz1-desc"></p>
+                            <div id="wiz1-feedback" class="hidden p-3 rounded-lg text-sm font-bold mt-2"></div>
+                        </div>
+                        <div class="flex-1 flex flex-col justify-center gap-3" id="wiz1-options"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== 頁面 2: 撰寫計畫書 ==================== -->
+        <section id="section-stage2" class="hidden fade-in block max-w-4xl mx-auto">
+            <div class="learning-content-card bg-white rounded-2xl shadow-sm border-l-8 border-indigo-600 p-6 md:p-8 mb-8 flex flex-col md:flex-row items-center gap-6">
+                <div class="w-20 h-20 flex-shrink-0 bg-indigo-50 rounded-full flex items-center justify-center">
+                    <i class="fa-solid fa-file-lines text-4xl text-indigo-600"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">整合分工與流程：文件</h2>
+                    <p class="text-slate-600 leading-relaxed">
+                        將收集到的情報轉換為具體的執行企劃。線上文件支援多人同時協作，讓各組別可以同步編寫活動企劃書、流程表與人員配置，並利用註解功能即時討論修改，確保所有人都在同一進度上。
+                    </p>
+                </div>
+            </div>
+
+            <!-- 新增：撰寫計畫書的四大要素 -->
+            <div class="mb-8">
+                <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center">
+                    <i class="fa-solid fa-book-open text-indigo-500 mr-2"></i>計畫書具備特色
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-indigo-400 hover:shadow-md transition-shadow">
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center text-md"><i class="fa-solid fa-bullseye text-indigo-400 mr-2"></i>1. 明確的背景與目的、方法與步驟</h4>
+                        <p class="text-sm text-slate-600">讓閱讀者清楚知道這份計畫的起因、想達成的目標，以及具體該怎麼做。</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-indigo-400 hover:shadow-md transition-shadow">
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center text-md"><i class="fa-solid fa-chart-pie text-indigo-400 mr-2"></i>2. 搭配清晰的圖表</h4>
+                        <p class="text-sm text-slate-600">適時加入圖表或圖片，以視覺化的方式輔助文字，讓內容更容易被理解。</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-indigo-400 hover:shadow-md transition-shadow">
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center text-md"><i class="fa-solid fa-link text-indigo-400 mr-2"></i>3. 方法與目的相扣</h4>
+                        <p class="text-sm text-slate-600">「方法、步驟」一定要和「背景、目的」緊密相關，確保計畫的邏輯一致不偏題。</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-indigo-400 hover:shadow-md transition-shadow">
+                        <h4 class="font-bold text-slate-800 mb-2 flex items-center text-md"><i class="fa-solid fa-flag-checkered text-indigo-400 mr-2"></i>4. 具備完整的結論</h4>
+                        <p class="text-sm text-slate-600">結尾要有明確總結，並且呼應開頭的背景與目的，讓整份企劃書有始有終。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-[#eef2ff] rounded-xl shadow-md border-2 border-indigo-200 overflow-hidden mb-8">
+                <div class="bg-indigo-500 text-white px-6 py-4 flex items-center justify-between">
+                    <h3 class="text-lg font-bold"><i class="fa-solid fa-gamepad mr-2"></i>互動小教室：文件排版實戰 (乾冰汽水製作)</h3>
+                    <span class="text-sm bg-indigo-600 px-3 py-1 rounded-full font-medium" id="wiz2-counter">步驟 1 / 4</span>
+                </div>
+                <div class="p-6">
+                    <div class="bg-slate-200 p-2 rounded-lg mb-6 border shadow-inner">
+                        <div class="bg-white rounded border border-slate-300 overflow-hidden">
+                            <div class="flex justify-between items-center p-2 border-b bg-slate-50">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 bg-blue-600 text-white flex items-center justify-center rounded text-xs"><i class="fa-solid fa-file-lines"></i></div>
+                                    <span class="font-bold text-sm text-slate-700">乾冰汽水製作計畫書</span>
+                                </div>
+                                <button id="wiz2-mockup-share" class="bg-indigo-500 text-white font-bold px-3 py-1 rounded-full text-xs transition-all flex items-center border border-indigo-600">
+                                    <i class="fa-solid fa-users mr-1" id="wiz2-mockup-share-icon"></i><span id="wiz2-mockup-share-text">已共用</span>
+                                </button>
+                            </div>
+                            <div class="flex gap-4 p-1 px-3 border-b text-xs text-slate-600 bg-white">
+                                <span class="cursor-pointer hover:bg-slate-100 px-1 rounded">檔案</span>
+                                <span class="cursor-pointer hover:bg-slate-100 px-1 rounded">編輯</span>
+                                <span id="wiz2-mockup-insert" class="cursor-pointer hover:bg-slate-100 px-1 rounded transition-all">插入</span>
+                                <span class="cursor-pointer hover:bg-slate-100 px-1 rounded">格式</span>
+                            </div>
+                            <div class="h-[320px] bg-white p-6 overflow-y-auto relative scroll-smooth">
+                                <!-- 模擬 Word 尺規 -->
+                                <div class="w-full border-b border-slate-300 mb-4 pb-1 flex justify-between px-1 text-[10px] text-slate-400 select-none font-serif relative">
+                                    <span>2</span><span>1</span><i class="fa-solid fa-caret-down text-blue-500 relative top-1"></i><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><i class="fa-solid fa-caret-down text-blue-500 relative top-1"></i><span>17</span><span>18</span>
+                                </div>
+                                <div id="wiz2-mockup-content" class="w-full flex flex-col">
+                                    <!-- JS動態生成內容 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="flex-1 bg-white p-5 rounded-lg border border-indigo-100 shadow-sm relative">
+                            <h4 class="text-lg font-bold text-indigo-800 mb-2" id="wiz2-title"></h4>
+                            <p class="text-slate-600 leading-relaxed mb-4" id="wiz2-desc"></p>
+                            <div id="wiz2-feedback" class="hidden p-3 rounded-lg text-sm font-bold mt-2"></div>
+                        </div>
+                        <div class="flex-1 flex flex-col justify-center gap-3" id="wiz2-options"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== 頁面 3: 製作記帳本 ==================== -->
+        <section id="section-stage3" class="hidden fade-in block">
+            <div class="learning-content-card max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border-l-8 border-green-600 p-6 md:p-8 mb-8 flex flex-col md:flex-row items-center gap-6">
+                <div class="w-20 h-20 flex-shrink-0 bg-green-50 rounded-full flex items-center justify-center">
+                    <i class="fa-solid fa-table-cells text-4xl text-green-600"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">執行與財務運算：表格</h2>
+                    <p class="text-slate-600 leading-relaxed">
+                        精準控管大會與各攤位的收支狀況是活動成敗的關鍵。透過表格設定公式，可以自動計算預算與實際支出、追蹤攤位報名繳費狀況，並作為活動當天的物資清點與排班表工具。
+                    </p>
+                </div>
+            </div>
+
+            <!-- 階段三互動小教室：公式教學 -->
+            <div class="bg-[#f0fdf4] rounded-xl shadow-md border-2 border-green-200 overflow-hidden mb-8 w-full max-w-4xl mx-auto">
+                <div class="bg-green-500 text-white px-6 py-4 flex items-center justify-between">
+                    <h3 class="text-lg font-bold"><i class="fa-solid fa-gamepad mr-2"></i>互動小教室：表格公式大挑戰</h3>
+                    <span class="text-sm bg-green-600 px-3 py-1 rounded-full font-medium" id="wiz3-counter">步驟 1 / 5</span>
+                </div>
+                <div class="p-6">
+                    <div class="border border-slate-300 rounded overflow-x-auto mb-6 bg-white shadow-sm">
+                        <table class="w-full text-sm text-center border-collapse min-w-[700px] select-none">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-500 text-xs">
+                                    <th class="border border-slate-300 w-8 py-1"></th>
+                                    <th class="border border-slate-300 py-1 w-20">A</th>
+                                    <th class="border border-slate-300 py-1 w-16">B</th>
+                                    <th class="border border-slate-300 py-1 w-16">C</th>
+                                    <th class="border border-slate-300 py-1 w-20">D</th>
+                                    <th class="border border-slate-300 py-1 w-24">E</th>
+                                    <th class="border border-slate-300 py-1 w-16">F</th>
+                                    <th class="border border-slate-300 py-1 w-16">G</th>
+                                    <th class="border border-slate-300 py-1 w-20">H</th>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">3</td>
+                                    <td class="border border-slate-300 bg-[#E6B8B7] py-1 font-medium">材料名稱</td>
+                                    <td class="border border-slate-300 bg-[#E6B8B7] py-1 font-medium">單價</td>
+                                    <td class="border border-slate-300 bg-[#E6B8B7] py-1 font-medium">數量</td>
+                                    <td class="border border-slate-300 bg-[#E6B8B7] py-1 font-medium">投入成本</td>
+                                    <td class="border border-slate-300 bg-[#C6E0B4] py-1 font-medium">商品名稱</td>
+                                    <td class="border border-slate-300 bg-[#C6E0B4] py-1 font-medium">單價</td>
+                                    <td class="border border-slate-300 bg-[#C6E0B4] py-1 font-medium">銷售數量</td>
+                                    <td class="border border-slate-300 bg-[#C6E0B4] py-1 font-medium">賺取金額</td>
+                                </tr>
+                            </thead>
+                            <tbody class="text-slate-700 text-sm">
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">4</td>
+                                    <td class="border border-slate-300 py-1">乾冰</td>
+                                    <td class="border border-slate-300 py-1" id="w-b4">600</td>
+                                    <td class="border border-slate-300 py-1" id="w-c4">1</td>
+                                    <td class="border border-slate-300 py-1 text-slate-300" id="w-d4">?</td>
+                                    <td class="border border-slate-300 py-1">乾冰汽水</td>
+                                    <td class="border border-slate-300 py-1" id="w-f4">40</td>
+                                    <td class="border border-slate-300 py-1" id="w-g4">120</td>
+                                    <td class="border border-slate-300 py-1 text-slate-300" id="w-h4">?</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">5</td>
+                                    <td class="border border-slate-300 py-1">冰塊</td>
+                                    <td class="border border-slate-300 py-1">100</td>
+                                    <td class="border border-slate-300 py-1">2</td>
+                                    <td class="border border-slate-300 py-1 text-slate-400 bg-slate-50" id="w-d5">200</td>
+                                    <td class="border border-slate-300 py-1">熱狗</td>
+                                    <td class="border border-slate-300 py-1">50</td>
+                                    <td class="border border-slate-300 py-1">200</td>
+                                    <td class="border border-slate-300 py-1 text-slate-400 bg-slate-50" id="w-h5">10,000</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">...</td>
+                                    <td colspan="8" class="border border-slate-300 py-1 text-slate-300 bg-slate-50 italic">省略</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">14</td>
+                                    <td class="border border-slate-300 py-1">貼紙</td>
+                                    <td class="border border-slate-300 py-1">50</td>
+                                    <td class="border border-slate-300 py-1">4</td>
+                                    <td class="border border-slate-300 py-1 text-slate-400 bg-slate-50" id="w-d14">200</td>
+                                    <td class="border border-slate-300 py-1">特調果汁</td>
+                                    <td class="border border-slate-300 py-1">45</td>
+                                    <td class="border border-slate-300 py-1">80</td>
+                                    <td class="border border-slate-300 py-1 text-slate-400 bg-slate-50" id="w-h14">3,600</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">15</td>
+                                    <td colspan="3" class="border border-slate-300 py-2 bg-slate-100 font-bold">總成本</td>
+                                    <td class="border border-slate-300 py-2 text-slate-300" id="w-d15">?</td>
+                                    <td colspan="3" class="border border-slate-300 py-2 bg-slate-100 font-bold">總收益</td>
+                                    <td class="border border-slate-300 py-2 text-slate-300" id="w-h15">?</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">16</td>
+                                    <td colspan="7" class="border border-slate-300 py-3 text-right pr-4 bg-slate-50 font-bold">結餘：</td>
+                                    <td class="border border-slate-300 py-3 text-slate-300 font-bold bg-[#fff7e6]" id="w-h16">?</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="flex-1 bg-white p-5 rounded-lg border border-green-100 shadow-sm relative">
+                            <h4 class="text-lg font-bold text-green-800 mb-2" id="wiz3-title"></h4>
+                            <p class="text-slate-600 leading-relaxed mb-4" id="wiz3-desc"></p>
+                            <div id="wiz3-feedback" class="hidden p-3 rounded-lg text-sm font-bold mt-2"></div>
+                        </div>
+                        <div class="flex-1 flex flex-col justify-center gap-2" id="wiz3-options"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 階段三進階互動小教室：圖表功能 -->
+            <div id="chart-wizard-container" class="relative bg-[#fdf4ff] rounded-xl shadow-md border-2 border-fuchsia-200 overflow-hidden mb-8 w-full max-w-4xl mx-auto transition-all duration-500">
+                <div id="chart-wizard-lock" class="absolute inset-0 z-20 backdrop-blur-sm bg-white/50 flex flex-col items-center justify-center transition-opacity duration-500">
+                    <div class="bg-white px-8 py-6 rounded-2xl shadow-xl text-center flex flex-col items-center border border-fuchsia-100">
+                        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center text-2xl mb-4 shadow-inner">
+                            <i class="fa-solid fa-lock"></i>
+                        </div>
+                        <h4 class="font-bold text-xl text-slate-800 mb-2">圖表挑戰已鎖定</h4>
+                        <p class="text-slate-600 font-medium">請先完成上方的<span class="text-green-600 font-bold px-1">表格公式大挑戰</span></p>
+                        <p class="text-sm text-slate-400 mt-1">必須先算出正確的數據，才能開始繪製圖表喔！</p>
+                    </div>
+                </div>
+                <div class="bg-fuchsia-500 text-white px-6 py-4 flex items-center justify-between">
+                    <h3 class="text-lg font-bold"><i class="fa-solid fa-chart-simple mr-2"></i>進階挑戰：資料視覺化 (範圍選取)</h3>
+                    <span class="text-sm bg-fuchsia-600 px-3 py-1 rounded-full font-medium" id="wizChart-counter">步驟 1 / 3</span>
+                </div>
+                <div class="p-6">
+                    <div class="border border-slate-300 rounded overflow-x-auto mb-6 bg-white shadow-sm relative">
+                        <table class="w-full text-sm text-center border-collapse min-w-[700px] select-none">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-500 text-xs">
+                                    <th class="border border-slate-300 w-8 py-1"></th>
+                                    <th class="border border-slate-300 py-1 w-20">A</th>
+                                    <th class="border border-slate-300 py-1 w-16">B</th>
+                                    <th class="border border-slate-300 py-1 w-16">C</th>
+                                    <th class="border border-slate-300 py-1 w-20">D</th>
+                                    <th class="border border-slate-300 py-1 w-24">E</th>
+                                    <th class="border border-slate-300 py-1 w-16">F</th>
+                                    <th class="border border-slate-300 py-1 w-16">G</th>
+                                    <th class="border border-slate-300 py-1 w-20">H</th>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">3</td>
+                                    <td class="border border-slate-300 bg-[#E6B8B7] py-1 font-medium transition-colors" id="ch-a3">材料名稱</td>
+                                    <td class="border border-slate-300 bg-[#E6B8B7] py-1 font-medium transition-colors" id="ch-b3">單價</td>
+                                    <td class="border border-slate-300 bg-[#E6B8B7] py-1 font-medium transition-colors" id="ch-c3">數量</td>
+                                    <td class="border border-slate-300 bg-[#E6B8B7] py-1 font-medium transition-colors" id="ch-d3">投入成本</td>
+                                    <td class="border border-slate-300 bg-[#C6E0B4] py-1 font-medium transition-colors" id="ch-e3">商品名稱</td>
+                                    <td class="border border-slate-300 bg-[#C6E0B4] py-1 font-medium transition-colors" id="ch-f3">單價</td>
+                                    <td class="border border-slate-300 bg-[#C6E0B4] py-1 font-medium transition-colors" id="ch-g3">銷售數量</td>
+                                    <td class="border border-slate-300 bg-[#C6E0B4] py-1 font-medium transition-colors" id="ch-h3">賺取金額</td>
+                                </tr>
+                            </thead>
+                            <tbody class="text-slate-700 text-sm">
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">4</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-a4">乾冰</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-b4">600</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-c4">1</td>
+                                    <td class="border border-slate-300 py-1 text-slate-500 bg-slate-50 transition-colors" id="ch-d4">600</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-e4">乾冰汽水</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-f4">40</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-g4">120</td>
+                                    <td class="border border-slate-300 py-1 text-slate-500 bg-slate-50 transition-colors" id="ch-h4">4,800</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">5</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-a5">冰塊</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-b5">100</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-c5">2</td>
+                                    <td class="border border-slate-300 py-1 text-slate-500 bg-slate-50 transition-colors" id="ch-d5">200</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-e5">熱狗</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-f5">50</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-g5">200</td>
+                                    <td class="border border-slate-300 py-1 text-slate-500 bg-slate-50 transition-colors" id="ch-h5">10,000</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">...</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-a-dots">...</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-b-dots">...</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-c-dots">...</td>
+                                    <td class="border border-slate-300 py-1 bg-slate-50 transition-colors" id="ch-d-dots">...</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-e-dots">...</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-f-dots">...</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-g-dots">...</td>
+                                    <td class="border border-slate-300 py-1 bg-slate-50 transition-colors" id="ch-h-dots">...</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">14</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-a14">貼紙</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-b14">50</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-c14">4</td>
+                                    <td class="border border-slate-300 py-1 text-slate-500 bg-slate-50 transition-colors" id="ch-d14">200</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-e14">特調果汁</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-f14">45</td>
+                                    <td class="border border-slate-300 py-1 transition-colors" id="ch-g14">80</td>
+                                    <td class="border border-slate-300 py-1 text-slate-500 bg-slate-50 transition-colors" id="ch-h14">3,600</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">15</td>
+                                    <td colspan="3" class="border border-slate-300 py-2 bg-slate-100 font-bold">總成本</td>
+                                    <td class="border border-slate-300 py-2 text-slate-500 font-bold bg-slate-50" id="ch-d15">5,800</td>
+                                    <td colspan="3" class="border border-slate-300 py-2 bg-slate-100 font-bold">總收益</td>
+                                    <td class="border border-slate-300 py-2 text-slate-500 font-bold bg-slate-50" id="ch-h15">14,800</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-300 bg-slate-100 text-slate-500">16</td>
+                                    <td colspan="7" class="border border-slate-300 py-3 text-right pr-4 bg-slate-50 font-bold">結餘：</td>
+                                    <td class="border border-slate-300 py-3 text-blue-600 font-bold bg-[#fff7e6]" id="ch-h16">9,000</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div id="wizChart-result-box" class="h-28 bg-slate-50 border-t border-slate-300 flex flex-col items-center justify-center text-slate-400 transition-all">
+                            <span class="text-sm">選擇正確範圍後，此處將產生圖表預覽</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-6 max-w-4xl mx-auto">
+                        <div class="flex-1 bg-white p-5 rounded-lg border border-fuchsia-100 shadow-sm relative">
+                            <h4 class="text-lg font-bold text-fuchsia-800 mb-2" id="wizChart-title"></h4>
+                            <p class="text-slate-600 leading-relaxed mb-4" id="wizChart-desc"></p>
+                            <div id="wizChart-feedback" class="hidden p-3 rounded-lg text-sm font-bold mt-2"></div>
+                        </div>
+                        <div class="flex-1 flex flex-col justify-center gap-2" id="wizChart-options"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== 頁面 4: 成果報告 ==================== -->
+        <section id="section-stage4" class="hidden fade-in block max-w-4xl mx-auto">
+            <div class="learning-content-card bg-white rounded-2xl shadow-sm border-l-8 border-yellow-500 p-6 md:p-8 mb-8 flex flex-col md:flex-row items-center gap-6">
+                <div class="w-20 h-20 flex-shrink-0 bg-yellow-50 rounded-full flex items-center justify-center">
+                    <i class="fa-solid fa-chalkboard-user text-4xl text-yellow-500"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">成果分享與分析：簡報</h2>
+                    <p class="text-slate-600 leading-relaxed">
+                        活動圓滿落幕後，需要總結成效並留下傳承資料。利用簡報將活動當天的照片、財務結算圖表、參與人數與滿意度等數據，製作成精美的成果報告，便於在檢討會議中向團隊或贊助商進行簡報分享。
+                    </p>
+                </div>
+            </div>
+
+            <!-- 簡報製作必勝心法 (重點精華版) -->
+            <div class="mb-8">
+                <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center">
+                    <i class="fa-solid fa-lightbulb text-yellow-500 mr-2"></i>簡報製作必勝心法 (精華版)
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-red-400 hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div>
+                            <h4 class="font-bold text-slate-800 mb-3 flex items-center text-lg"><i class="fa-solid fa-bullseye text-red-400 mr-2"></i>1. 確立目標</h4>
+                            <ul class="text-sm text-slate-600 space-y-2 mb-4">
+                                <li>🎯 <b>簡報目的是什麼？</b> (如: 報告成果、檢討缺點)</li>
+                                <li>🧑‍🤝‍🧑 <b>聽眾是誰？最在意什麼？</b></li>
+                            </ul>
+                        </div>
+                        <div class="bg-red-50 text-red-700 text-xs p-2.5 rounded font-bold border border-red-100">
+                            👉 每一頁投影片，只能有一句「核心訊息」。
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-blue-400 hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div>
+                            <h4 class="font-bold text-slate-800 mb-3 flex items-center text-lg"><i class="fa-solid fa-sitemap text-blue-400 mr-2"></i>2. 骨架清晰</h4>
+                            <ul class="text-sm text-slate-600 space-y-2 mb-4">
+                                <li>🎬 <b>開頭：</b> 點出背景或痛點 (為什麼要聽)</li>
+                                <li>📝 <b>中間：</b> 濃縮為 3–5 個精華重點</li>
+                                <li>🎯 <b>結尾：</b> 明確的結論與下一步行動</li>
+                            </ul>
+                        </div>
+                        <div class="bg-blue-50 text-blue-700 text-xs p-2.5 rounded font-bold border border-blue-100">
+                            👉 沒結論的簡報，觀眾聽完等於沒聽。
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-green-400 hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div>
+                            <h4 class="font-bold text-slate-800 mb-3 flex items-center text-lg"><i class="fa-solid fa-palette text-green-400 mr-2"></i>3. 極簡設計</h4>
+                            <ul class="text-sm text-slate-600 space-y-2 mb-4">
+                                <li>📏 <b>字體夠大：</b> 建議至少 24pt 以上。</li>
+                                <li>🎨 <b>顏色不雜：</b> 主視覺色不要超過 3 種。</li>
+                                <li>💡 <b>文字極少：</b> 絕對不要貼上整段文章！</li>
+                            </ul>
+                        </div>
+                        <div class="bg-green-50 text-green-700 text-xs p-2.5 rounded font-bold border border-green-100">
+                            👉 投影片是「視覺輔助」，你才是主角。
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-5 rounded-xl shadow-sm border-t-4 border-t-slate-600 hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div>
+                            <h4 class="font-bold text-slate-800 mb-3 flex items-center text-lg"><i class="fa-solid fa-bomb text-slate-600 mr-2"></i>4. 絕對避開的雷區</h4>
+                            <ul class="space-y-3 text-sm text-slate-700 font-medium">
+                                <li class="flex items-start"><i class="fa-solid fa-xmark text-red-500 mt-1 mr-2"></i><b>滿滿文字：</b> 導致台上淪為無感情照稿念。</li>
+                                <li class="flex items-start"><i class="fa-solid fa-xmark text-red-500 mt-1 mr-2"></i><b>資料堆疊：</b> 流水帳報數據，完全抓不到重點。</li>
+                                <li class="flex items-start"><i class="fa-solid fa-xmark text-red-500 mt-1 mr-2"></i><b>花俏過頭：</b> 濫用動畫與特效，讓人眼花撩亂。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 階段四互動小教室：簡報大改造 -->
+            <div class="bg-[#fefce8] rounded-xl shadow-md border-2 border-yellow-200 overflow-hidden mb-8">
+                <div class="bg-yellow-500 text-white px-6 py-4 flex items-center justify-between">
+                    <h3 class="text-lg font-bold"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i>互動小教室：簡報大改造</h3>
+                    <span class="text-sm bg-yellow-600 px-3 py-1 rounded-full font-medium" id="wiz4-counter">步驟 1 / 7</span>
+                </div>
+                <div class="p-6">
+                    <div class="bg-slate-200 p-4 rounded-lg mb-6 border shadow-inner flex justify-center items-center h-[320px]">
+                        <div class="w-full max-w-[440px] aspect-[4/3] bg-white shadow-md flex flex-col relative overflow-hidden transition-all duration-500 rounded" id="wiz4-mockup-main">
+                            <div id="wiz4-mockup-content" class="w-full h-full flex flex-col p-5 bg-white text-left border border-slate-300">
+                                <!-- JS動態渲染 -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="flex-1 bg-white p-5 rounded-lg border border-yellow-200 shadow-sm relative">
+                            <h4 class="text-lg font-bold text-yellow-800 mb-2" id="wiz4-title"></h4>
+                            <p class="text-slate-600 leading-relaxed mb-4" id="wiz4-desc"></p>
+                            <div id="wiz4-feedback" class="hidden p-3 rounded-lg text-sm font-bold mt-2"></div>
+                        </div>
+                        <div class="flex-1 flex flex-col justify-center gap-3" id="wiz4-options"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 最終挑戰：綜合驗收 (初始為隱藏鎖定狀態) -->
+            <div id="final-exam-container" class="relative bg-[#f5f3ff] rounded-xl shadow-md border-2 border-purple-200 overflow-hidden w-full max-w-4xl mx-auto transition-all duration-500 mt-12 mb-4">
+                <!-- 鎖定遮罩 -->
+                <div id="final-exam-lock" class="absolute inset-0 z-20 backdrop-blur-sm bg-white/60 flex flex-col items-center justify-center transition-opacity duration-500">
+                    <div class="bg-white px-8 py-6 rounded-2xl shadow-xl text-center flex flex-col items-center border border-purple-100">
+                        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center text-2xl mb-4 shadow-inner">
+                            <i class="fa-solid fa-lock"></i>
+                        </div>
+                        <h4 class="font-bold text-xl text-slate-800 mb-2">最終挑戰尚未解鎖</h4>
+                        <p class="text-slate-600 font-medium">請先完成上方的<span class="text-yellow-600 font-bold px-1">簡報大改造</span></p>
+                    </div>
+                </div>
+                <div class="bg-purple-600 text-white px-6 py-4 flex items-center justify-between">
+                    <h3 class="text-lg font-bold"><i class="fa-solid fa-trophy mr-2 text-yellow-300"></i>最終挑戰：實戰情境驗收</h3>
+                    <span class="text-sm bg-purple-700 px-3 py-1 rounded-full font-medium" id="wizFinal-counter">步驟 1 / 5</span>
+                </div>
+                <div class="p-6">
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <!-- 問題區 -->
+                        <div class="flex-1 bg-white p-6 rounded-lg border border-purple-200 shadow-sm relative flex flex-col justify-center items-center text-center">
+                            <div class="text-5xl text-purple-300 mb-4" id="wizFinal-icon"><i class="fa-solid fa-clipboard-question"></i></div>
+                            <h4 class="text-xl font-bold text-purple-800 mb-3" id="wizFinal-title"></h4>
+                            <p class="text-slate-700 leading-relaxed font-medium" id="wizFinal-desc"></p>
+                            <div id="wizFinal-feedback" class="hidden p-3 rounded-lg text-sm font-bold mt-4 w-full"></div>
+                        </div>
+                        <!-- 選項區 -->
+                        <div class="flex-1 flex flex-col justify-center gap-3" id="wizFinal-options"></div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script>
+        // ================= 互動小教室共用引擎 =================
+        const allWizards = {
+            stage1: {
+                currentStep: 0,
+                prefix: 'wiz1',
+                color: 'blue',
+                steps: [
+                    {
+                        title: "1. 組合關鍵字 (使用空格)",
+                        desc: "如果想要找出同時滿足幾個關鍵字的網頁，不需要使用特殊符號，只要在關鍵字之間使用「空格」就可以。<br><br>例如：想搜尋包含「乾冰汽水」和「製作」的網頁，該輸入什麼？",
+                        opts: [
+                            { text: "乾冰汽水,製作", correct: false, err: "逗號不是標準的搜尋連接符號喔！" },
+                            { text: "乾冰汽水 製作", correct: true, msg: "正確！用空格分開，搜尋引擎就會幫你找出同時包含這兩個詞的網頁。" },
+                            { text: "乾冰汽水+製作", correct: false, err: "不需要特別使用加號，只要空一格就可以了！" }
+                        ],
+                        onLoad: () => {
+                            const bar = document.getElementById('wiz1-mockup-bar');
+                            bar.classList.remove('ring-2', 'ring-blue-400');
+                            document.getElementById('wiz1-mockup-icon').classList.replace('text-blue-500', 'text-slate-400');
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "請在下方選擇適合的關鍵字...";
+                            text.classList.remove('text-slate-800', 'font-bold');
+                            text.classList.add('text-slate-400');
+
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.classList.add('hidden', 'opacity-0');
+                            results.innerHTML = '';
+                        },
+                        onSuccess: () => {
+                            const bar = document.getElementById('wiz1-mockup-bar');
+                            bar.classList.add('ring-2', 'ring-blue-400');
+                            document.getElementById('wiz1-mockup-icon').classList.replace('text-slate-400', 'text-blue-500');
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "乾冰汽水 製作";
+                            text.classList.replace('text-slate-400', 'text-slate-800');
+                            text.classList.add('font-bold');
+
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.innerHTML = `
+                                <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm fade-in text-left">
+                                    <div class="text-[10px] text-slate-500 mb-1 flex items-center"><i class="fa-solid fa-globe mr-1.5 opacity-60"></i>https://www.drink-diy.com > dry-ice</div>
+                                    <div class="text-[15px] text-blue-700 font-bold mb-1.5 hover:underline cursor-pointer">會冒煙的「乾冰汽水」製作教學 - 園遊會必備</div>
+                                    <div class="text-xs text-slate-600 line-clamp-2 leading-relaxed">教你如何安全又快速地製作乾冰汽水，只要準備好雪碧、食用乾冰與造型杯，就能輕鬆打造最吸睛的攤位飲品...</div>
+                                </div>
+                            `;
+                            results.classList.remove('hidden');
+                            setTimeout(() => results.classList.remove('opacity-0'), 50);
+                        }
+                    },
+                    {
+                        title: "2. 擴大範圍 (使用 OR)",
+                        desc: "如果想要找出包含各別關鍵字的網頁 (A 或 B 皆可)，使用大寫的「OR」將關鍵字隔開即可。<br><br>例如：搜尋「熱狗麵糊」或「熱狗作法」，該輸入什麼？",
+                        opts: [
+                            { text: "熱狗麵糊 OR 熱狗作法", correct: true, msg: "很棒！使用大寫 OR 可以一次擴大搜尋多種可能性的說法。" },
+                            { text: "熱狗麵糊 and 熱狗作法", correct: false, err: "and 會強制兩個詞都要出現，範圍反而會變小喔！" },
+                            { text: "熱狗麵糊 / 熱狗作法", correct: false, err: "斜線無法作為搜尋指令使用。" }
+                        ],
+                        onLoad: () => {
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "請選擇適合的關鍵字...";
+                            text.classList.remove('text-slate-800', 'font-bold');
+                            text.classList.add('text-slate-400');
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.classList.add('hidden', 'opacity-0');
+                        },
+                        onSuccess: () => {
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "熱狗麵糊 OR 熱狗作法";
+                            text.classList.remove('text-slate-400');
+                            text.classList.add('text-slate-800', 'font-bold');
+
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.innerHTML = `
+                                <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm fade-in text-left">
+                                    <div class="text-[10px] text-slate-500 mb-1 flex items-center"><i class="fa-solid fa-globe mr-1.5 opacity-60"></i>https://www.recipe-box.com > hotdog-batter</div>
+                                    <div class="text-[15px] text-blue-700 font-bold mb-1.5 hover:underline cursor-pointer">超完美夜市大熱狗麵糊配方大公開！</div>
+                                    <div class="text-xs text-slate-600 line-clamp-2 leading-relaxed">提供不失敗的熱狗麵糊比例，教你炸出外酥內軟的絕佳口感，園遊會賣這個絕對大排長龍！</div>
+                                </div>
+                                <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm fade-in text-left" style="animation-delay: 0.1s">
+                                    <div class="text-[10px] text-slate-500 mb-1 flex items-center"><i class="fa-solid fa-globe mr-1.5 opacity-60"></i>https://www.cook-daily.tw > diy-hotdog</div>
+                                    <div class="text-[15px] text-blue-700 font-bold mb-1.5 hover:underline cursor-pointer">簡單熱狗作法教學，在家也能輕鬆炸</div>
+                                    <div class="text-xs text-slate-600 line-clamp-2 leading-relaxed">只需準備鬆餅粉與牛奶，不用辛苦調麵糊的懶人熱狗作法，快速上桌！</div>
+                                </div>
+                            `;
+                            results.classList.remove('hidden');
+                            setTimeout(() => results.classList.remove('opacity-0'), 50);
+                        }
+                    },
+                    {
+                        title: "3. 排除特定內容 (使用減號 -)",
+                        desc: "如果想要在搜尋結果中「排除」某個關鍵字，只要在關鍵字前面加上減號「-」即可。<br><br>例如：想找園遊會布置，但想排除場地在「教室」的結果，該輸入什麼？",
+                        opts: [
+                            { text: "園遊會布置 不包含教室", correct: false, err: "搜尋引擎看不懂『不包含』這種口語句型喔！" },
+                            { text: "園遊會布置 -教室", correct: true, msg: "答對了！加上減號就能輕鬆濾掉不需要的資訊 (注意減號前要加空格)。" },
+                            { text: "園遊會布置_教室", correct: false, err: "底線 _ 沒有排除的功能喔！" }
+                        ],
+                        onLoad: () => {
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "請選擇適合的關鍵字...";
+                            text.classList.remove('text-slate-800', 'font-bold');
+                            text.classList.add('text-slate-400');
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.classList.add('hidden', 'opacity-0');
+                        },
+                        onSuccess: () => {
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "園遊會布置 -教室";
+                            text.classList.remove('text-slate-400');
+                            text.classList.add('text-slate-800', 'font-bold');
+
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.innerHTML = `
+                                <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm fade-in text-left">
+                                    <div class="text-[10px] text-slate-500 mb-1 flex items-center"><i class="fa-solid fa-globe mr-1.5 opacity-60"></i>https://www.event-deco.tw > outdoor</div>
+                                    <div class="text-[15px] text-blue-700 font-bold mb-1.5 hover:underline cursor-pointer">戶外園遊會帳篷布置技巧，吸引人潮看這邊！</div>
+                                    <div class="text-xs text-slate-600 line-clamp-2 leading-relaxed">室外場地如何利用有限空間進行攤位布置？教你用三角旗與大氣球打造超顯眼的攤位。</div>
+                                </div>
+                            `;
+                            results.classList.remove('hidden');
+                            setTimeout(() => results.classList.remove('opacity-0'), 50);
+                        }
+                    },
+                    {
+                        title: "4. 精準完全比對 (使用英文引號 \"\")",
+                        desc: "輸入關鍵字時，搜尋工具常將其拆解。若是不想被拆開，而是要找出「完全符合」某個詞組的網頁時，可加上英文雙引號。<br><br>想搜尋完全符合「園遊會POP」的結果：",
+                        opts: [
+                            { text: "\"園遊會POP\"", correct: true, msg: "沒錯！加上雙引號，就能強迫搜尋引擎進行『完全比對』，不被拆字。" },
+                            { text: "【園遊會POP】", correct: false, err: "中括號沒有強制比對的功能喔！" },
+                            { text: "園遊會=POP", correct: false, err: "等號在搜尋引擎中沒有特殊作用。" }
+                        ],
+                        onLoad: () => {
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "請選擇適合的關鍵字...";
+                            text.classList.remove('text-slate-800', 'font-bold');
+                            text.classList.add('text-slate-400');
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.classList.add('hidden', 'opacity-0');
+                        },
+                        onSuccess: () => {
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "\"園遊會POP\"";
+                            text.classList.remove('text-slate-400');
+                            text.classList.add('text-slate-800', 'font-bold');
+
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.innerHTML = `
+                                <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm fade-in text-left">
+                                    <div class="text-[10px] text-slate-500 mb-1 flex items-center"><i class="fa-solid fa-globe mr-1.5 opacity-60"></i>https://www.pop-art.com > templates</div>
+                                    <div class="text-[15px] text-blue-700 font-bold mb-1.5 hover:underline cursor-pointer">高質感 園遊會POP 海報字體範例免費下載</div>
+                                    <div class="text-xs text-slate-600 line-clamp-2 leading-relaxed">提供多款專為校慶設計的 園遊會POP 字體排版範本，讓你輕鬆繪製出超亮眼的攤位招牌...</div>
+                                </div>
+                            `;
+                            results.classList.remove('hidden');
+                            setTimeout(() => results.classList.remove('opacity-0'), 50);
+                        }
+                    },
+                    {
+                        title: "5. 在指定網站搜尋 (使用 site:)",
+                        desc: "假如想要將搜尋範圍「限制在某個特定網站」內，只要在網址前方加 site: 即可。<br><br>例如：想找 Scratch 網站 (scratch.mit.edu) 裡的「彈珠臺」程式參考：",
+                        opts: [
+                            { text: "彈珠臺 site:scratch.mit.edu", correct: true, msg: "太神了！善用 site: 可以直接穿透特定網站找資料，非常實用！" },
+                            { text: "彈珠臺 in:scratch.mit.edu", correct: false, err: "指令用錯囉，不是 in: 而是 site: 才對！" },
+                            { text: "彈珠臺 @scratch.mit.edu", correct: false, err: "加上 @ 通常是用來搜尋社群帳號，不是用來鎖定網域的。" }
+                        ],
+                        onLoad: () => {
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "請選擇適合的關鍵字...";
+                            text.classList.remove('text-slate-800', 'font-bold');
+                            text.classList.add('text-slate-400');
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.classList.add('hidden', 'opacity-0');
+                        },
+                        onSuccess: () => {
+                            const text = document.getElementById('wiz1-mockup-text');
+                            text.innerText = "彈珠臺 site:scratch.mit.edu";
+                            text.classList.remove('text-slate-400');
+                            text.classList.add('text-slate-800', 'font-bold');
+
+                            const results = document.getElementById('wiz1-mockup-results');
+                            results.innerHTML = `
+                                <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm fade-in text-left">
+                                    <div class="text-[10px] text-slate-500 mb-1 flex items-center"><i class="fa-solid fa-globe mr-1.5 opacity-60"></i>https://scratch.mit.edu > projects</div>
+                                    <div class="text-[15px] text-blue-700 font-bold mb-1.5 hover:underline cursor-pointer">夜市 彈珠臺 - Scratch Studio</div>
+                                    <div class="text-xs text-slate-600 line-clamp-2 leading-relaxed">利用積木程式寫出來的復古夜市 彈珠臺 遊戲，空白鍵發射彈珠，碰到障礙物會反彈計分...</div>
+                                </div>
+                            `;
+                            results.classList.remove('hidden');
+                            setTimeout(() => results.classList.remove('opacity-0'), 50);
+                        }
+                    }
+                ]
+            },
+            stage2: {
+                currentStep: 0,
+                prefix: 'wiz2',
+                color: 'indigo',
+                steps: [
+                    {
+                        title: "1. 調整文字格式",
+                        desc: "你正在撰寫「乾冰汽水製作方法」計畫書。為了讓主標題看起來夠明顯，第一步應該如何調整文字格式？",
+                        opts: [
+                            { text: "將標題文字「置中、放大並改為深棕色」", correct: true, msg: "沒錯！適當的標題層級與置中，能讓讀者一眼看出文件主題。" },
+                            { text: "把所有文字變成不顯眼的灰色", correct: false, err: "這樣標題就看不清楚了，無法凸顯重點喔！" },
+                            { text: "把標題縮小並加上刪除線", correct: false, err: "標題應該要最顯眼，縮小或加刪除線是不行的。" }
+                        ],
+                        onLoad: () => {
+                            const content = document.getElementById('wiz2-mockup-content');
+                            if (content) {
+                                content.innerHTML = `
+                                    <div class="text-left w-full flex flex-col gap-1 text-slate-600 text-[11px] md:text-xs font-medium">
+                                        <div id="doc-title" class="transition-all duration-500 mb-2 text-slate-400">乾冰汽水製作方法</div>
+                                        <div class="flex w-full flex-col md:flex-row">
+                                            <div class="flex-1 flex flex-col pr-2 gap-1.5">
+                                                <div id="doc-sub1" class="transition-all duration-500 inline-block w-max text-slate-500">材料：</div>
+                                                <div id="doc-text1" class="mb-1 text-slate-400">透明杯/蓋、吸管、汽水、冰塊、乾冰、貼紙。</div>
+
+                                                <div id="doc-sub2" class="transition-all duration-500 inline-block w-max text-slate-500">作法：</div>
+                                                <div id="doc-list1" class="transition-all duration-500 mb-1 text-slate-400">
+                                                    <div>透明杯貼貼紙。</div>
+                                                    <div>放置一塊乾冰。</div>
+                                                    <div>放置少許冰塊。</div>
+                                                    <div>倒入繽紛色彩的汽水。</div>
+                                                    <div>蓋上杯蓋、插入吸管。</div>
+                                                </div>
+
+                                                <div id="doc-sub3" class="transition-all duration-500 inline-block w-max text-slate-500">注意事項：</div>
+                                                <div id="doc-list2" class="transition-all duration-500 text-slate-400">
+                                                    <div>乾冰一定要放在最下面，否則可能會造成客人凍傷。</div>
+                                                    <div>汽水倒入前，杯子要傾斜，才不會有太多泡沫，影響製作效率。</div>
+                                                </div>
+                                            </div>
+                                            <!-- 圖片預留區 -->
+                                            <div id="doc-img-container" class="hidden w-[140px] md:w-[180px] flex-shrink-0 md:ml-2 mt-4 md:mt-0 transition-all duration-500 self-center md:self-start">
+                                                <div class="w-full aspect-[4/3] bg-black rounded flex items-center justify-center text-white overflow-hidden shadow-md relative">
+                                                    <!-- 模擬乾冰汽水的畫面 -->
+                                                    <div class="absolute inset-0 flex items-center justify-center opacity-60">
+                                                        <div class="w-24 h-24 bg-white/20 blur-xl rounded-full animate-pulse"></div>
+                                                    </div>
+                                                    <div class="z-10 text-center flex flex-col items-center">
+                                                        <i class="fa-solid fa-glass-water text-3xl text-yellow-300 mb-2 drop-shadow-[0_0_10px_rgba(253,224,71,0.9)]"></i>
+                                                        <span class="text-[10px]"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        },
+                        onSuccess: () => {
+                            const title = document.getElementById('doc-title');
+                            title.className = "text-xl md:text-2xl font-bold text-[#5c3a21] text-center mb-3 transition-all duration-500 tracking-wider";
+                        }
+                    },
+                    {
+                        title: "2. 插入圖片",
+                        desc: "俗話說一圖勝千言！為了讓企劃更具吸引力，你想加入一張「乾冰汽水成品的參考照片」在右側。該使用哪個功能？",
+                        opts: [
+                            { text: "點擊上方選單的「插入」➜「圖片」", correct: true, msg: "答對了！圖文並茂的計畫書更容易說服老師跟同學。" },
+                            { text: "點擊「檔案」➜「列印」", correct: false, err: "這是要把文件印出來的功能喔！" },
+                            { text: "點擊「編輯」➜「複製」", correct: false, err: "複製功能無法幫你把圖片『放進』文件裡喔。" }
+                        ],
+                        onSuccess: () => {
+                            document.getElementById('wiz2-mockup-insert').classList.add('bg-indigo-100', 'text-indigo-700', 'font-bold');
+                            const imgContainer = document.getElementById('doc-img-container');
+                            imgContainer.classList.remove('hidden');
+                            imgContainer.classList.add('flex', 'fade-in');
+                            setTimeout(() => document.getElementById('wiz2-mockup-insert').classList.remove('bg-indigo-100', 'text-indigo-700', 'font-bold'), 1000);
+                        }
+                    },
+                    {
+                        title: "3. 插入編號",
+                        desc: "接下來要整理「作法」與「注意事項」。為了讓步驟看起來順序清晰，不會讓人漏掉任何動作，你應該使用哪種排版工具？",
+                        opts: [
+                            { text: "使用「編號清單」 (1. 2. 3. ...)", correct: true, msg: "很棒！編號清單能讓操作順序一目了然，不會漏掉步驟。" },
+                            { text: "把所有步驟擠成一長串文字", correct: false, err: "這樣大家會找不到現在做到哪一個步驟了！" },
+                            { text: "插入一個圓餅圖", correct: false, err: "圓餅圖是用來看佔比的，不適合用來寫步驟教學喔。" }
+                        ],
+                        onSuccess: () => {
+                            const list1 = document.getElementById('doc-list1');
+                            list1.innerHTML = `
+                                <ol class="list-decimal pl-4 space-y-1.5 text-[#5c3a21] font-medium">
+                                    <li>透明杯貼貼紙。</li>
+                                    <li>放置一塊乾冰。</li>
+                                    <li>放置少許冰塊。</li>
+                                    <li>倒入繽紛色彩的汽水。</li>
+                                    <li>蓋上杯蓋、插入吸管。</li>
+                                </ol>
+                            `;
+                            const list2 = document.getElementById('doc-list2');
+                            list2.innerHTML = `
+                                <ol class="list-decimal pl-4 space-y-1.5 text-[#5c3a21] font-medium">
+                                    <li>乾冰一定要放在最下面，否則可能會造成客人凍傷。</li>
+                                    <li>汽水倒入前，杯子要傾斜，才不會有太多泡沫，影響製作效率。</li>
+                                </ol>
+                            `;
+                            document.getElementById('doc-text1').className = "mb-1 text-[#5c3a21] font-medium pl-1";
+                        }
+                    },
+                    {
+                        title: "4. 凸顯段落標題 (插入網底)",
+                        desc: "最後，為了讓「材料」、「作法」、「注意事項」這三個區塊的標題更明顯，你可以為它們加上什麼視覺效果？",
+                        opts: [
+                            { text: "為文字加上「背景網底」(如粉紅色)", correct: true, msg: "太棒了！加上網底能讓段落層次分明，排版就像專業的計畫書一樣漂亮。" },
+                            { text: "把這些字縮到最小", correct: false, err: "標題縮小會讓人找不到重點喔！" },
+                            { text: "為這些字加上超連結", correct: false, err: "超連結是用來連到其他網頁的，無法凸顯段落視覺喔。" }
+                        ],
+                        onSuccess: () => {
+                            const highlightClass = "bg-[#ebd3de] text-[#5c3a21] font-bold px-1.5 py-0.5 rounded-sm tracking-wide shadow-sm";
+                            document.getElementById('doc-sub1').className = highlightClass + " transition-all duration-500 inline-block w-max";
+                            document.getElementById('doc-sub2').className = highlightClass + " transition-all duration-500 inline-block w-max";
+                            document.getElementById('doc-sub3').className = highlightClass + " transition-all duration-500 inline-block w-max";
+                            
+                            const container = document.querySelector('#wiz2-mockup-content').parentElement;
+                            container.scrollTop = 0;
+                        }
+                    }
+                ]
+            },
+            stage3: {
+                currentStep: 0,
+                prefix: 'wiz3',
+                color: 'green',
+                steps: [
+                    {
+                        title: "1. 計算單項成本 (乘法)",
+                        desc: "要計算乾冰的成本（單價 × 數量），請選出 <b>D4</b> (乾冰投入成本) 的正確公式：",
+                        targetHighlight: ['w-d4'], srcHighlight: ['w-b4', 'w-c4'],
+                        opts: [
+                            { text: "=B4+C4", correct: false, err: "不對喔！成本是單價「乘以」數量，相加是錯的。" },
+                            { text: "=B4*C5", correct: false, err: "你看錯列了！要乘上同一列的數量(C4)才對。" },
+                            { text: "=B4-C4", correct: false, err: "不對喔！這不是減法。" },
+                            { text: "=B4*C4", correct: true, msg: "答對了！在試算表中，星號 (*) 代表乘法。" }
+                        ],
+                        onSuccess: () => { document.getElementById('w-d4').innerText = "600"; document.getElementById('w-d4').classList.add('text-red-500'); }
+                    },
+                    {
+                        title: "2. 計算賺取金額",
+                        desc: "依據相同的邏輯，請問 <b>H4</b> (乾冰汽水收益) 的正確公式是？",
+                        targetHighlight: ['w-h4'], srcHighlight: ['w-f4', 'w-g4'],
+                        opts: [
+                            { text: "=F4*G4", correct: true, msg: "太棒了！你已經掌握乘法公式了。" },
+                            { text: "=F4/G4", correct: false, err: "斜線 (/) 是除法，算總額應該要用乘法喔！" },
+                            { text: "=F4+G4", correct: false, err: "賣出的總額是單價乘以數量，不是相加！" },
+                            { text: "=F5*G4", correct: false, err: "欄位對錯了，F5 是熱狗的單價喔！" }
+                        ],
+                        onSuccess: () => { document.getElementById('w-h4').innerText = "4,800"; document.getElementById('w-h4').classList.add('text-green-600'); }
+                    },
+                    {
+                        title: "3. 快速加總：「總成本」",
+                        desc: "要將 D4 到 D14 所有數字加總。請問 <b>D15</b> 該用什麼公式最快？",
+                        targetHighlight: ['w-d15'], srcHighlight: ['w-d4', 'w-d5', 'w-d14'],
+                        opts: [
+                            { text: "=D4+D14", correct: false, err: "這樣只加了頭尾兩個數字，中間的都不見了！" },
+                            { text: "=SUM(D4, D14)", correct: false, err: "逗號 (,) 只會加特定的那幾格，要用冒號才對。" },
+                            { text: "=SUM(D4:D14)", correct: true, msg: "完美！SUM 配合冒號能一口氣加總連續範圍。" },
+                            { text: "=D4*D14", correct: false, err: "這裡是加總，不是把頭尾相乘喔。" }
+                        ],
+                        onSuccess: () => { document.getElementById('w-d15').innerText = "5,800"; document.getElementById('w-d15').classList.add('text-red-600', 'font-bold'); }
+                    },
+                    {
+                        title: "4. 最終結算：「總收益」",
+                        desc: "最後要把 H4 到 H14 加總。請選出 <b>H15</b> 的正確公式：",
+                        targetHighlight: ['w-h15'], srcHighlight: ['w-h4', 'w-h5'],
+                        opts: [
+                            { text: "=SUM(H4,H14)", correct: false, err: "逗號只會加這兩格，要用冒號表示連續範圍。" },
+                            { text: "=H4+H14", correct: false, err: "這只有加第一筆跟最後一筆而已！" },
+                            { text: "=H4*H14", correct: false, err: "這裡是把所有收益「加總」，不是相乘。" },
+                            { text: "=SUM(H4:H14)", correct: true, msg: "非常好！你已經成功算出總收益了！" }
+                        ],
+                        onSuccess: () => { document.getElementById('w-h15').innerText = "14,800"; document.getElementById('w-h15').classList.add('text-green-600', 'font-bold'); }
+                    },
+                    {
+                        title: "5. 計算「結餘」 (業績)",
+                        desc: "最後，我們要算出園遊會到底賺了多少錢。結餘的公式是「總收益減去總成本」。<br><br>請選出 <b>H16</b> 儲存格的正確公式：",
+                        targetHighlight: ['w-h16'], srcHighlight: ['w-d15', 'w-h15'],
+                        opts: [
+                            { text: "=D15-H15", correct: false, err: "這樣算反囉！會變成成本減去收益（變負數）。" },
+                            { text: "=H15-D15", correct: true, msg: "太棒了！收益(H15)減掉成本(D15)就是最終結餘，恭喜通關公式！" },
+                            { text: "=H15+D15", correct: false, err: "結餘是賺到的錢扣掉成本，不能把它們相加喔。" },
+                            { text: "=SUM(D15:H15)", correct: false, err: "結餘是相減，而且範圍中還包含了不需要的空白儲存格。" }
+                        ],
+                        onSuccess: () => { document.getElementById('w-h16').innerText = "9,000"; document.getElementById('w-h16').classList.replace('text-slate-300', 'text-blue-600'); }
+                    }
+                ]
+            },
+            stageChart: {
+                currentStep: 0,
+                prefix: 'wizChart',
+                color: 'fuchsia',
+                steps: [
+                    {
+                        title: "1. 圓餅圖 (看比例) 選取範圍",
+                        desc: "圓餅圖適合用來看「比例」。要製作「各商品銷售數量佔比」圓餅圖，必須選取哪兩欄作為資料來源？",
+                        opts: [
+                            { text: "E3:E14 與 G3:G14", correct: true, msg: "完全正確！選取「商品名稱」與「銷售數量」就能畫出完美的圓餅圖。" },
+                            { text: "A3:A14 與 C3:C14", correct: false, err: "這是材料名稱跟數量，不是我們賣出去的商品喔。" },
+                            { text: "E3:G14 (全選)", correct: false, err: "不能把中間不相關的單價(F)欄位也選進去，圖表會無法判讀。" },
+                            { text: "E3:E14 與 H3:H14", correct: false, err: "這是用來分析『營收金額』，不是看『銷售數量』佔比喔！" }
+                        ],
+                        onSuccess: () => {
+                            ['ch-e3','ch-e4','ch-e5','ch-e-dots','ch-e14', 'ch-g3','ch-g4','ch-g5','ch-g-dots','ch-g14'].forEach(id => {
+                                document.getElementById(id).classList.add('bg-fuchsia-100', 'ring-1', 'ring-fuchsia-400');
+                            });
+                            
+                            const box = document.getElementById('wizChart-result-box');
+                            box.classList.remove('h-28');
+                            box.classList.add('h-64');
+                            box.innerHTML = `
+                                <div class="w-full h-full flex items-center justify-around p-4 fade-in">
+                                    <div class="w-1/2 h-full relative"><canvas id="resultChart"></canvas></div>
+                                    <div class="w-1/3 text-fuchsia-700">
+                                        <div class="font-bold text-xl mb-2"><i class="fa-solid fa-chart-pie mr-2"></i>圓餅圖</div>
+                                        <p class="text-sm text-slate-600">成功分析：商品銷售數量佔比</p>
+                                    </div>
+                                </div>`;
+                                
+                            const ctx = document.getElementById('resultChart').getContext('2d');
+                            window.currentChart = new Chart(ctx, {
+                                type: 'pie',
+                                data: {
+                                    labels: ['乾冰汽水', '熱狗', '特調果汁', '其他'],
+                                    datasets: [{
+                                        data: [120, 200, 80, 150],
+                                        backgroundColor: ['#f472b6', '#c084fc', '#818cf8', '#e2e8f0']
+                                    }]
+                                },
+                                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+                            });
+                        }
+                    },
+                    {
+                        title: "2. 折線圖 (找尋營收峰值) 選取範圍",
+                        desc: "折線圖最常看趨勢，但也能用『折線的高低起伏』快速抓出數值差異。想利用折線圖的峰值（最高點）找出『最賺錢的商品』，該選取哪兩欄？",
+                        opts: [
+                            { text: "A3:A14 與 D3:D14", correct: false, err: "這是材料成本，我們現在要看的是賺取的營收喔。" },
+                            { text: "E3:E14 與 H3:H14", correct: true, msg: "答對了！將「商品名稱」與「賺取金額」用折線圖連起來，最高的山峰就是最賺錢的商品！" },
+                            { text: "F3:G14", correct: false, err: "只選單價跟數量，沒有商品名稱，圖表會不知道橫軸是什麼。" },
+                            { text: "E3:E14 與 F3:F14", correct: false, err: "這樣只能看出商品單價的起伏，看不出總營收喔。" }
+                        ],
+                        onSuccess: () => {
+                            document.querySelectorAll('.bg-fuchsia-100').forEach(el => el.classList.remove('bg-fuchsia-100', 'ring-1', 'ring-fuchsia-400'));
+                            ['ch-e3','ch-e4','ch-e5','ch-e-dots','ch-e14', 'ch-h3','ch-h4','ch-h5','ch-h-dots','ch-h14'].forEach(id => {
+                                document.getElementById(id).classList.add('bg-fuchsia-100', 'ring-1', 'ring-fuchsia-400');
+                            });
+                            
+                            const box = document.getElementById('wizChart-result-box');
+                            box.classList.remove('h-28');
+                            box.classList.add('h-64');
+                            box.innerHTML = `
+                                <div class="w-full h-full flex items-center justify-around p-4 fade-in">
+                                    <div class="w-2/3 h-full relative"><canvas id="resultChart"></canvas></div>
+                                    <div class="w-1/4 text-fuchsia-700">
+                                        <div class="font-bold text-xl mb-2"><i class="fa-solid fa-chart-line mr-2"></i>折線圖</div>
+                                        <p class="text-sm text-slate-600">成功分析：營收高低起伏</p>
+                                    </div>
+                                </div>`;
+                                
+                            const ctx = document.getElementById('resultChart').getContext('2d');
+                            window.currentChart = new Chart(ctx, {
+                                type: 'line',
+                                data: {
+                                    labels: ['乾冰汽水', '熱狗', '特調果汁', '其他'],
+                                    datasets: [{
+                                        label: '賺取金額',
+                                        data: [4800, 10000, 3600, 5000],
+                                        borderColor: '#c084fc',
+                                        backgroundColor: 'rgba(192, 132, 252, 0.2)',
+                                        fill: true,
+                                        tension: 0.3
+                                    }]
+                                },
+                                options: { responsive: true, maintainAspectRatio: false }
+                            });
+                        }
+                    },
+                    {
+                        title: "3. 柱狀圖 (各材料成本比較) 選取範圍",
+                        desc: "柱狀圖的高低落差非常適合直覺比較數值。想比較各項「材料的投入成本」哪一個最高，該圈選哪裡？",
+                        opts: [
+                            { text: "A3:D14 (全選)", correct: false, err: "全選會把單價和數量都畫成柱子，畫面會太亂失去焦點。" },
+                            { text: "E3:E14 與 H3:H14", correct: false, err: "這是剛才畫營收折線圖的資料，我們要看的是『材料成本』。" },
+                            { text: "A3:A14 與 D3:D14", correct: true, msg: "太棒了！選取「材料名稱」和「投入成本」就能一目了然誰最花錢。" },
+                            { text: "B3:B14 與 D3:D14", correct: false, err: "選到單價了，應該要選A欄的『材料名稱』作為橫軸標籤。" }
+                        ],
+                        onSuccess: () => {
+                            document.querySelectorAll('.bg-fuchsia-100').forEach(el => el.classList.remove('bg-fuchsia-100', 'ring-1', 'ring-fuchsia-400'));
+                            ['ch-a3','ch-a4','ch-a5','ch-a-dots','ch-a14', 'ch-d3','ch-d4','ch-d5','ch-d-dots','ch-d14'].forEach(id => {
+                                document.getElementById(id).classList.add('bg-fuchsia-100', 'ring-1', 'ring-fuchsia-400');
+                            });
+                            
+                            const box = document.getElementById('wizChart-result-box');
+                            box.classList.remove('h-28');
+                            box.classList.add('h-64');
+                            box.innerHTML = `
+                                <div class="w-full h-full flex items-center justify-around p-4 fade-in">
+                                    <div class="w-2/3 h-full relative"><canvas id="resultChart"></canvas></div>
+                                    <div class="w-1/4 text-fuchsia-700">
+                                        <div class="font-bold text-xl mb-2"><i class="fa-solid fa-chart-column mr-2"></i>柱狀圖</div>
+                                        <p class="text-sm text-slate-600">成功分析：材料投入成本</p>
+                                    </div>
+                                </div>`;
+                                
+                            const ctx = document.getElementById('resultChart').getContext('2d');
+                            window.currentChart = new Chart(ctx, {
+                                type: 'bar',
+                                data: {
+                                    labels: ['乾冰', '冰塊', '貼紙', '其他'],
+                                    datasets: [{
+                                        label: '投入成本',
+                                        data: [600, 200, 200, 800],
+                                        backgroundColor: ['#f472b6', '#c084fc', '#818cf8', '#38bdf8']
+                                    }]
+                                },
+                                options: { responsive: true, maintainAspectRatio: false }
+                            });
+                        }
+                    }
+                ]
+            },
+            stage4: {
+                currentStep: 0,
+                prefix: 'wiz4',
+                color: 'yellow',
+                steps: [
+                    {
+                        title: "1. 確立聽眾",
+                        desc: "看看上方這張災難級的投影片！製作簡報的第一步是「確認聽眾是誰」。請問，這場園遊會「檢討報告」的主要聽眾是誰？",
+                        opts: [
+                            { text: "全班同學與班導", correct: true, msg: "沒錯！聽眾是自己人，所以溝通重點在於班級內部的檢討、財務分享與感謝。" },
+                            { text: "來攤位消費的顧客", correct: false, err: "顧客是來消費的，不會參加你們班的內部檢討會喔！" },
+                            { text: "租借帳篷的器材廠商", correct: false, err: "廠商只負責租借器材，不會關心你們班的結算與檢討。" }
+                        ]
+                    },
+                    {
+                        title: "2. 找出聽眾最在意的事",
+                        desc: "既然聽眾是「全班同學」，當他們看著這頁密密麻麻的文字時，其實心裡最想知道的核心重點是什麼？",
+                        opts: [
+                            { text: "「總共賺多少錢？哪個商品最成功？」", correct: true, msg: "沒錯！找出聽眾最在意的核心訊息，我們才能大刀闊斧地砍掉多餘的流水帳。" },
+                            { text: "「看台上的人有沒有把這 150 個字一字不漏地唸完。」", correct: false, err: "這樣大家會睡著喔！簡報絕對不是用來唸稿的。" },
+                            { text: "「冰塊、貼紙這些雜支分別花了多少錢。」", correct: false, err: "這些細節數字可以放在附錄的表格，投影片上應該放最重要的『總和』。" }
+                        ]
+                    },
+                    {
+                        title: "3. 結構精簡 (抓重點觀念)",
+                        desc: "既然聽眾最在意財務，但這頁簡報還是塞滿了流水帳！根據心法，我們該如何調整結構？",
+                        opts: [
+                            { text: "刪除冗長句子，親自提煉出 3 個核心重點數據。", correct: true, msg: "非常好！那我們就來實戰演練，親自動手把這 3 個重點抓出來！" },
+                            { text: "把整段文字縮小到 8pt，塞入更多細節。", correct: false, err: "字太小可是簡報的大地雷！後排的同學會完全看不到。" },
+                            { text: "把自認為重要的文字變成紅色，其他保持原樣。", correct: false, err: "滿滿的文字還是會讓人眼花撩亂，不想閱讀。" }
+                        ]
+                    },
+                    {
+                        title: "4. 實戰選取 (1/3)：最終盈餘",
+                        desc: "請在左側的投影片草稿中，**直接點擊**代表「最終盈餘」的句子。<br><span class='text-xs text-slate-400'>（提示：文章中有 5 個反白的句子可選，進度 1/3）</span>",
+                        opts: [],
+                        onLoad: () => {
+                            const content = document.getElementById('wiz4-mockup-content');
+                            if(!content.querySelector('.in-text-span')) {
+                                content.innerHTML = `
+                                    <div class="w-full h-full flex flex-col p-5 bg-white text-left border border-slate-300 fade-in">
+                                        <div class="text-sm font-bold text-black mb-2 border-b pb-1">115級園遊會檢討報告</div>
+                                        <div class="text-[12px] text-slate-600 leading-loose tracking-wide">
+                                            <span id="kw-1" class="in-text-span cursor-pointer border-b-2 border-slate-300 hover:bg-yellow-200 px-1 transition-colors rounded">這次園遊會我們班總共賺了9000元。</span>因為<span id="kw-2" class="in-text-span cursor-pointer border-b-2 border-slate-300 hover:bg-yellow-200 px-1 transition-colors rounded">熱狗賣得很好總共賣了10000元</span>，<span id="kw-3" class="in-text-span cursor-pointer border-b-2 border-slate-300 hover:bg-yellow-200 px-1 transition-colors rounded">乾冰汽水賣了4800元</span>，特調果汁賣了3600元...<span id="kw-4" class="in-text-span cursor-pointer border-b-2 border-slate-300 hover:bg-yellow-200 px-1 transition-colors rounded">總成本是5800元</span>，包含<span id="kw-5" class="in-text-span cursor-pointer border-b-2 border-slate-300 hover:bg-yellow-200 px-1 transition-colors rounded">乾冰600元、冰塊200元...</span>大家當天都很辛苦...
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                            document.getElementById('wiz4-options').innerHTML = `<div class="text-center text-slate-500 font-bold py-6 border-2 border-dashed border-yellow-300 bg-yellow-50 rounded-lg animate-pulse fade-in">👆 請直接在左側投影片中點選正確句子！</div>`;
+                            document.querySelectorAll('.in-text-span').forEach((el, index) => {
+                                const id = index + 1;
+                                if(!el.classList.contains('bg-green-200')) {
+                                    el.onclick = () => window.checkInText(id, 1, '最終盈餘');
+                                }
+                            });
+                        }
+                    },
+                    {
+                        title: "5. 實戰選取 (2/3)：銷售冠軍",
+                        desc: "太棒了！接著請在左側的投影片草稿中，**直接點擊**代表「銷售冠軍」的句子。<br><span class='text-xs text-slate-400'>（提示：進度 2/3）</span>",
+                        opts: [],
+                        onLoad: () => {
+                            document.getElementById('wiz4-options').innerHTML = `<div class="text-center text-slate-500 font-bold py-6 border-2 border-dashed border-yellow-300 bg-yellow-50 rounded-lg animate-pulse fade-in">👆 請直接在左側投影片中點選正確句子！</div>`;
+                            document.querySelectorAll('.in-text-span').forEach((el, index) => {
+                                const id = index + 1;
+                                if(!el.classList.contains('bg-green-200')) {
+                                    el.onclick = () => window.checkInText(id, 2, '銷售冠軍');
+                                }
+                            });
+                        }
+                    },
+                    {
+                        title: "6. 實戰選取 (3/3)：總成本",
+                        desc: "最後一個重點數據！請點擊代表「總成本控管」的句子。<br><span class='text-xs text-slate-400'>（提示：進度 3/3）</span>",
+                        opts: [],
+                        onLoad: () => {
+                            document.getElementById('wiz4-options').innerHTML = `<div class="text-center text-slate-500 font-bold py-6 border-2 border-dashed border-yellow-300 bg-yellow-50 rounded-lg animate-pulse fade-in">👆 請直接在左側投影片中點選正確句子！</div>`;
+                            document.querySelectorAll('.in-text-span').forEach((el, index) => {
+                                const id = index + 1;
+                                if(!el.classList.contains('bg-green-200')) {
+                                    el.onclick = () => window.checkInText(id, 4, '總成本');
+                                }
+                            });
+                        }
+                    },
+                    {
+                        title: "7. 視覺優化 (排版與圖表)",
+                        desc: "我們幫你把剛才抓出的 3 個重點變成了清晰的條列式清單！為了讓簡報一秒看懂，最終排版該如何升級？",
+                        opts: [
+                            { text: "把重點數字再放大，並加入「圓餅圖」輔助視覺！", correct: true, msg: "完美！大字體配上圖表，兼具邏輯與美感的專業簡報誕生了！" },
+                            { text: "用 5 種不同顏色的螢光字體來強調重點。", correct: false, err: "顏色太雜亂是視覺設計的大地雷喔！" },
+                            { text: "加入文字一個字一個字「旋轉飛入」的酷炫動畫。", correct: false, err: "太花俏的動畫會嚴重干擾閱讀，簡單俐落才是王道。" }
+                        ],
+                        onLoad: () => {
+                            const content = document.getElementById('wiz4-mockup-content');
+                            content.innerHTML = `
+                                <div class="w-full h-full flex flex-col p-5 bg-white text-left border border-slate-300 fade-in">
+                                    <div class="text-base font-bold text-blue-800 mb-3 border-b-2 border-blue-200 pb-1">園遊會財務總結</div>
+                                    <div class="flex flex-col justify-center flex-1 gap-3 pl-4">
+                                        <div class="text-sm font-bold text-slate-700"><i class="fa-solid fa-circle-play text-blue-500 mr-2 text-[10px]"></i>最終盈餘：NT$ 9,000</div>
+                                        <div class="text-sm font-bold text-slate-700"><i class="fa-solid fa-circle-play text-blue-500 mr-2 text-[10px]"></i>銷售冠軍：熱狗 (NT$ 10,000)</div>
+                                        <div class="text-sm font-bold text-slate-700"><i class="fa-solid fa-circle-play text-blue-500 mr-2 text-[10px]"></i>總成本控管：NT$ 5,800</div>
+                                    </div>
+                                </div>
+                            `;
+                        },
+                        onSuccess: () => {
+                            const mainBox = document.getElementById('wiz4-mockup-main');
+                            mainBox.classList.replace('bg-white', 'bg-slate-800');
+                            const content = document.getElementById('wiz4-mockup-content');
+                            content.classList.remove('border', 'border-slate-300', 'bg-white');
+                            content.classList.add('bg-slate-800');
+                            content.innerHTML = `
+                                <div class="w-full h-full flex flex-col fade-in text-left">
+                                    <div class="text-lg font-black text-yellow-400 mb-2 tracking-wide border-b border-slate-600 pb-2">🏆 園遊會財務總結</div>
+                                    <div class="flex flex-1 gap-2 items-center">
+                                        <div class="w-1/2 h-full relative p-2"><canvas id="finalSlideChart"></canvas></div>
+                                        <div class="w-1/2 flex flex-col justify-center gap-3">
+                                            <div class="bg-slate-700 p-2.5 rounded border-l-4 border-yellow-400 shadow">
+                                                <div class="text-[10px] text-slate-300 mb-0.5">最終結餘</div>
+                                                <div class="text-xl font-black text-white tracking-wide">NT$ 9,000</div>
+                                            </div>
+                                            <div class="bg-slate-700 p-2.5 rounded border-l-4 border-pink-400 shadow">
+                                                <div class="text-[10px] text-slate-300 mb-0.5">銷售冠軍</div>
+                                                <div class="text-lg font-bold text-white">熱狗</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            // 繪製最終簡報內的圓餅圖
+                            const ctx = document.getElementById('finalSlideChart').getContext('2d');
+                            new Chart(ctx, {
+                                type: 'pie',
+                                data: {
+                                    labels: ['熱狗', '乾冰汽水', '特調果汁', '其他'],
+                                    datasets: [{
+                                        data: [10000, 4800, 3600, 2000],
+                                        backgroundColor: ['#f472b6', '#c084fc', '#818cf8', '#94a3b8'],
+                                        borderWidth: 0
+                                    }]
+                                },
+                                options: { 
+                                    responsive: true, 
+                                    maintainAspectRatio: false, 
+                                    plugins: { 
+                                        legend: { 
+                                            position: 'bottom', 
+                                            labels: { color: 'white', boxWidth: 8, font: { size: 10 } } 
+                                        } 
+                                    } 
+                                }
+                            });
+                        }
+                    }
+                ]
+            },
+            finalExam: {
+                currentStep: 0,
+                prefix: 'wizFinal',
+                color: 'purple',
+                steps: [
+                    {
+                        title: "情境一：精準蒐集情報",
+                        desc: "籌備初期，你想上網找「園遊會海報」的設計參考，但不想看到「國小」的風格。請問該輸入什麼關鍵字最精準？",
+                        icon: "fa-solid fa-magnifying-glass",
+                        opts: [
+                            { text: "園遊會海報 -國小", correct: true, msg: "完美！使用減號 (-) 可以精準排除不需要的關鍵字。" },
+                            { text: "園遊會海報 不包含國小", correct: false, err: "搜尋引擎看不懂『不包含』這種口語喔！" },
+                            { text: "園遊會海報 OR 國小", correct: false, err: "這樣反而會搜出一堆國小的資料喔！" }
+                        ],
+                        onSuccess: () => { document.getElementById('wizFinal-icon').innerHTML = '<i class="fa-solid fa-circle-check text-green-500 fade-in"></i>'; }
+                    },
+                    {
+                        title: "情境二：計畫書排版",
+                        desc: "企劃書中有一大段「攤位操作步驟」，為了讓工作人員清楚執行不漏拍，你應該使用哪種排版工具？",
+                        icon: "fa-solid fa-list-ol",
+                        opts: [
+                            { text: "使用「編號清單」 (1. 2. 3...)", correct: true, msg: "正確！編號清單能讓操作順序一目了然。" },
+                            { text: "加上鮮豔的粉紅色網底", correct: false, err: "網底適合用來凸顯短標題，用在整段步驟會太花俏難閱讀。" },
+                            { text: "把字體放大到最大", correct: false, err: "字體全放大就沒有重點了，而且無法呈現『順序』。" }
+                        ],
+                        onSuccess: () => { document.getElementById('wizFinal-icon').innerHTML = '<i class="fa-solid fa-circle-check text-green-500 fade-in"></i>'; }
+                    },
+                    {
+                        title: "情境三：財務自動化",
+                        desc: "結算時，你要計算從 D4 到 D20 總共 17 項材料的「總成本」，請問在試算表中該使用哪一個公式最快？",
+                        icon: "fa-solid fa-calculator",
+                        opts: [
+                            { text: "=SUM(D4:D20)", correct: true, msg: "滿分！用 SUM 搭配冒號就能一秒加總連續範圍！" },
+                            { text: "=D4+D20", correct: false, err: "這樣只加了頭跟尾兩個數字喔！" },
+                            { text: "=D4*D20", correct: false, err: "我們要算的是總和，不是把它們乘起來喔！" }
+                        ],
+                        onSuccess: () => { document.getElementById('wizFinal-icon').innerHTML = '<i class="fa-solid fa-circle-check text-green-500 fade-in"></i>'; }
+                    },
+                    {
+                        title: "情境四：資料視覺化",
+                        desc: "你想在檢討會上，讓大家一眼看出「各項商品佔總營收的比例」。請問你該畫出哪一種圖表？",
+                        icon: "fa-solid fa-chart-pie",
+                        opts: [
+                            { text: "圓餅圖", correct: true, msg: "沒錯！圓餅圖是呈現「比例與佔比」的最佳選擇。" },
+                            { text: "折線圖", correct: false, err: "折線圖是用來看隨時間變化的趨勢喔。" },
+                            { text: "柱狀圖", correct: false, err: "柱狀圖適合比較數值高低，看整體佔比還是圓餅圖最直覺。" }
+                        ],
+                        onSuccess: () => { document.getElementById('wizFinal-icon').innerHTML = '<i class="fa-solid fa-circle-check text-green-500 fade-in"></i>'; }
+                    },
+                    {
+                        title: "情境五：簡報上台報告",
+                        desc: "終於要上台做成果報告了！關於簡報上的文字與圖表，下列哪個觀念才是正確的「必勝心法」？",
+                        icon: "fa-solid fa-person-chalkboard",
+                        opts: [
+                            { text: "一頁一個重點，字越少越好，輔助圖表要夠大", correct: true, msg: "太棒了！你已經完全掌握了四大數位工具的核心精髓！" },
+                            { text: "把所有細節數字都貼上去，以免大家看不懂", correct: false, err: "字太多大家就不想看了，細節請口頭說明或給紙本資料。" },
+                            { text: "字體要用 5 種顏色，再加滿旋轉飛入動畫", correct: false, err: "太花俏會嚴重干擾閱讀，簡單俐落才是王道喔！" }
+                        ],
+                        onSuccess: () => { document.getElementById('wizFinal-icon').innerHTML = '<i class="fa-solid fa-trophy text-yellow-500 text-[80px] drop-shadow-lg fade-in"></i>'; }
+                    }
+                ]
+            }
+        };
+
+        // 處理文章中直接點擊答案的邏輯
+        window.checkInText = function(clickedId, correctId, keywordName) {
+            const feedbackEl = document.getElementById('wiz4-feedback');
+            const optContainer = document.getElementById('wiz4-options');
+            const el = document.getElementById('kw-' + clickedId);
+            
+            feedbackEl.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-800');
+
+            if (clickedId === correctId) {
+                el.className = "in-text-span bg-green-200 text-green-800 font-bold px-1 rounded transition-colors";
+                el.onclick = null; // disable click
+                
+                feedbackEl.innerHTML = `<i class="fa-solid fa-circle-check mr-2"></i>精準命中！這就是我們需要的「${keywordName}」。`;
+                feedbackEl.className = "p-3 rounded-lg text-sm font-bold mt-2 bg-green-100 text-green-800 block fade-in";
+
+                // Show next button
+                optContainer.innerHTML = '';
+                const nextBtn = document.createElement('button');
+                nextBtn.className = `mt-4 w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded transition-colors fade-in`;
+                nextBtn.innerText = '完成，進入下一步 ➔';
+                nextBtn.onclick = () => { allWizards.stage4.currentStep++; renderWizard('stage4'); };
+                optContainer.appendChild(nextBtn);
+            } else {
+                el.classList.add('bg-red-200', 'text-red-800', 'animate-pulse');
+                setTimeout(() => el.classList.remove('bg-red-200', 'text-red-800', 'animate-pulse'), 800);
+                
+                feedbackEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i>這句話好像不是最重要的「${keywordName}」喔！再找找。`;
+                feedbackEl.className = "p-3 rounded-lg text-sm font-bold mt-2 bg-red-100 text-red-700 block fade-in";
+            }
+        };
+
+        function renderWizard(stageKey) {
+            const wiz = allWizards[stageKey];
+            const step = wiz.steps[wiz.currentStep];
+            
+            document.getElementById(`${wiz.prefix}-counter`).innerText = `步驟 ${wiz.currentStep + 1} / ${wiz.steps.length}`;
+            document.getElementById(`${wiz.prefix}-title`).innerHTML = step.title;
+            document.getElementById(`${wiz.prefix}-desc`).innerHTML = step.desc;
+            
+            const feedbackEl = document.getElementById(`${wiz.prefix}-feedback`);
+            feedbackEl.classList.add('hidden');
+            feedbackEl.className = 'hidden p-3 rounded-lg text-sm font-bold mt-2';
+
+            // 更新最終挑戰的大圖示
+            if (stageKey === 'finalExam') {
+                const iconEl = document.getElementById(`${wiz.prefix}-icon`);
+                if (iconEl && step.icon) {
+                    iconEl.innerHTML = `<i class="${step.icon} fade-in"></i>`;
+                }
+            }
+
+            // 初始化或重置第四階段的 mockup
+            if (stageKey === 'stage4' && wiz.currentStep === 0) {
+                const content = document.getElementById('wiz4-mockup-content');
+                if (content) {
+                    content.className = 'w-full h-full flex flex-col p-5 bg-white text-left border border-slate-300 fade-in';
+                    content.innerHTML = `
+                        <div class="text-sm font-bold text-black mb-2 border-b pb-1">115級園遊會檢討報告</div>
+                        <div class="text-[12px] text-black leading-tight text-justify">
+                            這次園遊會我們班總共賺了9000元。因為熱狗賣得很好總共賣了10000元，乾冰汽水賣了4800元，特調果汁賣了3600元，其他還有賣一些小東西。我們的總成本是5800元，包含乾冰600元、冰塊200元、貼紙200元等等。大家當天都很辛苦，早上十點人潮普通大概45人，十一點人變多有82人，下午人潮變少，總而言之這是一次很成功的活動，感謝全班同學的參與。
+                        </div>
+                    `;
+                }
+                const mainBox = document.getElementById('wiz4-mockup-main');
+                if(mainBox) mainBox.className = 'w-full max-w-[440px] aspect-[4/3] bg-white shadow-md flex flex-col relative overflow-hidden transition-all duration-500 rounded';
+            }
+
+            // 若為圖表關卡，切換步驟時重置預覽區並銷毀舊圖表
+            if (stageKey === 'stageChart') {
+                const box = document.getElementById('wizChart-result-box');
+                if(box) {
+                    box.className = 'h-28 bg-slate-50 border-t border-slate-300 flex flex-col items-center justify-center text-slate-400 transition-all';
+                    box.innerHTML = '<span class="text-sm">選擇正確範圍後，此處將產生圖表預覽</span>';
+                }
+                if(window.currentChart) {
+                    window.currentChart.destroy();
+                    window.currentChart = null;
+                }
+            }
+
+            // 清除上一題的高亮
+            document.querySelectorAll('.highlight-target, .highlight-source').forEach(el => {
+                el.classList.remove('highlight-target', 'highlight-source');
+            });
+
+            // 設定本題的高亮
+            if(step.targetHighlight) step.targetHighlight.forEach(id => { const el=document.getElementById(id); if(el && el.innerText==='?') el.classList.add('highlight-target'); });
+            if(step.srcHighlight) step.srcHighlight.forEach(id => { const el=document.getElementById(id); if(el) el.classList.add('highlight-source'); });
+
+            // 隨機打亂選項順序 (Shuffle) - 確保每次重整都洗牌
+            if (step.opts && step.opts.length > 0) {
+                if (!step.shuffled) {
+                    for (let i = step.opts.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [step.opts[i], step.opts[j]] = [step.opts[j], step.opts[i]];
+                    }
+                    step.shuffled = true;
+                }
+            }
+
+            // 產生按鈕
+            const optionsContainer = document.getElementById(`${wiz.prefix}-options`);
+            optionsContainer.innerHTML = '';
+            
+            if (step.opts && step.opts.length > 0) {
+                step.opts.forEach((opt, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = `w-full text-left px-4 py-2.5 rounded-lg border-2 border-slate-200 hover:border-${wiz.color}-400 hover:bg-${wiz.color}-50 text-sm md:text-base font-bold text-slate-700 transition-all`;
+                    btn.innerHTML = `<span class="inline-block w-6 text-${wiz.color}-500">${String.fromCharCode(65 + idx)}.</span> ${opt.text}`;
+                    btn.onclick = () => handleWizardAnswer(stageKey, idx, btn);
+                    optionsContainer.appendChild(btn);
+                });
+            }
+
+            // 觸發自訂載入邏輯 (重要：必須放在最後，以免被上面的 innerHTML 蓋掉)
+            if (step.onLoad) step.onLoad();
+        }
+
+        function handleWizardAnswer(stageKey, optIdx, btnEl) {
+            const wiz = allWizards[stageKey];
+            const step = wiz.steps[wiz.currentStep];
+            const opt = step.opts[optIdx];
+            const feedbackEl = document.getElementById(`${wiz.prefix}-feedback`);
+            const optContainer = document.getElementById(`${wiz.prefix}-options`);
+
+            // 防連點
+            optContainer.querySelectorAll('button').forEach(b => b.disabled = true);
+            feedbackEl.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-800');
+
+            if (opt.correct) {
+                btnEl.classList.remove('border-slate-200');
+                btnEl.classList.add('border-green-500', 'bg-green-50', 'text-green-700');
+                feedbackEl.innerHTML = `<i class="fa-solid fa-circle-check mr-2"></i>${opt.msg}`;
+                feedbackEl.classList.add('bg-green-100', 'text-green-800', 'block', 'fade-in');
+
+                if (step.targetHighlight) {
+                    step.targetHighlight.forEach(id => {
+                        const el = document.getElementById(id);
+                        if(el) el.classList.replace('highlight-target', 'cell-completed');
+                    });
+                }
+                
+                if (step.onSuccess) step.onSuccess();
+
+                if (wiz.currentStep < wiz.steps.length - 1) {
+                    const nextBtn = document.createElement('button');
+                    nextBtn.className = `mt-4 w-full bg-${wiz.color}-500 hover:bg-${wiz.color}-600 text-white font-bold py-2 px-4 rounded transition-colors fade-in`;
+                    nextBtn.innerText = '前往下一關 ➔';
+                    nextBtn.onclick = () => { wiz.currentStep++; renderWizard(stageKey); };
+                    optContainer.appendChild(nextBtn);
+                } else {
+                    const doneMsg = document.createElement('div');
+                    doneMsg.className = `mt-4 text-center text-${wiz.color}-600 font-bold fade-in`;
+                    doneMsg.innerText = '🎉 太棒了！你已經完成這個階段的任務！';
+                    optContainer.appendChild(doneMsg);
+                    
+                    // 解鎖特定區域的邏輯
+                    if (stageKey === 'stage3') {
+                        setTimeout(() => {
+                            const lockEl = document.getElementById('chart-wizard-lock');
+                            if (lockEl) {
+                                lockEl.style.opacity = '0';
+                                setTimeout(() => lockEl.style.display = 'none', 500); 
+                            }
+                            const chartContainer = document.getElementById('chart-wizard-container');
+                            if (chartContainer) {
+                                chartContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                setTimeout(() => {
+                                    chartContainer.classList.add('ring-4', 'ring-fuchsia-400');
+                                    setTimeout(() => chartContainer.classList.remove('ring-4', 'ring-fuchsia-400'), 1000);
+                                }, 500);
+                            }
+                        }, 800); 
+                    } else if (stageKey === 'stage4') {
+                        // 在第四階段完成後，解鎖下方的最終大挑戰
+                        setTimeout(() => {
+                            const lockEl = document.getElementById('final-exam-lock');
+                            if (lockEl) {
+                                lockEl.style.opacity = '0';
+                                setTimeout(() => lockEl.style.display = 'none', 500); 
+                            }
+                            const examContainer = document.getElementById('final-exam-container');
+                            if (examContainer) {
+                                examContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                setTimeout(() => {
+                                    examContainer.classList.add('ring-4', 'ring-purple-400');
+                                    setTimeout(() => examContainer.classList.remove('ring-4', 'ring-purple-400'), 1000);
+                                }, 500);
+                            }
+                        }, 1500); // 延遲久一點讓玩家欣賞一下做好的漂亮簡報
+                    }
+                }
+            } else {
+                btnEl.classList.add('border-red-400', 'bg-red-50', 'animate-pulse');
+                setTimeout(() => btnEl.classList.remove('animate-pulse'), 500);
+                feedbackEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i>${opt.err}`;
+                feedbackEl.classList.add('bg-red-100', 'text-red-700', 'block', 'fade-in');
+
+                setTimeout(() => {
+                    optContainer.querySelectorAll('button').forEach(b => b.disabled = false);
+                    btnEl.classList.remove('border-red-400', 'bg-red-50');
+                }, 1500);
+            }
+        }
+
+        // ================= 分頁切換與初始化 =================
+        const stageProgressMeta = {
+            stage1: { count: '1 / 4 階段', width: '25%', note: '目前：資料蒐集，先建立可靠的籌備資訊。' },
+            stage2: { count: '2 / 4 階段', width: '50%', note: '目前：撰寫計畫書，將想法整理成可執行的分工。' },
+            stage3: { count: '3 / 4 階段', width: '75%', note: '目前：製作記帳本，掌握預算與收支的每一筆資料。' },
+            stage4: { count: '4 / 4 階段', width: '100%', note: '目前：成果報告，將籌備歷程轉化為清楚的分享。' }
+        };
+
+        function updateCourseProgress(stageId) {
+            const meta = stageProgressMeta[stageId];
+            if (!meta) return;
+            document.getElementById('course-progress-count').textContent = meta.count;
+            document.getElementById('course-progress-fill').style.width = meta.width;
+            document.getElementById('course-progress-note').textContent = meta.note;
+        }
+
+        function switchTab(stageId) {
+            document.querySelectorAll('section').forEach(sec => sec.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'text-slate-800', 'shadow');
+                btn.classList.add('text-slate-200', 'hover:bg-slate-600');
+            });
+
+            document.getElementById(`section-${stageId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${stageId}`);
+            activeBtn.classList.remove('text-slate-200', 'hover:bg-slate-600');
+            activeBtn.classList.add('bg-white', 'text-slate-800', 'shadow');
+            updateCourseProgress(stageId);
+        }
+
+        window.onload = () => {
+            // 初始化所有闖關模組
+            renderWizard('stage1');
+            renderWizard('stage2');
+            renderWizard('stage3');
+            renderWizard('stageChart');
+            renderWizard('stage4');
+            renderWizard('finalExam');
+            updateCourseProgress('stage1');
+        };
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scratch 基礎程式設計(2)</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- 引入 Babel 用於解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 自定義樣式 -->
+    <style>
+        body {
+            font-family: 'Segoe UI', "Microsoft JhengHei", sans-serif;
+            background-color: #f8fafc;
+        }
+        /* 簡單的淡入動畫 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .animate-fade-in-up {
+            animation: fadeInUp 0.5s ease-out forwards;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.2s ease-out forwards;
+        }
+        .animate-shake {
+            animation: shake 0.5s ease-in-out;
+        }
+        /* 禁止選取與長按選單的樣式 */
+        .no-copy {
+            user-select: none;              /* 禁止選取 */
+            -webkit-user-select: none;      /* Chrome/Safari/Opera */
+            -moz-user-select: none;         /* Firefox */
+            -ms-user-select: none;          /* IE/Edge */
+            -webkit-touch-callout: none;    /* iOS Safari 禁止長按跳出選單 */
+            pointer-events: auto;           /* 保持點擊事件運作 */
+        }
+    </style>
+    <script src="../../firebase-config.js"></script>
+    <script src="../../shared/learner-profile.js"></script>
+    <script src="../../shared/site-shell.js" defer></script>
+    <script type="module">
+        import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        const { SCHOOL_APP, LearnerProfile } = window;
+        const storageKey = SCHOOL_APP.storageKeys.flowchartProgress;
+        const saved = LearnerProfile.readTermStorage(storageKey, {});
+        let records = saved?.units || {};
+        let firebaseUser = null;
+        let db = null;
+        let ready;
+        window.FlowchartProgress = new Promise(resolve => { ready = resolve; });
+        const storeLocal = () => LearnerProfile.writeTermStorage(storageKey, { units: records });
+        if (!SCHOOL_APP.isFirebaseConfigured()) ready(records);
+        else {
+            const app = getApps().length ? getApp() : initializeApp(SCHOOL_APP.firebaseConfig);
+            db = getFirestore(app);
+            onAuthStateChanged(getAuth(app), async user => {
+                firebaseUser = user;
+                if (!user) { ready(records); return; }
+                try {
+                    const snapshot = await getDoc(doc(db, 'users', user.uid));
+                    const remote = snapshot.data()?.terms?.[SCHOOL_APP.currentTermId]?.workflow?.flowcharts || {};
+                    records = { ...records, ...remote };
+                    storeLocal();
+                } catch (error) { console.error(error); }
+                ready(records);
+            });
+        }
+        window.saveFlowchartProgress = async (unitId, record) => {
+            records = { ...records, [unitId]: record };
+            storeLocal();
+            if (firebaseUser && db) await setDoc(doc(db, 'users', firebaseUser.uid), {
+                terms: { [SCHOOL_APP.currentTermId]: { workflow: { flowcharts: records }, updatedAt: new Date().toISOString() } }
+            }, { merge: true });
+            return records;
+        };
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- 圖示組件 (SVG) ---
+        const Icon = ({ children, className, fill = "none" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
+        );
+
+        const Icons = {
+            MousePointer: (props) => <Icon {...props}><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="M13 13l6 6"/></Icon>,
+            Monitor: (props) => <Icon {...props}><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></Icon>,
+            Play: (props) => <Icon {...props}><polygon points="5 3 19 12 5 21 5 3"/></Icon>,
+            HelpCircle: (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></Icon>,
+            Trophy: (props) => <Icon {...props}><path d="M8 21h8"/><path d="M12 17a7 7 0 0 0-7-7v-2a6 6 0 0 1 12 0v2a7 7 0 0 0-7 7v0Z"/><path d="M12 17v4"/><path d="M12 10a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/></Icon>,
+            Layers: (props) => <Icon {...props}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></Icon>,
+            CheckCircle: (props) => <Icon {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></Icon>,
+            Star: (props) => <Icon {...props}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></Icon>,
+            BookOpen: (props) => <Icon {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></Icon>,
+            Code: (props) => <Icon {...props}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></Icon>,
+            Upload: (props) => <Icon {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></Icon>,
+            ArrowLeft: (props) => <Icon {...props}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></Icon>,
+            ChevronRight: (props) => <Icon {...props}><polyline points="9 18 15 12 9 6"/></Icon>,
+            ChevronLeft: (props) => <Icon {...props}><polyline points="15 18 9 12 15 6"/></Icon>,
+            ZoomIn: (props) => <Icon {...props}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></Icon>,
+            X: (props) => <Icon {...props}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Icon>,
+            Brain: (props) => <Icon {...props}><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></Icon>,
+            Images: (props) => <Icon {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></Icon>
+        };
+
+        // --- 主應用程式組件 ---
+        const ScratchPortal = () => {
+            const [selectedUnit, setSelectedUnit] = useState(null);
+            const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+            const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+            const [currentHintIndex, setCurrentHintIndex] = useState(0); 
+            
+            // 測驗相關 State
+            const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
+            const [currentQuizQuestions, setCurrentQuizQuestions] = useState([]);
+            const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+            const [quizFeedback, setQuizFeedback] = useState(null); 
+            const [shake, setShake] = useState(false);
+            const [flowchartRecords, setFlowchartRecords] = useState({});
+            const [flowSteps, setFlowSteps] = useState('');
+            const [orderedFlowSteps, setOrderedFlowSteps] = useState([]);
+            const [flowchartMessage, setFlowchartMessage] = useState('');
+            const [referenceModalOpen, setReferenceModalOpen] = useState(false);
+            const [referenceReads, setReferenceReads] = useState(() => Object.fromEntries(Array.from({ length: 8 }, (_, index) => {
+                const id = index + 1;
+                return [id, sessionStorage.getItem(`flowchart-reference-read.${window.SCHOOL_APP.currentTermId}.${id}`) === 'true'];
+            })));
+
+            const shuffledFlowSteps = unit => {
+                const saved = flowchartRecords[unit.id]?.steps?.split(/\r?\n/).map(step => step.trim()).filter(Boolean);
+                if (saved?.length) return saved;
+                const copy = [...unit.details];
+                for (let index = copy.length - 1; index > 0; index -= 1) {
+                    const target = Math.floor(Math.random() * (index + 1));
+                    [copy[index], copy[target]] = [copy[target], copy[index]];
+                }
+                return copy;
+            };
+
+            useEffect(() => {
+                let active = true;
+                Promise.resolve(window.FlowchartProgress).then(records => { if (active) setFlowchartRecords(records || {}); });
+                return () => { active = false; };
+            }, []);
+
+            useEffect(() => {
+                const completeReading = event => {
+                    if (event.origin !== window.location.origin || event.data?.type !== 'flowchart-reference-complete') return;
+                    const unitId = Number(event.data.unit);
+                    sessionStorage.setItem(`flowchart-reference-read.${window.SCHOOL_APP.currentTermId}.${unitId}`, 'true');
+                    setReferenceReads(current => ({ ...current, [unitId]: true }));
+                    setReferenceModalOpen(false);
+                    setFlowchartMessage('已完成流程圖參考文件閱讀，請將題目改寫為流程步驟。');
+                };
+                window.addEventListener('message', completeReading);
+                return () => window.removeEventListener('message', completeReading);
+            }, []);
+
+            // 關閉 Modal 時禁止背景滾動
+            useEffect(() => {
+                if (isImageModalOpen || isQuizModalOpen) {
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    document.body.style.overflow = 'auto';
+                }
+                return () => {
+                    document.body.style.overflow = 'auto';
+                };
+            }, [isImageModalOpen, isQuizModalOpen]);
+
+            // 課程資料
+            const units = [
+                {
+                    id: 1,
+                    title: "5-1-1 小狗散步遊戲",
+                    subtitle: "角色移動與造型切換",
+                    IconComponent: Icons.MousePointer,
+                    color: "border-blue-500",
+                    bgTheme: "bg-blue-500",
+                    description: "本單元學習如何控制小狗角色在舞台上左右移動，並配合造型切換，製作出生動的走路動畫效果。",
+                    details: [
+                        "設定「重複次數」與移動步數。",
+                        "使用「造型換成下一個」產生動畫感。",
+                        "設定「碰到邊緣就反彈」與旋轉方式。",
+                        "複製角色並更動起始位置座標。"
+                    ],
+                    projectLink: "https://scratch.mit.edu/projects/1311839093",
+                    uploadLinks: [
+                        "imgs/5-1-1.png"
+                    ],
+                    videoId: "otRG7Ju9io8",
+                    quizBank: [
+                        { q: "如果想讓小狗只走 10 步就停下來，而不是一直走，該用哪個迴圈積木？", options: ["重複無限次", "重複 10 次", "如果...那麼", "等待直到"], ans: 1 },
+                        { q: "為了讓小狗走路看起來有動作變化(產生動畫感)，而不只是滑行，需要使用？", options: ["改變顏色特效", "背景換成下一個", "造型換成下一個", "播放音效"], ans: 2 },
+                        { q: "小狗走到舞台邊緣若會「倒立」，該如何修正？", options: ["刪除角色", "設定迴轉方式為「左右」", "隱藏角色", "設定迴轉方式為「不旋轉」"], ans: 1 },
+                        { q: "若要快速製作第二隻一模一樣的小狗，最快的方法是？", options: ["對角色按右鍵選「複製」", "重新畫一隻", "再匯入一次角色", "畫背景"], ans: 0 },
+                        { q: "複製出來的第二隻小狗，通常需要修改什麼才不會跟第一隻重疊？", options: ["造型顏色", "聲音", "起始位置座標(定位到...)", "迴圈次數"], ans: 2 }
+                    ]
+                },
+                {
+                    id: 2,
+                    title: "5-1-2 賽馬遊戲",
+                    subtitle: "隨機數與變數應用",
+                    IconComponent: Icons.Trophy,
+                    color: "border-purple-500",
+                    bgTheme: "bg-purple-500",
+                    description: "製作一個刺激的賽馬比賽！利用隨機數控制馬匹的速度，讓每次比賽的結果都充滿驚喜。",
+                    details: [
+                        "使用「隨機取數」改變移動距離。",
+                        "判斷是否抵達終點線。",
+                        "抵達終點線後停止程式。",
+                        "複製角色並更動起始位置座標。"
+                    ],
+                    projectLink: "https://scratch.mit.edu/projects/1311839447",
+                    uploadLinks: [
+                        "imgs/5-1-2.png"
+                    ],
+                    videoId: "ljNokwiXimU",
+                    quizBank: [
+                        { q: "要讓賽馬每次移動的步數都不一樣(忽快忽慢)，應該使用哪個積木？", options: ["滑行到...", "隨機取數", "定位到...", "改變大小"], ans: 1 },
+                        { q: "如何判斷賽馬是否已經跑到了終點線？", options: ["當按下空白鍵", "碰到顏色 或 碰到角色(終點)", "當背景換成...", "計時器 > 10"], ans: 1 },
+                        { q: "當有馬匹抵達終點後，為了結束比賽，通常會使用？", options: ["隱藏", "刪除分身", "停止 [全部]", "等待 10 秒"], ans: 2 },
+                        { q: "如果要快速製作第二匹、第三匹賽馬，最有效率的做法是？", options: ["重新畫一個", "使用分身", "匯入新角色", "在角色區對角色按右鍵選「複製」"], ans: 3 },
+                        { q: "複製出新的馬匹後，為了讓牠們排成一列起跑，必須修改什麼？", options: ["X 座標", "造型", "Y 座標 (起始位置)", "程式碼的隨機數"], ans: 2 }
+                    ]
+                },
+                {
+                    id: 3,
+                    title: "5-1-3 水族箱遊戲",
+                    subtitle: "多角色互動與自由游動",
+                    IconComponent: Icons.CheckCircle,
+                    color: "border-green-500",
+                    bgTheme: "bg-green-500",
+                    description: "打造一個熱鬧的水族箱，讓不同的海洋生物在水中自由自在地游動，並與環境互動。",
+                    details: [
+                        "設定角色左右移動。",
+                        "設定角色轉動特定角度。",
+                        "設定角色改變移動距離。",
+                        "「如果」碰到「鼠標」說出「你好」。"
+                    ],
+                    projectLink: "https://scratch.mit.edu/projects/1311839501",
+                    uploadLinks: [
+                        "imgs/5-1-3(1).png",
+                        "imgs/5-1-3(2).png"
+                    ],
+                    videoId: "MsRlSK15Yx0",
+                    quizBank: [
+                        { q: "如果要讓角色只在左右方向移動，不會上下顛倒，應該設定？", options: ["迴轉方式：不旋轉", "迴轉方式：左右", "定位到鼠標", "改變尺寸"], ans: 1 },
+                        { q: "想讓角色一開始就朝向特定的方向游動(例如 45 度)，該使用哪個積木？", options: ["右轉 15 度", "定位到 x:45", "改變大小", "面朝 45 度"], ans: 3 },
+                        { q: "積木「移動 10 點」中的數字改得越大，代表角色移動得？", options: ["越慢", "越快 (距離越長)", "越透明", "越小"], ans: 1 },
+                        { q: "想讓角色偵測是否被滑鼠游標碰到，要使用哪個偵測積木？", options: ["碰到顏色?", "按下空白鍵?", "碰到「鼠標」?", "響度 > 10?"], ans: 2 },
+                        { q: "當角色碰到鼠標時要打招呼，應該把「說出你好」放在哪個積木裡面？", options: ["如果...那麼", "重複 10 次", "等待 1 秒", "當綠旗點擊"], ans: 0 }
+                    ]
+                },
+                {
+                    id: 4,
+                    title: "5-1-4 打擊魔鬼遊戲",
+                    subtitle: "滑鼠互動與計分",
+                    IconComponent: Icons.Monitor,
+                    color: "border-yellow-500",
+                    bgTheme: "bg-yellow-500",
+                    description: "訓練反應神經的遊戲！當魔鬼隨機出現時，快速點擊滑鼠進行攻擊並獲得分數。",
+                    details: [
+                        "設定角色隨機出現。",
+                        "角色碰到邊界後回到原點。",
+                        "建立變數與計分。",
+                        "判斷兩種條件是否同時成立。"
+                    ],
+                    projectLink: "https://scratch.mit.edu/projects/1311839541",
+                    uploadLinks: [
+                        "imgs/5-1-4(1).png",
+                        "imgs/5-1-4(2).png"
+                    ],
+                    videoId: "ZDGT3phnnCQ",
+                    quizBank: [
+                        { q: "想要讓魔鬼每次出現在螢幕上的不同位置，應該使用哪個積木？", options: ["滑行到 x:0 y:0", "定位到 隨機位置", "移動 10 點", "碰到邊緣就反彈"], ans: 1 },
+                        { q: "若要讓角色碰到邊緣後「回到畫面的正中央」(原點)，應該使用哪種組合？", options: ["碰到邊緣就反彈", "碰到邊緣就隱藏", "如果碰到邊緣，則定位到 x:0 y:0", "碰到邊緣則移動 10 點"], ans: 2 },
+                        { q: "為了記錄打中魔鬼的次數，我們需要建立什麼來儲存分數？", options: ["音效", "廣播訊息", "背景", "變數"], ans: 3 },
+                        { q: "如果要判斷「魔鬼被點擊」且「遊戲還沒結束」這兩個條件同時達成，需要用到哪個邏輯積木？", options: ["() 且 ()", "() 或 ()", "不成立 ()", "如果...那麼...否則"], ans: 0 },
+                        { q: "當成功打中魔鬼並得分時，分數的變數應該如何設定？", options: ["變數設為 0", "變數改變 1", "隱藏變數", "變數改變 -1"], ans: 1 }
+                    ]
+                },
+                {
+                    id: 5,
+                    title: "5-1-A 企鵝漫步",
+                    subtitle: "分身技巧與隨機定位",
+                    IconComponent: Icons.Star,
+                    color: "border-red-500",
+                    bgTheme: "bg-red-500",
+                    description: "本單元將帶領學生探索 Scratch 中強大的「分身」功能，學習如何動態產生與刪除角色，並搭配隨機位置，創造出豐富的畫面效果，同時了解系統的分身數量限制。",
+                    details: [
+                        "如何建立角色分身。",
+                        "如何刪除角色分身。",
+                        "隨機定位角色位置。",
+                        "尋找分身數量限制。"
+                    ],
+                    projectLink: "https://scratch.mit.edu/projects/1311839581",
+                    uploadLinks: [
+                        "imgs/5-1-A.png"
+                    ],
+                    videoId: "cAVdZVyFwno",
+                    quizBank: [
+                        { q: "要讓程式在執行過程中動態複製出一個相同的角色，應該使用哪個積木？", options: ["造型換成下一個", "建立分身", "廣播訊息", "顯示"], ans: 1 },
+                        { q: "當分身完成任務或碰到邊緣時，為了避免畫面變亂及程式卡頓，應該使用哪個積木？", options: ["隱藏", "停止全部", "刪除分身", "改變透明度"], ans: 2 },
+                        { q: "想讓分身一出現就隨機散佈在舞台上，應該使用哪個積木？", options: ["定位到 隨機位置", "移動 10 點", "碰到邊緣就反彈", "滑行到滑鼠"], ans: 0 },
+                        { q: "在 Scratch 的官方限制中，一個專案最多大約可以同時存在多少個分身？", options: ["無限多個", "100 個", "300 個", "1000 個"], ans: 2 },
+                        { q: "針對分身設定獨立的動作時，程式的開頭必須接上哪一個事件積木？", options: ["當收到訊息", "當綠旗被點擊", "當角色被點擊", "當分身產生"], ans: 3 }
+                    ]
+                },
+                {
+                    id: 6,
+                    title: "5-1-B 動物大遷徙",
+                    subtitle: "模組複製與變數應用",
+                    IconComponent: Icons.Layers,
+                    color: "border-indigo-500",
+                    bgTheme: "bg-indigo-500",
+                    description: "模擬大群動物一起移動的壯觀場景，學習如何複製程式模組來快速建立多個角色，並運用變數來記錄遷徙的結果與設定程式的終止條件。",
+                    details: [
+                        "如何複製程式模組。",
+                        "使用變數記錄結果。",
+                        "程式終止條件設定。",
+                        "自定義程式判斷值。"
+                    ],
+                    projectLink: "https://scratch.mit.edu/projects/1311839621",
+                    uploadLinks: [
+                        "imgs/5-1-B.png"
+                    ],
+                    videoId: "P6NXxypaznU",
+                    quizBank: [
+                        { q: "如何將一個角色的程式碼(模組)快速複製到另一個角色上？", options: ["廣播訊息", "重新打字", "將積木拖曳到角色區的目標角色上", "使用畫筆"], ans: 2 },
+                        { q: "如果想記錄有幾隻動物成功抵達終點，應該使用什麼功能？", options: ["改變背景", "外觀積木", "播放音效", "建立變數"], ans: 3 },
+                        { q: "當抵達終點的動物數量達到目標時遊戲要結束，應該使用哪個控制積木？", options: ["等待 1 秒", "停止[全部]", "重複無限次", "建立分身"], ans: 1 },
+                        { q: "在條件判斷「變數 > 50」中，數字 50 是什麼？", options: ["自定義的判斷值", "隨機數", "程式錯誤", "角色名稱"], ans: 0 },
+                        { q: "當一隻動物成功到達終點，負責記錄的變數應該如何改變？", options: ["變數設為 0", "隱藏變數", "變數改變 1", "變數改變 -1"], ans: 2 }
+                    ]
+                },
+                {
+                    id: 7,
+                    title: "5-1-C 養魚遊戲",
+                    subtitle: "互動餵食與成長機制",
+                    IconComponent: Icons.HelpCircle,
+                    color: "border-teal-500",
+                    bgTheme: "bg-teal-500",
+                    description: "透過點擊滑鼠產生飼料，並模擬真實的掉落效果。利用分身功能產生多樣的魚種，並設定魚吃掉飼料後會逐漸長大的條件判斷，打造一個生動的水族箱！",
+                    details: [
+                        "滑鼠點擊產生飼料。",
+                        "模擬真實環境飼料移動方式。",
+                        "分身應用：模擬水族箱中多樣的魚種。",
+                        "條件判斷：吃到飼料後的體積大小變化。"
+                    ],
+                    projectLink: "https://scratch.mit.edu/projects/1311839656",
+                    uploadLinks: [
+                        "imgs/5-1-C(1).png",
+                        "imgs/5-1-C(2).png"
+                    ],
+                    videoId: "WiQnRcwsjbM",
+                    quizBank: [
+                        { q: "要達成「點擊滑鼠產生飼料」，應該使用哪個偵測或事件積木配合建立分身？", options: ["當按下空白鍵", "如果「滑鼠鍵被按下」", "碰到滑鼠游標", "當背景換成..."], ans: 1 },
+                        { q: "為了模擬真實環境中飼料往下掉落的樣子，飼料分身產生後應該持續改變哪個數值？", options: ["X 座標增加", "X 座標減少", "Y 座標增加", "Y 座標改變負數(往下掉)"], ans: 3 },
+                        { q: "若要在水族箱中同時產生好幾隻不同種類的魚，使用哪種技巧最有效率？", options: ["變數", "建立分身並隨機切換造型", "廣播訊息", "一直重複匯入角色"], ans: 1 },
+                        { q: "魚吃到飼料(碰到飼料)後體積會變大，這屬於哪一種程式邏輯？", options: ["條件判斷 (如果...那麼)", "重複執行", "變數建立", "背景切換"], ans: 0 },
+                        { q: "飼料被魚吃掉(碰到魚)或是掉到水族箱底部(碰到邊緣)時，應該要怎麼處理飼料分身？", options: ["移動 10 點", "刪除分身", "造型換成下一個", "停止全部"], ans: 1 }
+                    ]
+                },
+                {
+                    id: 8,
+                    title: "5-1-D 獵殺魔鬼",
+                    subtitle: "射擊瞄準與碰撞偵測",
+                    IconComponent: Icons.Play,
+                    color: "border-pink-500",
+                    bgTheme: "bg-pink-500",
+                    description: "進階版的射擊遊戲！使用準心跟隨滑鼠移動，點擊滑鼠變換造型模擬發射子彈。學習設定子彈與魔鬼的碰撞偵測，並加入誤擊村民會扣分的進階機制。",
+                    details: [
+                        "準心跟隨滑鼠移動。",
+                        "按下滑鼠改變造型模擬發射子彈。",
+                        "子彈與魔鬼的碰撞偵測。",
+                        "加入誤擊村民扣分機制。"
+                    ],
+                    projectLink: "https://scratch.mit.edu/projects/1311839203",
+                    uploadLinks: [
+                        "imgs/5-1-D(1).png",
+                        "imgs/5-1-D(2).png",
+                        "imgs/5-1-D(3).png"
+                    ],
+                    videoId: "CQrwiRuwecw",
+                    quizBank: [
+                        { q: "想要讓準心一直跟著滑鼠游標移動，應該把「定位到鼠標」放在哪個積木裡？", options: ["當角色被點擊", "如果...那麼", "重複無限次", "等待 1 秒"], ans: 2 },
+                        { q: "為了讓玩家有「開槍」的感覺，按下滑鼠時準心應該做什麼改變？", options: ["隱藏角色", "切換成發射造型再稍後切回", "改變顏色", "移動 10 點"], ans: 1 },
+                        { q: "如何判斷魔鬼被子彈打中了？", options: ["當綠旗被點擊", "碰到邊緣", "碰到準心且滑鼠鍵被按下", "計時器 > 0"], ans: 2 },
+                        { q: "遊戲中加入了「村民」角色，如果不小心打中村民會有什麼機制？", options: ["加分", "遊戲直接過關", "村民變大", "扣除分數"], ans: 3 },
+                        { q: "打中魔鬼要「加分」，打中村民要「扣分」，這兩個動作都需要改變什麼？", options: ["背景", "造型", "分數變數", "音量"], ans: 2 }
+                    ]
+                }
+            ];
+
+            useEffect(() => {
+                const requestedId = Number(new URLSearchParams(window.location.search).get('unit'));
+                const requestedUnit = units.find(unit => unit.id === requestedId);
+                if (!requestedUnit) return;
+                setSelectedUnit(requestedUnit);
+                setFlowSteps(flowchartRecords[requestedUnit.id]?.steps || '');
+                setOrderedFlowSteps(shuffledFlowSteps(requestedUnit));
+                setFlowchartMessage('已完成流程圖參考文件閱讀，請將題目改寫為流程步驟。');
+                setReferenceReads(current => ({ ...current, [requestedUnit.id]: true }));
+                window.history.replaceState({}, '', 'scratch.html');
+            }, []);
+
+            const handleUnitClick = (unit) => {
+                if (window.LearnerProfile && window.SCHOOL_APP) {
+                    const storageKey = window.SCHOOL_APP.storageKeys.scratchUnits;
+                    const unlocked = window.LearnerProfile.readTermStorage(storageKey, {});
+                    unlocked[unit.id] = true;
+                    window.LearnerProfile.writeTermStorage(storageKey, unlocked);
+                }
+                setSelectedUnit(unit);
+                setIsVideoPlaying(false);
+                setIsImageModalOpen(false);
+                setIsQuizModalOpen(false);
+                setCurrentHintIndex(0); // 重置圖片索引
+                setFlowSteps(flowchartRecords[unit.id]?.steps || '');
+                setOrderedFlowSteps(shuffledFlowSteps(unit));
+                setFlowchartMessage(flowchartRecords[unit.id]?.exportedAt ? '已完成此單元的流程圖 Markdown。' : '請先閱讀流程圖參考文件，再把題目整理為步驟。');
+                setReferenceModalOpen(false);
+                window.scrollTo(0, 0);
+            };
+
+            const handleBack = () => {
+                setSelectedUnit(null);
+                setIsVideoPlaying(false);
+                setIsImageModalOpen(false);
+                setIsQuizModalOpen(false);
+                setCurrentHintIndex(0);
+                setFlowSteps('');
+                setOrderedFlowSteps([]);
+                setFlowchartMessage('');
+                setReferenceModalOpen(false);
+            };
+
+            const exportFlowchartMarkdown = async (providedSteps = null) => {
+                if (!selectedUnit) return;
+                const steps = providedSteps || flowSteps.split(/\r?\n/).map(step => step.trim()).filter(Boolean);
+                if (steps.length < 2) { setFlowchartMessage('請將題目描述改寫成至少兩個清楚的流程步驟，每行一個步驟。'); return; }
+                const nodes = steps.map((step, index) => `  step${index + 1}[${step.replace(/[\[\]{}()"']/g, '')}]`);
+                const links = steps.map((_, index) => index === 0 ? '  start --> step1' : `  step${index} --> step${index + 1}`);
+                links.push(`  step${steps.length} --> end`);
+                const markdown = [`# ${selectedUnit.title}｜流程圖`, '', '## 題目說明', selectedUnit.description, '', '## 流程步驟', ...steps.map((step, index) => `${index + 1}. ${step}`), '', '## Mermaid', '```mermaid', 'flowchart TD', '  start([開始])', ...nodes, ...links, '  end([結束])', '```', '', '請將本檔案中的 Mermaid 區塊貼到 mermaid.ai 產生流程圖。'].join('\n');
+                const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `flowchart-unit-${selectedUnit.id}.md`;
+                link.click();
+                URL.revokeObjectURL(url);
+                try {
+                    const record = { steps: steps.join('\n'), exportedAt: new Date().toISOString(), title: selectedUnit.title };
+                    const records = await window.saveFlowchartProgress(selectedUnit.id, record);
+                    setFlowchartRecords(records);
+                    setFlowchartMessage('Markdown 已下載；請貼入 Mermaid AI 確認流程圖後，即可開啟程式實作。');
+                } catch (error) { console.error(error); setFlowchartMessage('Markdown 已下載，但完成紀錄暫時未同步，請稍後再試。'); }
+            };
+
+            // --- 測驗邏輯 ---
+            
+            // 開始測驗
+            const moveFlowStep = (index, direction) => {
+                setOrderedFlowSteps(current => {
+                    const target = index + direction;
+                    if (target < 0 || target >= current.length) return current;
+                    const next = [...current];
+                    [next[index], next[target]] = [next[target], next[index]];
+                    return next;
+                });
+            };
+
+            const submitFlowchartOrder = async () => {
+                if (!selectedUnit) return;
+                const correct = selectedUnit.details.every((step, index) => orderedFlowSteps[index] === step);
+                if (!correct) { setFlowchartMessage('順序還不正確，請依程式執行的先後重新排列。'); return; }
+                setFlowSteps(selectedUnit.details.join('\n'));
+                setFlowchartMessage('順序正確！正在產生此單元的 Markdown 檔。');
+                await exportFlowchartMarkdown(selectedUnit.details);
+            };
+
+            const startQuiz = () => {
+                if (!selectedUnit || !selectedUnit.quizBank) return;
+                
+                // 動態決定題數：1 張圖考 2 題，2 張圖考 3 題，3 張圖考 4 題...
+                // 公式：基礎 1 題 + 圖片數量
+                const questionsToAskCount = Math.min(selectedUnit.quizBank.length, selectedUnit.uploadLinks.length + 1);
+
+                const bank = [...selectedUnit.quizBank];
+                const selected = [];
+                for(let i=0; i<questionsToAskCount; i++) {
+                    if (bank.length === 0) break;
+                    const randomIndex = Math.floor(Math.random() * bank.length);
+                    selected.push(bank[randomIndex]);
+                    bank.splice(randomIndex, 1);
+                }
+                
+                setCurrentQuizQuestions(selected);
+                setCurrentQuestionIndex(0);
+                setQuizFeedback(null);
+                setIsQuizModalOpen(true);
+            };
+
+            const handleAnswer = (optionIndex) => {
+                const currentQ = currentQuizQuestions[currentQuestionIndex];
+                
+                if (optionIndex === currentQ.ans) {
+                    setQuizFeedback('correct');
+                    setTimeout(() => {
+                        if (currentQuestionIndex < currentQuizQuestions.length - 1) {
+                            setCurrentQuestionIndex(prev => prev + 1);
+                            setQuizFeedback(null);
+                        } else {
+                            setIsQuizModalOpen(false);
+                            setIsImageModalOpen(true);
+                        }
+                    }, 800);
+                } else {
+                    setShake(true);
+                    setQuizFeedback('wrong');
+                    setTimeout(() => setShake(false), 500);
+                }
+            };
+
+            const retryQuiz = () => {
+                startQuiz();
+            };
+
+            // --- 圖片輪播邏輯 ---
+            const nextImage = (e) => {
+                e.stopPropagation();
+                if (selectedUnit && currentHintIndex < selectedUnit.uploadLinks.length - 1) {
+                    setCurrentHintIndex(prev => prev + 1);
+                }
+            };
+
+            const prevImage = (e) => {
+                e.stopPropagation();
+                if (selectedUnit && currentHintIndex > 0) {
+                    setCurrentHintIndex(prev => prev - 1);
+                }
+            };
+
+            const getIconColorClass = (id) => {
+                const colors = {
+                    1: 'text-blue-500', 2: 'text-purple-500', 3: 'text-green-500', 4: 'text-yellow-500',
+                    5: 'text-red-500', 6: 'text-indigo-500', 7: 'text-teal-500', 8: 'text-pink-500'
+                };
+                return colors[id] || 'text-gray-500';
+            };
+            
+            const getBgColorClass = (id) => {
+                 const colors = {
+                    1: 'bg-blue-500', 2: 'bg-purple-500', 3: 'bg-green-500', 4: 'bg-yellow-500',
+                    5: 'bg-red-500', 6: 'bg-indigo-500', 7: 'bg-teal-500', 8: 'bg-pink-500'
+                };
+                return colors[id] || 'bg-gray-500';
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-10">
+                    {/* Header */}
+                    <header className="bg-orange-500 text-white shadow-md sticky top-0 z-50">
+                        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+                            <div className="flex items-center space-x-2 cursor-pointer" onClick={handleBack}>
+                                <div className="bg-white p-1 rounded-full">
+                                    <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center font-bold text-lg">S</div>
+                                </div>
+                                <h1 className="text-xl md:text-2xl font-bold tracking-wide">Scratch 基礎程式設計(2)</h1>
+                            </div>
+                            <div className="text-sm md:text-base bg-orange-600 px-3 py-1 rounded-full shadow-inner">
+                                {selectedUnit ? `正在學習：單元 ${selectedUnit.id}` : '請選擇單元'}
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="max-w-6xl mx-auto px-4 py-8 relative">
+                        {!selectedUnit ? (
+                            // View 1: 單元列表 (Dashboard)
+                            <div className="space-y-6 animate-fade-in-up">
+                                <div className="text-center mb-10 py-6">
+                                    <h2 className="text-3xl font-bold text-slate-800 mb-2">歡迎來到程式冒險</h2>
+                                    <p className="text-slate-500 max-w-2xl mx-auto">這是一個專為初學者設計的 Scratch 互動課程。請點選下方卡片，開始您的創意程式設計之旅，共計 8 個精彩關卡！</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {units.map((unit) => (
+                                        <div 
+                                            key={unit.id}
+                                            onClick={() => handleUnitClick(unit)}
+                                            className={`bg-white rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden border-t-4 ${unit.color} group transform hover:-translate-y-1 relative`}
+                                        >
+                                            <div className="p-6">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className="p-3 bg-slate-50 rounded-lg group-hover:bg-slate-100 transition-colors">
+                                                        <unit.IconComponent className={`w-8 h-8 ${getIconColorClass(unit.id)}`} />
+                                                    </div>
+                                                    <span className="text-4xl font-black text-slate-100 group-hover:text-slate-200 transition-colors select-none">
+                                                        {unit.id}
+                                                    </span>
+                                                </div>
+                                                <h3 className="text-lg font-bold mb-1 text-slate-800 group-hover:text-orange-600 transition-colors">
+                                                    {unit.title}
+                                                </h3>
+                                                <p className="text-sm text-slate-500 mb-4 line-clamp-2">{unit.subtitle}</p>
+                                                <span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${flowchartRecords[unit.id]?.exportedAt ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{flowchartRecords[unit.id]?.exportedAt ? '✓ 流程圖已完成' : '先閱讀與建立流程圖'}</span>
+                                                <div className="flex items-center text-orange-500 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-6 right-6">
+                                                    <span>開始學習</span>
+                                                    <Icons.ChevronRight className="w-4 h-4 ml-1" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            // View 2: 詳細頁面 (Detail View)
+                            <div className="animate-fade-in-up">
+                                <button 
+                                    onClick={handleBack}
+                                    className="flex items-center text-slate-500 hover:text-orange-600 mb-6 transition-colors group px-2 py-1 rounded-lg hover:bg-slate-100 w-fit"
+                                >
+                                    <div className="bg-white p-2 rounded-full shadow-sm mr-2 group-hover:shadow-md border border-slate-200">
+                                        <Icons.ArrowLeft className="w-5 h-5" />
+                                    </div>
+                                    <span className="font-medium">返回課程列表</span>
+                                </button>
+
+                                <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-100">
+                                    {/* Banner Area */}
+                                    <div className="h-32 bg-gradient-to-r from-slate-100 to-slate-50 border-b flex items-center px-8 relative overflow-hidden">
+                                        <div className={`absolute left-0 top-0 h-full w-2 ${getBgColorClass(selectedUnit.id)}`}></div>
+                                        <div className="relative z-10">
+                                            <span className="text-sm font-bold tracking-widest text-orange-500 uppercase mb-1 block">Unit 0{selectedUnit.id}</span>
+                                            <h2 className="text-2xl md:text-3xl font-bold text-slate-800">{selectedUnit.title}</h2>
+                                        </div>
+                                        <div className="absolute right-8 top-1/2 transform -translate-y-1/2 opacity-10 pointer-events-none">
+                                            <selectedUnit.IconComponent className="w-32 h-32 text-slate-800" />
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                        
+                                        {/* 左側：主要說明區域 */}
+                                        <div className="lg:col-span-2 space-y-8">
+                                            <section>
+                                                <div className="flex items-center mb-4">
+                                                    <Icons.BookOpen className="w-6 h-6 text-orange-500 mr-2" />
+                                                    <h3 className="text-xl font-bold text-slate-800">程式內容說明</h3>
+                                                </div>
+                                                <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
+                                                    <p className="text-slate-600 mb-6 text-lg leading-relaxed">
+                                                        {selectedUnit.description}
+                                                    </p>
+                                                    <h4 className="font-bold text-slate-700 mb-4 flex items-center">
+                                                        <span className="w-1 h-6 bg-orange-400 mr-2 rounded-full"></span>
+                                                        本單元學習重點：
+                                                    </h4>
+                                                    <ul className="grid gap-3">
+                                                        {selectedUnit.details.map((detail, index) => (
+                                                            <li key={index} className="flex items-start bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+                                                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">
+                                                                    {index + 1}
+                                                                </div>
+                                                                <span className="text-slate-600">{detail}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </section>
+
+                                            {/* 嵌入影片區域 */}
+                                            <div className="space-y-2">
+                                                 <div className="flex items-center mb-2">
+                                                    <Icons.Play className="w-6 h-6 text-red-500 mr-2" />
+                                                    <h3 className="text-lg font-bold text-slate-800">教學影片</h3>
+                                                </div>
+                                                <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden shadow-md relative group">
+                                                    {!isVideoPlaying ? (
+                                                        <div 
+                                                            className="w-full h-full cursor-pointer relative group"
+                                                            onClick={() => setIsVideoPlaying(true)}
+                                                        >
+                                                            {/* 預覽縮圖 */}
+                                                            <img 
+                                                                src={`https://img.youtube.com/vi/${selectedUnit.videoId}/hqdefault.jpg`}
+                                                                onError={(e) => { e.target.onerror = null; e.target.src = `https://img.youtube.com/vi/${selectedUnit.videoId}/mqdefault.jpg`; }}
+                                                                alt="影片預覽"
+                                                                className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity no-copy"
+                                                                draggable="false"
+                                                                onContextMenu={(e) => e.preventDefault()}
+                                                            />
+                                                            
+                                                            {/* 播放按鈕圖層 */}
+                                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                                <div className="w-16 h-16 bg-red-600/90 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300 backdrop-blur-sm">
+                                                                    <Icons.Play className="w-8 h-8 text-white ml-1" fill="white" />
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="absolute bottom-4 right-4 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm pointer-events-none">
+                                                                點擊播放
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <iframe 
+                                                            width="100%" 
+                                                            height="100%" 
+                                                            src={`https://www.youtube.com/embed/${selectedUnit.videoId}?autoplay=1&rel=0`} 
+                                                            title={selectedUnit.title}
+                                                            frameBorder="0" 
+                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                                                            referrerPolicy="strict-origin-when-cross-origin"
+                                                            allowFullScreen
+                                                            className="w-full h-full"
+                                                        ></iframe>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* 外部連結按鈕 */}
+                                                <div className="text-right">
+                                                    <a 
+                                                        href={`https://www.youtube.com/watch?v=${selectedUnit.videoId}`} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center text-xs text-slate-500 hover:text-red-600 transition-colors"
+                                                    >
+                                                        <span>無法播放？點此前往 YouTube 觀看</span>
+                                                        <Icons.ChevronRight className="w-3 h-3 ml-1" />
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 右側：行動呼籲連結 */}
+                                        <div className="lg:col-span-1 space-y-6">
+                                            <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+                                                <div className="flex items-center gap-3"><div className="rounded-lg bg-emerald-100 p-2 text-xl">🗺️</div><div><p className="text-xs font-black tracking-[.16em] text-emerald-700">STEP 1 · FLOWCHART</p><h3 className="font-black text-slate-800">先完成流程圖任務</h3></div></div>
+                                                <p className="mt-4 text-sm leading-6 text-slate-600">先閱讀參考文件，再把上方題目說明改寫為程式執行步驟。每行一個步驟，系統會下載含 Mermaid 程式碼的 Markdown 檔。</p>
+                                                <button type="button" onClick={() => setReferenceModalOpen(true)} className="mt-4 block w-full rounded-lg border border-emerald-300 bg-white px-3 py-2 text-center text-sm font-bold text-emerald-700 hover:bg-emerald-100">閱讀流程圖參考文件 →</button>
+                                                <p className="mt-4 text-sm font-bold text-emerald-800">將下列程式步驟排成正確的執行順序，再按「檢查排列順序」。</p>
+                                                <div className={`mt-3 space-y-2 ${referenceReads[selectedUnit.id] ? '' : 'pointer-events-none opacity-50'}`}>
+                                                    {orderedFlowSteps.map((step, index) => <div key={`${step}-${index}`} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-2 text-sm text-slate-700"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">{index + 1}</span><span className="min-w-0 flex-1 leading-5">{step}</span><div className="flex gap-1"><button type="button" onClick={() => moveFlowStep(index, -1)} disabled={index === 0} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="上移">↑</button><button type="button" onClick={() => moveFlowStep(index, 1)} disabled={index === orderedFlowSteps.length - 1} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="下移">↓</button></div></div>)}
+                                                </div>
+                                                <button disabled={!referenceReads[selectedUnit.id]} type="button" onClick={submitFlowchartOrder} className={`mt-3 w-full rounded-lg px-3 py-3 text-sm font-bold text-white shadow-sm ${referenceReads[selectedUnit.id] ? 'bg-emerald-600 hover:bg-emerald-700' : 'cursor-not-allowed bg-slate-300'}`}>檢查排列順序並完成此步驟</button>
+                                                <a href="https://mermaid.ai/web/" target="_blank" rel="noopener noreferrer" className="mt-3 block text-center text-sm font-bold text-emerald-700 hover:underline">開啟 Mermaid AI 貼上程式碼 ↗</a>
+                                                <p className={`mt-3 text-xs font-bold ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'text-emerald-700' : 'text-slate-500'}`}>{!referenceReads[selectedUnit.id] ? '請先閱讀並完成流程圖參考文件。' : (flowchartMessage || (flowchartRecords[selectedUnit.id]?.exportedAt ? '✓ 已完成流程圖 Markdown' : '尚未完成流程圖'))}</p>
+                                            </section>
+                                            
+                                            {/* 1. 原始程式連結 */}
+                                            <div className="bg-white rounded-xl p-6 border border-blue-100 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex items-center mb-3">
+                                                    <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                                                        <Icons.Code className="w-5 h-5 text-blue-600" />
+                                                    </div>
+                                                    <h3 className="font-bold text-slate-800">範例程式碼</h3>
+                                                </div>
+                                                <p className="text-sm text-slate-500 mb-4">
+                                                    點擊下方按鈕前往 Scratch 官網查看本單元的原始程式碼專案。
+                                                </p>
+                                                <a 
+                                                    href={selectedUnit.projectLink} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className={`block w-full text-center bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-sm ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'hover:bg-blue-700 active:transform active:scale-95' : 'pointer-events-none opacity-40'}`}
+                                                >
+                                                    開啟原始程式專案
+                                                </a>
+                                            </div>
+
+                                            {/* 2. 解題提示 - 需先通關測驗 */}
+                                            <div className="bg-white rounded-xl p-6 border border-green-100 shadow-sm hover:shadow-md transition-shadow">
+                                                <div className="flex items-center mb-3">
+                                                    <div className="p-2 bg-green-100 rounded-lg mr-3">
+                                                         <Icons.Brain className="w-5 h-5 text-green-600" />
+                                                    </div>
+                                                    <h3 className="font-bold text-slate-800">解題提示挑戰</h3>
+                                                </div>
+                                                <p className="text-sm text-slate-500 mb-4">
+                                                    想查看提示圖嗎？請先連續答對 {Math.min(selectedUnit.quizBank.length, selectedUnit.uploadLinks.length + 1)} 題關於本單元的觀念測驗！
+                                                </p>
+                                                
+                                                {/* 挑戰按鈕/縮圖區 */}
+                                                <div 
+                                                    className="w-full h-48 bg-slate-100 rounded-lg overflow-hidden cursor-pointer relative group border border-slate-200"
+                                                    onClick={startQuiz}
+                                                >
+                                                    {/* 模糊處理的圖片，代表鎖定，永遠顯示第一張 */}
+                                                    <img 
+                                                        src={selectedUnit.uploadLinks[0]}
+                                                        alt="解題提示(鎖定)" 
+                                                        className="w-full h-full object-cover blur-sm opacity-60 no-copy"
+                                                        draggable="false"
+                                                        onContextMenu={(e) => e.preventDefault()}
+                                                    />
+                                                    
+                                                    {/* 鎖定/挑戰 遮罩 */}
+                                                    <div className="absolute inset-0 bg-black/10 group-hover:bg-black/30 transition-colors flex flex-col items-center justify-center text-center p-4">
+                                                        <div className="bg-green-600 text-white p-3 rounded-full shadow-lg mb-2 transform group-hover:scale-110 transition-transform duration-300">
+                                                            <Icons.Brain className="w-6 h-6" />
+                                                        </div>
+                                                        <span className="bg-white/90 text-green-800 text-sm font-bold px-3 py-1 rounded shadow-sm">
+                                                            點擊開始測驗 ({Math.min(selectedUnit.quizBank.length, selectedUnit.uploadLinks.length + 1)}題)
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    {/* 多張圖片標示 */}
+                                                    {selectedUnit.uploadLinks.length > 1 && (
+                                                        <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-md flex items-center backdrop-blur-sm">
+                                                            <Icons.Images className="w-3 h-3 mr-1" />
+                                                            <span>共 {selectedUnit.uploadLinks.length} 張</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* 提示卡片 */}
+                                            <div className="bg-orange-50 rounded-xl p-4 border border-orange-100 relative overflow-hidden">
+                                                <div className="absolute top-0 right-0 -mt-2 -mr-2 w-12 h-12 bg-orange-200 rounded-full opacity-50"></div>
+                                                <h4 className="text-orange-800 font-bold text-sm mb-2 flex items-center relative z-10">
+                                                    <span className="text-lg mr-1">💡</span> 小撇步
+                                                </h4>
+                                                <p className="text-orange-800/80 text-sm relative z-10">
+                                                    遇到困難嗎？您可以先查看「原始程式碼」裡面的積木排列方式，再嘗試自己拼湊看看！
+                                                </p>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {referenceModalOpen && selectedUnit && (
+                            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm">
+                                <section className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+                                    <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><p className="text-xs font-black tracking-[.18em] text-emerald-600">REFERENCE DOCUMENT</p><h2 className="mt-1 text-lg font-black text-slate-800">流程圖參考文件</h2></div><button type="button" onClick={() => setReferenceModalOpen(false)} className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200" aria-label="關閉"><Icons.X className="h-6 w-6" /></button></header>
+                                    <iframe src={`project.html?unit=${selectedUnit.id}`} title="流程圖參考文件" className="min-h-0 flex-1 border-0" />
+                                </section>
+                            </div>
+                        )}
+
+                        {/* 測驗 Modal */}
+                        {isQuizModalOpen && currentQuizQuestions.length > 0 && (
+                            <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
+                                <div className={`bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 relative ${shake ? 'animate-shake' : ''}`}>
+                                    {/* 關閉按鈕 */}
+                                    <button 
+                                        onClick={() => setIsQuizModalOpen(false)}
+                                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+                                    >
+                                        <Icons.X className="w-6 h-6" />
+                                    </button>
+
+                                    {quizFeedback === 'wrong' ? (
+                                        // 答錯畫面
+                                        <div className="text-center py-8">
+                                            <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <Icons.X className="w-10 h-10" />
+                                            </div>
+                                            <h3 className="text-2xl font-bold text-slate-800 mb-2">哎呀，答錯了！</h3>
+                                            <p className="text-slate-600 mb-6">必須連續答對 {currentQuizQuestions.length} 題才能解鎖提示喔。</p>
+                                            <button 
+                                                onClick={retryQuiz}
+                                                className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full transition-colors shadow-lg active:transform active:scale-95"
+                                            >
+                                                重新挑戰
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        // 答題畫面
+                                        <div className="animate-fade-in">
+                                            <div className="flex items-center justify-between mb-6">
+                                                <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full uppercase tracking-wide">
+                                                    解鎖挑戰
+                                                </span>
+                                                <span className="text-sm font-medium text-slate-400">
+                                                    問題 {currentQuestionIndex + 1} / {currentQuizQuestions.length}
+                                                </span>
+                                            </div>
+                                            
+                                            <h3 className="text-xl font-bold text-slate-800 mb-6 leading-relaxed">
+                                                {currentQuizQuestions[currentQuestionIndex].q}
+                                            </h3>
+
+                                            <div className="space-y-3">
+                                                {currentQuizQuestions[currentQuestionIndex].options.map((option, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={() => handleAnswer(idx)}
+                                                        disabled={quizFeedback === 'correct'}
+                                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all font-medium flex items-center
+                                                            ${quizFeedback === 'correct' && idx === currentQuizQuestions[currentQuestionIndex].ans 
+                                                                ? 'border-green-500 bg-green-50 text-green-700' 
+                                                                : 'border-slate-100 hover:border-blue-400 hover:bg-blue-50 text-slate-700'
+                                                            }
+                                                        `}
+                                                    >
+                                                        <div className={`w-6 h-6 rounded-full border-2 mr-3 flex items-center justify-center flex-shrink-0
+                                                            ${quizFeedback === 'correct' && idx === currentQuizQuestions[currentQuestionIndex].ans 
+                                                                ? 'border-green-500 bg-green-500 text-white' 
+                                                                : 'border-slate-300'
+                                                            }
+                                                        `}>
+                                                            {quizFeedback === 'correct' && idx === currentQuizQuestions[currentQuestionIndex].ans && <Icons.CheckCircle className="w-4 h-4" />}
+                                                        </div>
+                                                        {option}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            
+                                            {quizFeedback === 'correct' && (
+                                                <div className="mt-4 text-center text-green-600 font-bold animate-fade-in">
+                                                    答對了！{currentQuestionIndex < currentQuizQuestions.length - 1 ? "下一題..." : "正在解鎖..."}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* 圖片燈箱 Modal (解鎖後顯示，支援多圖切換) */}
+                        {isImageModalOpen && selectedUnit && (
+                            <div 
+                                className="fixed inset-0 z-[120] bg-black/90 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm"
+                                onClick={() => setIsImageModalOpen(false)}
+                            >
+                                <div className="relative max-w-6xl w-full h-full flex flex-col items-center justify-center pointer-events-none">
+                                    {/* 關閉按鈕 */}
+                                    <button 
+                                        className="absolute top-4 right-4 md:top-0 md:-right-12 text-white/70 hover:text-white transition-colors pointer-events-auto bg-black/50 md:bg-transparent p-2 rounded-full z-20"
+                                        onClick={() => setIsImageModalOpen(false)}
+                                    >
+                                        <Icons.X className="w-8 h-8 md:w-10 md:h-10" />
+                                    </button>
+
+                                    {/* 大圖容器 */}
+                                    <div className="relative w-full h-full flex items-center justify-center">
+                                        
+                                        {/* 上一張按鈕 */}
+                                        {selectedUnit.uploadLinks.length > 1 && (
+                                            <button 
+                                                className={`absolute left-0 md:-left-16 p-2 text-white/70 hover:text-white transition-colors pointer-events-auto bg-black/30 md:bg-transparent rounded-full z-20 ${currentHintIndex === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                                onClick={prevImage}
+                                                disabled={currentHintIndex === 0}
+                                            >
+                                                <Icons.ChevronLeft className="w-10 h-10 md:w-16 md:h-16" />
+                                            </button>
+                                        )}
+
+                                        {/* 圖片本體 */}
+                                        <img 
+                                        src={selectedUnit.uploadLinks[currentHintIndex]}
+                                            alt={`解題提示 ${currentHintIndex + 1}`} 
+                                            className="max-w-full max-h-[80vh] md:max-h-[85vh] object-contain rounded-lg shadow-2xl pointer-events-auto bg-white no-copy select-none"
+                                            onClick={(e) => e.stopPropagation()} 
+                                            draggable="false"
+                                            onContextMenu={(e) => e.preventDefault()}
+                                        />
+
+                                        {/* 下一張按鈕 */}
+                                        {selectedUnit.uploadLinks.length > 1 && (
+                                            <button 
+                                                className={`absolute right-0 md:-right-16 p-2 text-white/70 hover:text-white transition-colors pointer-events-auto bg-black/30 md:bg-transparent rounded-full z-20 ${currentHintIndex === selectedUnit.uploadLinks.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                                onClick={nextImage}
+                                                disabled={currentHintIndex === selectedUnit.uploadLinks.length - 1}
+                                            >
+                                                <Icons.ChevronRight className="w-10 h-10 md:w-16 md:h-16" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    
+                                    {/* 頁碼指示器 (僅在多圖時顯示) */}
+                                    {selectedUnit.uploadLinks.length > 1 && (
+                                        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-bold tracking-widest backdrop-blur-md pointer-events-auto">
+                                            {currentHintIndex + 1} / {selectedUnit.uploadLinks.length}
+                                        </div>
+                                    )}
+                                    
+                                    <p className="text-white/80 mt-4 text-sm font-medium md:block hidden">
+                                        恭喜通關！{selectedUnit.uploadLinks.length > 1 ? "點擊左右箭頭切換圖片，" : ""}點擊背景或關閉按鈕以返回
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                    
+                    {/* Footer */}
+                    <footer className="bg-slate-800 text-slate-400 py-8 mt-auto border-t border-slate-700">
+                        <div className="max-w-6xl mx-auto px-4 text-center">
+                            <p className="mb-2 font-medium text-slate-300">Scratch 創意程式設計教學平台</p>
+                            <p className="text-sm">©Copyright QFM Computer Science</p>
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ScratchPortal />);
+    </script>
+</body>
+</html>

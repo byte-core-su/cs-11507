@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動式測驗遊戲 - 知識大擂台</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入字體：黑體(粗) 讓字體更有綜藝節目的張力 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- 引入 Firebase SDK (版本 8，較易於單檔使用) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0f172a; 
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.4) 0%, transparent 60%),
+                radial-gradient(circle at 50% 100%, rgba(139, 92, 246, 0.3) 0%, transparent 60%);
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        
+        .hidden-screen {
+            display: none !important;
+        }
+
+        /* 綜藝節目主舞台面板 */
+        .tv-panel {
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+            border: 2px solid rgba(96, 165, 250, 0.3);
+            box-shadow: 
+                0 0 30px rgba(0, 0, 0, 0.8), 
+                inset 0 0 20px rgba(96, 165, 250, 0.1),
+                0 0 15px rgba(59, 130, 246, 0.4); 
+            backdrop-filter: blur(12px);
+        }
+
+        .title-text {
+            font-weight: 900;
+            background: linear-gradient(to bottom, #fef08a 0%, #eab308 50%, #b45309 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.8));
+            letter-spacing: 2px;
+        }
+
+        .btn-3d {
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            transform: translateY(0);
+        }
+        .btn-3d:active:not(:disabled) {
+            transform: translateY(6px); 
+        }
+        .btn-3d.bg-green-500 { box-shadow: 0 6px 0 #166534, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-green-500:active { box-shadow: 0 0px 0 #166534, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-yellow-500 { box-shadow: 0 6px 0 #854d0e, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-yellow-500:active { box-shadow: 0 0px 0 #854d0e, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-red-500 { box-shadow: 0 6px 0 #991b1b, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-red-500:active { box-shadow: 0 0px 0 #991b1b, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-blue-600 { box-shadow: 0 6px 0 #1e3a8a, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-blue-600:active:not(:disabled) { box-shadow: 0 0px 0 #1e3a8a, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-purple-600 { box-shadow: 0 6px 0 #581c87, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-purple-600:active:not(:disabled) { box-shadow: 0 0px 0 #581c87, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-slate-600 { box-shadow: 0 6px 0 #334155, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-slate-600:active:not(:disabled) { box-shadow: 0 0px 0 #334155, 0 2px 5px rgba(0,0,0,0.5); }
+
+        .btn-3d:disabled { transform: translateY(6px); box-shadow: none; opacity: 0.7; }
+
+        .option-tv {
+            background: linear-gradient(to right, #1e293b, #0f172a);
+            border: 2px solid #334155;
+            color: #cbd5e1;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+            position: relative;
+            overflow: hidden;
+        }
+        .option-tv:hover {
+            border-color: #60a5fa;
+            background: linear-gradient(to right, #1e3a8a, #172554);
+            color: #fff;
+            transform: scale(1.01);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+        .option-tv.selected {
+            background: linear-gradient(to right, #ea580c, #c2410c); 
+            border-color: #fb923c;
+            color: #fff;
+            transform: scale(1.03);
+            box-shadow: 0 0 20px rgba(234, 88, 12, 0.6), 0 4px 0 #9a3412; 
+        }
+        .option-tv.selected:active {
+            transform: scale(1.03) translateY(4px);
+            box-shadow: 0 0 20px rgba(234, 88, 12, 0.6), 0 0px 0 #9a3412;
+        }
+
+        .neon-score {
+            font-family: monospace;
+            color: #22d3ee; 
+            text-shadow: 0 0 5px #22d3ee, 0 0 10px #22d3ee, 0 0 20px #0891b2;
+        }
+
+        .timer-bar {
+            transition: width 1s linear, background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .timer-glow-green { box-shadow: 0 0 15px #4ade80; }
+        .timer-glow-yellow { box-shadow: 0 0 15px #facc15; }
+        .timer-glow-red { box-shadow: 0 0 15px #f87171; }
+
+        @keyframes pulse-heart {
+            0% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.8)); }
+            50% { transform: scale(1.15); filter: drop-shadow(0 0 15px rgba(239, 68, 68, 1)); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.8)); }
+        }
+        .heart-icon {
+            display: inline-block;
+            color: #ef4444; 
+            font-size: 1.5rem;
+            margin-right: 4px;
+            animation: pulse-heart 1.5s infinite;
+        }
+        .heart-lost {
+            color: #334155; 
+            text-decoration: line-through;
+            opacity: 0.5;
+            animation: none;
+            filter: none;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-15px) rotate(-2deg); }
+            40% { transform: translateX(15px) rotate(2deg); }
+            60% { transform: translateX(-10px) rotate(-1deg); }
+            80% { transform: translateX(10px) rotate(1deg); }
+        }
+        .screen-shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .live-indicator {
+            animation: blink 1.5s infinite;
+        }
+        
+        /* 英雄榜表格樣式 */
+        .leaderboard-table th, .leaderboard-table td {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem;
+            text-align: center;
+        }
+        .leaderboard-table tr:last-child td {
+            border-bottom: none;
+        }
+        .leaderboard-table tr:nth-child(1) td { color: #fef08a; font-weight: bold; } /* 第一名黃金 */
+        .leaderboard-table tr:nth-child(2) td { color: #e2e8f0; font-weight: bold; } /* 第二名白銀 */
+        .leaderboard-table tr:nth-child(3) td { color: #fed7aa; font-weight: bold; } /* 第三名青銅 */
+    </style>
+    <script src="../../firebase-config.js"></script>
+    <script src="../../shared/learner-profile.js"></script>
+    <script src="../../shared/site-shell.js" defer></script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="fixed top-0 left-0 w-full h-full pointer-events-none z-0 flex justify-between px-10 pt-10">
+        <div class="w-32 h-32 rounded-full bg-blue-600/20 blur-3xl"></div>
+        <div class="w-32 h-32 rounded-full bg-purple-600/20 blur-3xl"></div>
+    </div>
+
+    <div id="main-container" class="tv-panel rounded-3xl w-full max-w-md overflow-hidden relative z-10 my-4">
+        
+        <!-- 左上角 LIVE 標籤 -->
+        <div class="absolute top-4 left-4 flex items-center space-x-2 z-20">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500 live-indicator shadow-[0_0_8px_#ef4444]"></div>
+            <span class="text-xs font-bold text-red-400 tracking-wider">LIVE</span>
+        </div>
+
+        <div id="screen-start" class="p-8 text-center pt-16">
+            <div class="mb-4 relative">
+                <div class="absolute -top-6 -left-2 text-yellow-400 animate-pulse text-2xl">✨</div>
+                <div class="absolute bottom-0 -right-2 text-yellow-400 animate-pulse text-xl" style="animation-delay: 0.5s">✨</div>
+                
+                <h1 class="text-5xl title-text mb-2">知識大擂台</h1>
+                <h2 class="text-xl font-bold text-blue-300 tracking-widest mt-2">KNOWLEDGE QUIZ</h2>
+            </div>
+            
+            <p class="text-slate-300 mb-6 font-medium">全新挑戰登場！<br>每題 <span class="text-yellow-400 text-lg font-bold">10</span> 秒，準備好稱霸全場了嗎？</p>
+            
+            <div class="space-y-4 mb-6">
+                <button onclick="startGame('easy')" class="btn-3d w-full py-4 px-6 bg-green-500 text-white rounded-2xl font-black text-xl flex justify-between items-center border border-green-400">
+                    <span class="tracking-widest">簡單模式</span>
+                    <span class="text-sm bg-black/30 px-3 py-1.5 rounded-lg border border-white/20">3 條命 ❤️❤️❤️</span>
+                </button>
+                <button onclick="startGame('normal')" class="btn-3d w-full py-4 px-6 bg-yellow-500 text-white rounded-2xl font-black text-xl flex justify-between items-center border border-yellow-400">
+                    <span class="tracking-widest">普通模式</span>
+                    <span class="text-sm bg-black/30 px-3 py-1.5 rounded-lg border border-white/20">2 條命 ❤️❤️</span>
+                </button>
+                <button onclick="startGame('hard')" class="btn-3d w-full py-4 px-6 bg-red-500 text-white rounded-2xl font-black text-xl flex justify-between items-center border border-red-400">
+                    <span class="tracking-widest">地獄模式</span>
+                    <span class="text-sm bg-black/30 px-3 py-1.5 rounded-lg border border-white/20">1 條命 ❤️</span>
+                </button>
+            </div>
+            
+            <!-- 查看英雄榜按鈕 -->
+            <button onclick="showLeaderboardScreen()" class="btn-3d w-full py-3 px-6 bg-purple-600 text-white rounded-2xl font-bold text-lg border border-purple-400">
+                🏆 查看英雄榜
+            </button>
+        </div>
+
+        <div id="screen-quiz" class="hidden-screen flex flex-col h-full">
+            <div class="bg-slate-900/80 p-4 border-b border-slate-700 flex justify-between items-center pt-10">
+                <div class="flex flex-col">
+                    <span class="text-xs text-blue-400 uppercase font-black tracking-widest mb-1 shadow-sm">SCORE / 分數</span>
+                    <span id="score-display" class="text-3xl font-black neon-score">0</span>
+                </div>
+                <div class="flex flex-col items-end">
+                    <span class="text-xs text-red-400 uppercase font-black tracking-widest mb-1">LIVES / 生命</span>
+                    <div id="lives-container" class="flex bg-black/40 px-2 py-1 rounded-lg border border-slate-700">
+                    </div>
+                </div>
+            </div>
+
+            <div class="h-2 w-full bg-slate-800 border-b border-slate-700/50">
+                <div id="timer-bar" class="h-full bg-green-400 timer-bar timer-glow-green w-full"></div>
+            </div>
+
+            <div class="p-6 flex-grow relative">
+                <div class="flex justify-between items-end mb-4">
+                    <span class="text-sm font-bold text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700" id="question-counter">第 1 題 (剩餘 160 題)</span>
+                    <div id="time-text-container" class="bg-slate-800 w-12 h-12 rounded-full flex items-center justify-center border-2 border-slate-600 shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                        <span id="time-text" class="text-xl font-black text-white">10</span>
+                    </div>
+                </div>
+                
+                <div class="bg-gradient-to-b from-blue-900/40 to-slate-900/40 border border-blue-500/30 p-5 rounded-2xl mb-6 shadow-inner relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
+                    <h2 id="question-text" class="text-xl font-bold text-white mb-2 leading-relaxed tracking-wide text-shadow"></h2>
+                </div>
+
+                <div id="options-container" class="space-y-4"></div>
+            </div>
+
+            <div class="p-6 bg-slate-900/80 border-t border-slate-700/50">
+                <button id="submit-btn" onclick="submitAnswer()" disabled class="btn-3d w-full py-4 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-500 disabled:border-slate-600 text-white rounded-2xl font-black text-xl tracking-widest border border-blue-400">
+                    確認送出 (LOCK IN)
+                </button>
+            </div>
+            
+            <div id="feedback-overlay" class="absolute inset-0 flex items-center justify-center bg-slate-900/90 hidden-screen backdrop-blur-md z-50">
+                <div id="feedback-content" class="text-center transform scale-50 opacity-0 transition-all duration-300 ease-out w-full px-6"></div>
+            </div>
+        </div>
+
+        <div id="screen-result" class="hidden-screen p-8 text-center pt-16">
+            <div id="result-icon-container" class="mb-6 relative inline-block"></div>
+            <h2 id="result-title" class="text-4xl font-black mb-2 text-white drop-shadow-lg">遊戲結束</h2>
+            <p id="result-message" class="text-slate-300 mb-6 font-medium">本次挑戰最終結算：</p>
+            
+            <div class="bg-black/50 rounded-2xl p-6 mb-6 border border-slate-700 shadow-inner relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-32 h-32 bg-blue-600/20 rounded-full blur-2xl"></div>
+                
+                <div class="text-sm text-blue-400 uppercase font-black tracking-widest mb-2">FINAL SCORE</div>
+                <div id="final-score" class="text-5xl font-black text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)] mb-4">0</div>
+                
+                <div class="border-t border-slate-700/50 pt-4 mt-2 flex justify-around text-lg font-bold text-slate-300">
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-slate-500 mb-1">答對</span>
+                        <span id="correct-count" class="text-green-400 text-2xl">0</span>
+                    </div>
+                    <div class="w-px bg-slate-700"></div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-slate-500 mb-1">答錯</span>
+                        <span id="wrong-count" class="text-red-400 text-2xl">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="record-submission-area" class="mb-6 p-4 bg-purple-900/30 border border-purple-500/50 rounded-xl hidden-screen">
+                <h3 class="text-yellow-400 font-bold mb-2">🎉 恭喜！您的分數進入前十名！</h3>
+                <p class="text-xs text-slate-300 mb-3">請輸入學號登錄英雄榜 (限7位數且15開頭)</p>
+                <div class="flex space-x-2">
+                    <input type="text" id="student-id-input" placeholder="例如: 1512345" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-center font-mono focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400">
+                    <button onclick="submitScoreToLeaderboard()" id="submit-score-btn" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold transition-colors shrink-0">登錄</button>
+                </div>
+                <p id="submission-error" class="text-red-400 text-xs mt-2 hidden-screen"></p>
+                <p id="submission-success" class="text-green-400 text-sm mt-2 font-bold hidden-screen">✅ 登錄成功！</p>
+            </div>
+
+            <div class="space-y-3">
+                <button onclick="showLeaderboardScreen()" class="btn-3d w-full py-3 bg-purple-600 text-white rounded-xl font-bold text-lg border border-purple-400">
+                    查看英雄榜
+                </button>
+                <button onclick="showStartScreen()" class="btn-3d w-full py-3 bg-slate-600 text-white rounded-xl font-bold text-lg border border-slate-500">
+                    回到首頁
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-leaderboard" class="hidden-screen p-6 pt-16 flex flex-col h-[600px]">
+            <h2 class="text-3xl font-black mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-md">🏆 英雄榜</h2>
+            
+            <!-- 難度分頁按鈕 -->
+            <div class="flex bg-slate-800 rounded-lg p-1 mb-6 border border-slate-700">
+                <button onclick="loadLeaderboardData('easy')" id="tab-easy" class="flex-1 py-2 text-sm font-bold rounded-md text-slate-400 transition-colors">簡單</button>
+                <button onclick="loadLeaderboardData('normal')" id="tab-normal" class="flex-1 py-2 text-sm font-bold rounded-md text-slate-400 transition-colors">普通</button>
+                <button onclick="loadLeaderboardData('hard')" id="tab-hard" class="flex-1 py-2 text-sm font-bold rounded-md text-slate-400 transition-colors">困難</button>
+            </div>
+
+            <div class="flex-grow bg-slate-900/80 border border-slate-700 rounded-xl overflow-hidden relative">
+                <div id="leaderboard-loading" class="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 hidden-screen">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+                </div>
+                
+                <div class="overflow-y-auto h-full p-2">
+                    <table class="w-full text-sm leaderboard-table">
+                        <thead class="text-xs text-slate-400 bg-slate-800/50">
+                            <tr>
+                                <th class="w-16">排名</th>
+                                <th>學號</th>
+                                <th class="w-24">分數</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body">
+                            <!-- 資料由 JS 動態填入 -->
+                        </tbody>
+                    </table>
+                    <div id="leaderboard-empty" class="text-center text-slate-500 py-8 hidden-screen">尚無紀錄，成為第一位上榜者吧！</div>
+                </div>
+            </div>
+
+            <button onclick="showStartScreen()" class="mt-6 btn-3d w-full py-3 bg-slate-600 text-white rounded-xl font-bold text-lg border border-slate-500 shrink-0">
+                返回首頁
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // 【注意】請將這裡替換為您自己的 Firebase Config!
+        // 您需要在 Firebase 控制台 -> 專案設定 -> 建立網頁應用程式 中取得
+        const firebaseConfig = window.SCHOOL_APP && window.SCHOOL_APP.firebaseConfig;
+
+        // 初始化 Firebase (確保只初始化一次)
+        let db;
+        let quizAuthReady = false;
+        try {
+            if (firebaseConfig && !firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            if (firebaseConfig) {
+                firebase.auth().onAuthStateChanged(async (user) => {
+                    quizAuthReady = Boolean(user);
+                    db = user ? firebase.firestore() : null;
+                    if (!user) return;
+                    try {
+                        const snapshot = await db.collection('users').doc(user.uid).get();
+                        const tasks = snapshot.data()?.terms?.[window.SCHOOL_APP.currentTermId]?.tasks || {};
+                        const required = ['1-2', '2-2', '3-2', '4-2', '5-2', '6-2', '7-2', '8-2'];
+                        if (!required.every(taskId => tasks[taskId])) location.replace('infolife.html');
+                    } catch (guardError) {
+                        console.error('Knowledge arena access check failed:', guardError);
+                        location.replace('infolife.html');
+                    }
+                });
+            }
+        } catch (error) {
+            console.error("Firebase 初始化失敗:", error);
+            // alert("Firebase 未正確設定，英雄榜功能將無法運作。");
+        }
+
+        function leaderboardRef(difficulty) {
+            return db.collection('leaderboards')
+                     .doc(window.SCHOOL_APP.currentTermId)
+                     .collection('difficulties')
+                     .doc(difficulty)
+                     .collection('scores');
+        }
+
+        // --- 新挑戰題庫 (總共 160 題) ---
+        const allQuestions = [
+            // --- 第四章：個人資料保護與資訊安全 (60題) ---
+            { question: "個人資料保護的主要目的是什麼?", options: ["避免人格權受侵害並促進合理利用個人資料", "只為政府收集資料提供依據", "強制所有公司公開個人資訊", "只規範電子資料的保存方式"], answer: 0 },
+            { question: "以下哪一項屬於直接識別個人的資料?", options: ["姓名", "一般職務描述", "匿名統計數據", "模糊的地區資訊"], answer: 0 },
+            { question: "在課本列出的個人資料類別中,下列哪一項被視為敏感資料?", options: ["病歷", "聯絡方式", "職業", "教育程度"], answer: 0 },
+            { question: "哪一項屬於可用來間接識別個人的資料?", options: ["家庭狀況", "護照號碼", "身分證統一編碼", "指紋"], answer: 0 },
+            { question: "下列關於個人資料蒐集的原則,哪一項最符合課本精神?", options: ["無限制蒐集以備未來使用", "公開所有資料以維持透明", "僅為特定合理目的蒐集必要資料", "蒐集後可無期限保存"], answer: 2 },
+            { question: "哪一項不是課本列出的個人資料範例?", options: ["出生年月日", "天氣偏好", "聯絡方式", "犯罪前科"], answer: 1 },
+            { question: "下列哪一項最能代表基因資料的性質?", options: ["高度敏感且可揭示生物特徵", "僅用於一般人口統計", "可公開於社交媒體", "屬於非個人化統計資料"], answer: 0 },
+            { question: "課本提到哪些資料可能影響個人人格權?", options: ["病歷、犯罪前科、性生活等敏感資訊", "公司營運數據", "公開的政府政策", "一般產品價格"], answer: 0 },
+            { question: "以下哪一項是聯絡方式的例子?", options: ["電話號碼或電子郵件", "基因序列", "犯罪前科紀錄", "指紋"], answer: 0 },
+            { question: "若要避免個人資料被濫用,最重要的做法為何?", options: ["將資料公開以增加透明度", "不進行任何資料蒐集", "限制使用目的並採取安全措施", "交由第三方自由管理"], answer: 2 },
+            { question: "在個人資料類別中,哪一項與健康相關?", options: ["戶籍地址", "醫療與健康檢查紀錄", "社會活動參與次數", "職業名稱"], answer: 1 },
+            { question: "何者屬於財務相關的個人資料範例?", options: ["婚姻狀況", "財務情況", "指紋樣本", "出生年月日"], answer: 1 },
+            { question: "關於犯罪前科資料,下列敘述何者正確?", options: ["為一般公開資訊,無需保護", "屬於敏感資料,需要嚴格保護", "僅限於醫療機構使用", "可自由與第三方交換"], answer: 1 },
+            { question: "個人資料的合理利用應遵守下列何者?", options: ["無需告知當事人即可任意利用", "只要有利可圖即為合理", "不受任何法律限制", "基於合法與必要的目的使用"], answer: 3 },
+            { question: "以下哪種資料最不可能單獨用於識別個人?", options: ["護照號碼", "指紋資料", "身分證統一編碼", "一般社會活動紀錄"], answer: 3 },
+            { question: "課本提到哪些資料類型可以直接或間接識別個人?", options: ["只有姓名屬於個人資料", "只有生物特徵才算個人資料", "直接識別與間接識別資料皆屬個人資料", "只有財務資料屬於個人資料"], answer: 2 },
+            { question: "為何醫療與病歷資料需特別保護?", options: ["因為醫療資料通常不重要", "因為醫療機構已自動公開資料", "因為會揭露個人健康與隱私,可能造成傷害", "因為所有人都有公開權"], answer: 2 },
+            { question: "哪一種措施最能減少個人資料遭濫用的風險?", options: ["公開全部資料以利監督", "實施存取控制並限制使用目的", "不記錄任何資料以避免風險", "將資料交由第三方自由管理"], answer: 1 },
+            { question: "哪一項不是課本中列出的個人資料類別?", options: ["教育", "職業", "指紋", "地球板塊運動資料"], answer: 3 },
+            { question: "在資料保護中,何者是評估是否可利用資料的重要考量?", options: ["資料量越大越可以任意使用", "是否符合合理目的且不侵害人格權", "僅看資料是否為電子格式", "只有當事人同意才可永久公開"], answer: 1 },
+            { question: "依據教材，蒐集單位在利用他人個人資料前應該先做什麼？", options: ["僅在必要時使用個資", "在網站上公開蒐集目的", "取得當事人同意並告知使用範圍與目的", "只要公司內部知道即可"], answer: 2 },
+            { question: "商店在辦理會員資料時，應該如何處理個人資料？", options: ["不需告知即可蒐集", "告知使用目的並取得當事人同意", "只需標記用途即可不需同意", "將資料出售給第三方以增加收益"], answer: 1 },
+            { question: "銀行開戶要求填寫個人資料，從教材判斷這種做法屬於？", options: ["合理的個資蒐集", "不合理的過度蒐集", "違法公開個資", "應該匿名處理才合理"], answer: 0 },
+            { question: "問卷調查要求填寫身分證字號，依教材這樣做應如何評估？", options: ["視必要性而定，非必要應避免蒐集", "永遠合理以利資料比對", "只要有填表就可公開使用", "應該將身分證號碼張貼於牆上"], answer: 0 },
+            { question: "在社群媒體中指名道姓公開他人個資，根據教材這屬於哪一類行為？", options: ["合理資訊分享", "必要的公共資訊揭露", "鼓勵的行為", "不合理且可能侵害隱私"], answer: 3 },
+            { question: "活動結束後若已取得「同意書」提供個資，事後要求刪除個資是否合理？", options: ["不可刪除，同意即永久授權", "只能部分刪除", "合理，當事人可要求刪除", "應轉售他方保存"], answer: 2 },
+            { question: "學校在圍牆上公布學生榮譽榜單並列出全名，教材傾向認為這樣做是：", options: ["完全沒有問題", "可能有隱私疑慮，需要注意", "屬於刑事犯罪", "必須公開才能表揚"], answer: 1 },
+            { question: "教材說明在公共環境使用公用網路時，最需要留意的風險為何？", options: ["網速變慢影響使用體驗", "個資被他人窺視或攔截的風險", "公用網路付費方式複雜", "設備電池消耗較快"], answer: 1 },
+            { question: "教材中出現 Cindy 在社群貼文透露就讀學校與班級，這屬於何種行為？", options: ["匿名發布", "公開個人就學資訊", "揭露銀行帳戶資料", "法律強制揭露"], answer: 1 },
+            { question: "根據個資法相關規定，單位應對個資採取何種內部措施？", options: ["不需任何特別措施", "由第三方完全負責", "只需加密後公開", "採行適當安全措施並有專人管理"], answer: 3 },
+            { question: "教材指出蒐集單位須訂定哪些計畫或方法？", options: ["個資檔案安全維護計畫或業務終止後處理方法", "僅訂定人事管理辦法", "只需制定行銷計畫", "無需任何計畫"], answer: 0 },
+            { question: "教材列出個資保護應注意的項目，下列哪一項不屬其重點？", options: ["採取安全措施", "設專人負責管理", "無需管理即可公開使用", "訂定個資處理方法"], answer: 2 },
+            { question: "在行動作業系統中，若想變更應用程式的權限，iOS 與 Android 分別應在哪裡操作？", options: ["iOS 在應用程式內設定，Android 在隱私設定", "iOS 在「設定」「隱私權與安全性」，Android 在「設定」「應用程式」後選權限", "兩者均在應用程式內的隱私頁面", "必須卸載後重裝才能改變權限"], answer: 1 },
+            { question: "教材中提到誰應負責個資的管理？", options: ["專人負責管理", "所有使用者共同管理即可", "只要有系統就不需人管理", "交由外部匿名人員管理"], answer: 0 },
+            { question: "當單位終止業務後，對所蒐集的個資應如何處理？", options: ["直接公開以利他人使用", "無需做特別處理", "依訂定方法刪除或妥善處理", "轉售給任何購買者"], answer: 2 },
+            { question: "教材示意圖中，公用網路使用時最應注意哪一項安全行為？", options: ["在公用網路上大量下載影片", "避免在公用網路輸入敏感個資", "關閉手機藍牙即可完全安全", "只使用公共電腦登入私人帳號"], answer: 1 },
+            { question: "關於個資檔案安全維護計畫，下列哪一項是合理的內容？", options: ["僅列出公司目標即可", "交由員工自行決定管理方式", "訂定存取控制與處理程序", "公開所有個資以利透明"], answer: 2 },
+            { question: "教材建議在蒐集個資時，最重要的原則是？", options: ["只蒐集達成目的之必要資料並告知用途", "蒐集越多越好以備未來使用", "不需告知即可蒐集", "將個資公開以利共享"], answer: 0 },
+            { question: "若學校要公布學生名單以表揚，依教材最佳做法為何？", options: ["直接在牆上張貼完整資料最方便", "先取得同意或避免顯示敏感識別資訊", "將資料賣給媒體以擴大表揚效果", "以學生學號公布而不告知當事人"], answer: 1 },
+            { question: "教材中提到應用程式權限管理，使用者應如何做比較安全？", options: ["允許所有權限以確保功能完整", "只在安裝時設定一次即可", "在設定中檢查並只授予必要權限", "刪除系統更新以避免權限更動"], answer: 2 },
+            { question: "資訊安全的三大要素 CIA 中的 A 代表什麼？", options: ["保密性", "完整性", "可驗證性", "可用性"], answer: 3 },
+            { question: "數位浮水印的主要目的是什麼？", options: ["保護著作權與阻止未授權複製", "加速檔案傳輸", "壓縮影像檔案", "提高解析度"], answer: 0 },
+            { question: "下列哪一項屬於顯性數位浮水印特徵？", options: ["不可見嵌入", "加密後的標記", "動態浮動符號", "肉眼可見的作者標誌"], answer: 3 },
+            { question: "防火牆的主要功能為何？", options: ["依規則篩檢封包以允許或限制傳輸", "自動加密所有資料", "替代鑑別使用者身分", "儲存所有備份資料"], answer: 0 },
+            { question: "加密的主要目的為何？", options: ["使資料在未授權者看不懂", "提高儲存速度", "減少網路流量", "自動修復錯誤"], answer: 0 },
+            { question: "3A 管理架構中的第一層「認證」主要做什麼？", options: ["授權存取資源", "紀錄使用行為", "防止外部攻擊", "辨別使用者身分"], answer: 3 },
+            { question: "在授權 (authorization) 的範例中，下列哪一項最貼切？", options: ["系統驗證使用者密碼", "加密資料傳輸", "設定教務處與學務處的資料存取權限", "監控網路封包"], answer: 2 },
+            { question: "3A 中的第三層「紀錄」主要目的為何？", options: ["加密所有日誌檔案", "即時阻擋惡意程式", "提供使用者角色管理", "蒐集使用者與系統互動以供稽核"], answer: 3 },
+            { question: "4D 防護管理中，哪一項不屬於 4D？", options: ["deliver", "detect", "deny", "delay"], answer: 0 },
+            { question: "防毒軟體的「病毒碼自動更新」功能為何重要？", options: ["可取代防火牆功能", "讓系統更省電", "避免使用者輸入密碼", "維持對新型病毒的偵測能力"], answer: 3 },
+            { question: "下列哪一項是社交工程攻擊的典型手法？", options: ["誘導提供個人資料或點擊可疑連結", "直接用暴力破解密碼", "物理破壞硬體", "公開發佈安全修補程式"], answer: 0 },
+            { question: "釣魚郵件最常利用下列哪個方式誘騙使用者？", options: ["偽造超連結誘導點擊", "大量寄送附件以增加信任", "提供合法的系統更新", "使用加密信件傳送"], answer: 0 },
+            { question: "判斷電子郵件是否可疑時，下列哪一項不是主要檢查項目？", options: ["寄件者與主旨等項目", "附加檔案副檔名", "寄件時間是否異常", "郵件內含可疑超連結"], answer: 0 },
+            { question: "關於數位浮水印，下列敘述何者較不正確？", options: ["顯性浮水印肉眼可見", "隱性浮水印通常可見以便辨識", "浮水印可同步被複製", "浮水印用於保護著作權"], answer: 1 },
+            { question: "防火牆部署於哪一個位置最常見？", options: ["個別使用者桌面上", "資料庫內部", "公有雲儲存內", "外部網路與內部網路之間"], answer: 3 },
+            { question: "下列哪一項不是加密的效果？", options: ["隱藏資料內容", "需要解密才能還原", "保護傳輸過程中的機密性", "自動防止資料被竄改"], answer: 3 },
+            { question: "在資安管理中，哪一個步驟用於確認使用者確實是他所聲稱的身分？", options: ["授權", "認證", "紀錄", "稽核"], answer: 1 },
+            { question: "4D 中的 detect 主要功能是什麼？", options: ["延遲攻擊發生", "偵測入侵或異常事件", "立即拒絕一切連線", "紀錄使用者日誌"], answer: 1 },
+            { question: "Windows Defender 的一項特色是什麼？", options: ["提供線上備份", "專門處理硬體故障", "僅在付費版可用", "提供即時掃描並阻止惡意程式執行"], answer: 3 },
+            { question: "個人資料保護的重點不包括下列哪一項？", options: ["定義個人資料範圍", "實施保護措施", "遵循相關法律規範", "增加公開個資"], answer: 3 },
+
+            // --- 第五章：基礎程式設計 遊戲與模擬 (40題) ---
+            { question: "在 Scratch 範例中，若要讓角色靠滑鼠移動並追隨游標，哪一個事件方塊最適合使用？", options: ["當被點擊", "當綠旗被點擊", "重複無限次", "碰到邊緣就反彈"], answer: 0 },
+            { question: "在小狗散步範例中，常見用來讓角色跑步動畫切換的方塊是什麼？", options: ["造型換成下一個", "碰到邊緣就反彈", "到隨機取數", "設為顯示/隱藏"], answer: 0 },
+            { question: "在賽馬遊戲中，若要讓馬每次前進不同距離以增加不確定性，應使用哪個方塊？", options: ["點移動", "秒等待", "到隨機取數", "碰到邊緣就反彈"], answer: 2 },
+            { question: "在水族箱範例中，要讓魚在畫面邊緣轉向並繼續游動，應使用哪個動作方塊？", options: ["點移動", "秒等待", "碰到邊緣就反彈", "造型換成下一個"], answer: 2 },
+            { question: "打擊魔鬼遊戲中，若要在滑鼠按下時改變魔鬼數量，應該用哪一類方塊？", options: ["播放音效", "造型換成被射中", "變數改變", "碰到準星就隱藏"], answer: 2 },
+            { question: "在 Scratch 中，要讓動作持續重複直到滿足某個條件，應使用哪個控制方塊？", options: ["重複直到", "重複無限次", "如果 那麼", "當綠旗被點擊"], answer: 0 },
+            { question: "在賽馬範例中，常用來模擬奔跑聲的方塊是哪一類？", options: ["造型換成下一個", "播放音效", "到隨機取數", "隱藏/顯示"], answer: 1 },
+            { question: "在角色定位時，若要把某個精靈放到畫面最左邊的近似 x 座標，應設定哪一個 x 值？", options: ["x = 0", "x = 170", "x = -170", "x = 220"], answer: 2 },
+            { question: "在 Scratch 範例中，若要讓角色在被點擊時播放聲音並移動，哪兩個方塊通常會一起使用？", options: ["重複無限次 + 造型換成下一個", "當被點擊 + 播放音效", "碰到邊緣就反彈 + 隱藏", "到隨機取數 + 秒等待"], answer: 1 },
+            { question: "在水族箱範例，若要讓背景播放泡泡音效直到結束，應使用哪個方塊？", options: ["播放音效直到結束", "播放音效", "重複直到", "隱藏角色"], answer: 0 },
+            { question: "在打擊魔鬼遊戲中，常用哪一種結構來判斷滑鼠是否在準星上並且滑鼠鍵被按下？", options: ["重複無限次", "重複直到", "播放音效", "如果 那麼 且/或 結構"], answer: 3 },
+            { question: "教材提到在角色被點擊時常用的兩個動作方塊是哪兩個？", options: ["重複無限次 + 隱藏", "碰到邊緣就反彈 + 造型換成下一個", "播放音效 + 點移動", "到隨機取數 + 秒等待"], answer: 2 },
+            { question: "在賽馬範例中，為了連續顯示奔跑動作通常會搭配哪兩個方塊？", options: ["碰到終點 + 停止全部", "播放音效 + 到隨機取數", "造型換成下一個 + 秒等待", "隱藏 + 顯示"], answer: 2 },
+            { question: "在程式邏輯教學中，當要同時要求左右兩個條件都成立時，應使用哪一種布林運算？", options: ["或", "反向", "不存在", "且"], answer: 3 },
+            { question: "在小狗散步與其他範例中，若希望某段程式從開始就一直執行，哪個方塊最適合使用？", options: ["重複直到", "當被點擊", "當綠旗被點擊", "重複無限次"], answer: 3 },
+            { question: "教材中在設定角色初始位置常見會同時設定哪兩個座標？", options: ["x 與 y 座標", "旋轉角度與大小", "造型編號與音效", "顯示狀態與圖層"], answer: 0 },
+            { question: "在打擊魔鬼遊戲中，若要讓魔鬼從右邊出現到左邊消失，通常會改變哪一個值來實現移動？", options: ["變更造型", "改變旋轉方向", "改變 x 座標", "改變大小"], answer: 2 },
+            { question: "在水族箱或打擊魔鬼範例中，常用哪個方塊來等待短暫時間以控制節奏？", options: ["重複無限次", "到隨機取數", "播放音效直到結束", "秒等待"], answer: 3 },
+            { question: "教材說明中，若要在被射中時改變造型以顯示受擊效果，應使用哪個方塊？", options: ["播放音效 Zoop", "隱藏角色", "變數改變 魔鬼數目", "造型換成被射中"], answer: 3 },
+            { question: "在教材的各範例內，為了讓多個馬或魚產生不同起始位置，通常會使用哪種方法？", options: ["設定不同的 x/y 座標或使用隨機數", "全部使用同一造型", "停止全部程式", "隱藏所有角色"], answer: 0 },
+            { question: "在 Scratch 的電子琴範例中，按下白鍵通常會執行哪兩個主要動作？", options: ["改變角色大小並移動到隨機位置", "顯示對話框並廣播訊息", "只播放預錄音效", "造型換成按下並演奏對應音階"], answer: 3 },
+            { question: "在電子琴程式中，為了讓按鍵呈現「按下」狀態，通常會使用哪個積木？", options: ["播放音效直到結束", "滑行到位置", "改變變數", "造型換成(按下)"], answer: 3 },
+            { question: "電子琴使用的音符數值（例如 C = 60）屬於哪一類技術格式？", options: ["頻率(Hz)", "音程名稱", "MIDI 音階編號", "相對音高百分比"], answer: 2 },
+            { question: "在 Scratch 電梯模擬中，代表每層樓垂直距離的數值大約為多少？", options: ["10 點", "120 點", "189 點", "69 點"], answer: 3 },
+            { question: "在電梯範例中，選擇樓層的按鍵被點擊後常會執行什麼動作來告知其他角色？", options: ["直接改變背景顏色", "播放背景音樂", "隱藏所有角色", "廣播訊息並設定搭乘或目標樓層變數"], answer: 3 },
+            { question: "要讓電梯角色平滑移動到目標樓層，哪個積木最常用？", options: ["定位到 x:y", "改變圖像效果", "說出持續秒", "秒到 x: y: 滑行"], answer: 3 },
+            { question: "在 Scratch 中，哪一類事件積木可在角色被點擊時啟動程式？", options: ["當角色被點擊", "當收到訊息", "重複無限次", "如果...否則"], answer: 0 },
+            { question: "在電子琴範例中，要分別處理白鍵與黑鍵的視覺與音效，最方便的方法是？", options: ["同一角色使用不同造型並播放對應音", "每次重製角色", "只靠變數顯示文字", "使用背景切換"], answer: 0 },
+            { question: "教材中常用變數來存放電梯的哪兩個資訊？", options: ["電梯速度與顏色", "門的開關狀態與音量", "搭乘樓層與目標樓層", "背景與角色造型"], answer: 2 },
+            { question: "若要讓多個角色收到同一個指令並做不同處理，Scratch 最常用的機制是？", options: ["寫到同一個變數再輪詢", "使用隱藏/顯示切換", "直接移動角色", "廣播訊息並讓各角色收到處理"], answer: 3 },
+            { question: "在電子琴的節拍控制中，教材提到用哪個積木來控制演奏持續時間？", options: ["造型換成下一個", "0.5 拍演奏音階", "改變大小積木", "隨機取數"], answer: 1 },
+            { question: "在電梯範例，若要暫停程式直到電梯抵達，最合適的積木是？", options: ["重複無限次", "停止全部", "說出持續秒", "秒等待(或等待滑行結束)"], answer: 3 },
+            { question: "教材中將音階序列 DO RE MI... 對應到一連串數字，這樣做的主要目的為何？", options: ["為了美觀顯示", "便於手動唱歌", "便於程式以數值播放音高", "為了降低記憶體用量"], answer: 2 },
+            { question: "在電梯程式中，按鍵亮起與熄滅通常透過哪兩個動作達成？", options: ["改變變數顏色並播放音效", "按下換成亮造型，結束換成不亮造型", "刪除按鍵角色再重建", "隱藏電梯並顯示文字"], answer: 1 },
+            { question: "設計電子琴時，若要避免快速重複按鍵導致聲音重疊，可以採取哪項措施？", options: ["隨機改變音高", "改變造型尺寸", "隱藏按鍵", "設定最小間隔或播放直到結束"], answer: 3 },
+            { question: "在 Scratch 中，要判斷滑鼠是否被按下應使用哪個偵測積木？", options: ["碰到邊緣就反彈", "說出持續秒", "設為變數", "滑鼠鍵被按下？"], answer: 3 },
+            { question: "電梯模擬中，為何要在按鍵被點擊後先設定『搭乘樓層』再設定『目標樓層』？", options: ["為了節省記憶體", "可避免角色閃", "只是程式習慣，無實際差異", "分別記錄搭乘樓層與目標樓層以便控制行為"], answer: 3 },
+            { question: "教材指出在模擬篇做電子琴與電梯範例的主要學習目的為何？", options: ["僅為美工設計練習", "學習如何製作背景音樂", "測試電腦效能", "用電腦模擬日常事物並培養程式設計能力"], answer: 3 },
+            { question: "在教材的 App Inventor 小鋼琴範例中，若要設定每個琴鍵對應的音檔來源，通常要指定哪些屬性？", options: ["背景顏色與字體大小", "音檔來源檔名與最小間隔(ms)", "畫面解析度與螢幕方向", "角色座標與滑行時間"], answer: 1 },
+            { question: "在 Scratch 程式設計中，哪個控制積木可以讓程式在特定條件下分支執行？", options: ["如果...否則", "重複無限次", "廣播訊息", "秒等待"], answer: 0 },
+
+            // --- 第六章：數位著作 (60題) ---
+            { question: "阿顯想自己繪製園遊會海報，主要理由為何？", options: ["因為自己畫比較快", "因為手機素材不夠漂亮", "因為老師要求手繪", "避免不小心觸犯著作權，擁有自己的著作"], answer: 3 },
+            { question: "下列何者屬於著作權保護之外的內容？", options: ["具體的文字敘述", "原創的插畫風格", "抽象的概念或想法", "完整的音樂譜曲"], answer: 2 },
+            { question: "老師提到「著作人格權 vs. 著作財產權」，兩者主要差別是？", options: ["兩者沒有差別", "人格權只在商業作品適用", "人格權關乎作者本身，財產權關乎經濟利用", "財產權只能由政府管理"], answer: 2 },
+            { question: "若某人重製他人海報的製程或畫法，是否受著作權保護？", options: ["總是受保護", "只有在商業用途才受保護", "不受著作權保護", "僅在註冊後才受保護"], answer: 2 },
+            { question: "下列哪一項最貼切描述「著作的表達」？", options: ["具體呈現的作品，例如完整畫作或文字", "抽象概念或設計思路", "製作工具或軟體來源碼", "操作方法或程序"], answer: 0 },
+            { question: "在教材中提及的十種著作，主要目的為何？", options: ["說明著作權可保護哪些創作類型", "列出不能受保護的項目", "教導如何迴避著作權", "列出法律條文全文"], answer: 0 },
+            { question: "星兒問為何不用手機素材直接做海報，隱含的著作權風險是？", options: ["手機素材總是免版權", "可能未經授權而侵害他人著作權", "手機素材解析度太低", "手機素材較不專業"], answer: 1 },
+            { question: "哪一項不是著作權保護的條件？", options: ["具有原創性並有固定表現", "單純的概念或發現", "具體的文字或圖像作品", "可被辨識的音樂旋律"], answer: 1 },
+            { question: "下列哪種行為最能減少侵犯著作權的風險？", options: ["使用網路上未標示來源的圖片", "自行創作原創海報", "只修改他人作品少量文字", "分享私人購買的圖片"], answer: 1 },
+            { question: "著作權中所稱的「思想」與「表達」之關係，下列敘述何者正確？", options: ["思想與表達同樣受著作權保護", "只有思想受保護", "表達不能被保護", "思想不受保護，具體表達才受保護"], answer: 3 },
+            { question: "若他人以相同主題創作不同作品，依據教材，此情形代表什麼？", options: ["只能由最早創作者擁有權利", "屬於明顯侵權", "不同人可基於相同主題各自創作", "必須付費給概念原作者"], answer: 2 },
+            { question: "教材提到的「著作利用的其他建議」最可能包含何者？", options: ["完全禁止任何再利用", "建立秘密共享平台", "鼓勵盜用只要不公開", "取得授權或自行創作以尊重著作權"], answer: 3 },
+            { question: "關於著作權的教學中提及 AI，最可能的討論重點為何？", options: ["AI 可自動授權所有作品", "AI 完全取代人類創作", "AI 作品不需考慮著作權", "討論 AI 生成內容與著作權的關聯與使用建議"], answer: 3 },
+            { question: "下列哪一項最能描述著作財產權？", options: ["與作者名譽無關的私人權利", "只保護作品的道德面向", "關乎作品的經濟利用與收益", "由政府永久持有"], answer: 2 },
+            { question: "若某幅畫被命名為代表某概念（如《吶喊》），該『概念』是否受著作權保護？", options: ["概念自動取得著作權", "只能在特定國家受保護", "概念需登記才受保護", "概念本身不受著作權保護"], answer: 3 },
+            { question: "教材中「著作權先生的十種著作」意在說明什麼？", options: ["十種不可受保護的項目", "不同類型的受保護著作範例", "著作權法律條文摘要", "著作權歷史年表"], answer: 1 },
+            { question: "在課本情境中，海報屬於哪一類著作的典型例子？", options: ["視覺藝術或平面設計類著作", "專利或發明類", "自然科學發現", "未具體表現的想法"], answer: 0 },
+            { question: "下列哪一項行為屬於尊重著作人格權的做法？", options: ["未經許可大量複製販售", "移除作者署名後再發布", "改動作品主要內容並宣稱為己作", "標示作者署名並不扭曲原作"], answer: 3 },
+            { question: "教材中強調為避免侵犯著作權，學生在製作作品時最好採取何種做法？", options: ["以原創方式自行繪製或創作", "直接複製網路素材不標示來源", "只使用未授權的圖片縮圖", "改寫他人長文再發布"], answer: 0 },
+            { question: "哪種說法最符合教材關於著作權保護範圍的結論？", options: ["任何思想或發現都受著作權保護", "製程與系統總是受保護", "只有具體表達才受著作權保護", "所有公開資訊都無需授權"], answer: 2 },
+            { question: "何謂著作的合理使用？", options: ["任何情況下都可自由使用他人著作", "只有教育機構才可使用他人著作", "著作人放棄所有權利的情形", "在合理範圍內、不經授權仍不構成侵害的利用"], answer: 3 },
+            { question: "若法律列舉多條合理使用情形，但個案未涵蓋，應如何主張合理使用？", options: ["無法主張合理使用", "僅能依行政規定處理", "必須取得著作人書面同意", "可依第六十五條概括規定主張"], answer: 3 },
+            { question: "下列哪一項不是合理使用主張前應確認的要點？", options: ["創作是否為著作權法所定義的著作", "合理使用是否為著作人的專屬權利", "不同條款允許的利用行為與範圍可能不同", "利用人應先查明相關法條以免逾越範圍"], answer: 0 },
+            { question: "下列哪一情境最可能屬於合理使用的重製行為？", options: ["將下載之作品公開販售", "未註明出處轉載整篇文章供他人閱讀", "改作後做為商業廣告使用", "個人下載並儲存以供私人欣賞或研究"], answer: 3 },
+            { question: "學生張貼自撰含少量引用他人文章並註明出處的報導到社群網站，這樣做是否合理使用？", options: ["符合合理使用", "必定構成侵權", "唯有教授同意才可", "需支付著作權人酬金"], answer: 0 },
+            { question: "老師要求學生報告並附上最多三張代表畫作，為何限制數量？", options: ["因為法律只允許三張圖片引用", "為確保學生節省報告篇幅", "為了避免侵犯著作人格權", "限制數量以維持引用為「少量」的合理使用"], answer: 3 },
+            { question: "在教學時播放他人介紹樂曲的一小段影片，未取得授權，是否屬合理使用？", options: ["永遠違法", "只有校長可以決定", "需付酬金給著作權人", "播放一小段作為教學通常屬合理使用"], answer: 3 },
+            { question: "學生可否未經老師同意，拍攝老師未公開之講義或簡報作為課後複習？", options: ["不應在未經同意下拍攝或錄製", "只要是為了複習就可拍攝", "只要不公開即不構成重製", "只需口頭告知老師即可"], answer: 0 },
+            { question: "老師在課堂引用公開發表之文章片段並註明出處，學生能否將該文章電子檔上傳供人閱讀？", options: ["絕對禁止公開上傳", "若未署名可上傳", "上傳只要不收費即可", "若為老師原創或合理引用且不侵害原作市場，則可上傳"], answer: 3 },
+            { question: "若學校為非經常性且免費之活動公開播放影片，是否可能屬合理使用？", options: ["有可能屬合理使用", "永遠屬於侵權", "只有政府機構可播放", "必須先取得國家授權"], answer: 0 },
+            { question: "若透過電腦直接播放網路串流影音而未經放大於公眾場所，這屬於何種情形？", options: ["公開演出", "改作", "單純接收", "公開傳輸"], answer: 2 },
+            { question: "引用他人資料時未註明出處，主要會造成什麼問題？", options: ["被視為抄襲或剽竊", "自動成為公有領域", "可視為合理使用", "只要在報告末寫參考文獻即可無問題"], answer: 0 },
+            { question: "作為報告證據引用的文字或圖片，為何應以少量為原則？", options: ["法律規定最多只能引用一頁", "因為教科書禁止引用圖片", "為避免違反著作人格權", "以少量為宜以免影響原著作市場"], answer: 3 },
+            { question: "學校若欲錄製校外講師演講並上傳，應如何處理？", options: ["只要不公開發佈即可錄製", "事前徵求並取得講師同意，最好以書面確認用途", "僅在校內播放就無須同意", "只要標示講師姓名即可"], answer: 1 },
+            { question: "社團為招募設計海報使用某網站照片並加以改作，未取得授權，此行為最可能的法律風險為何？", options: ["屬於公有領域可自由使用", "只要標明來源即合法", "可能逾越合理使用且構成侵權", "學校同意即可合法"], answer: 2 },
+            { question: "何者不是避免社團海報使用他人圖片而觸法的建議方法？", options: ["直接取得著作權人授權", "使用免費授權的圖庫素材", "隨意改作並註明來源就安全", "自行拍攝或使用創用CC授權素材"], answer: 2 },
+            { question: "何種情形下公開播放音樂會被視為公開演出而非單純接收？", options: ["個人在家用耳機聆聽", "在手機上私人觀看串流", "在公眾場所以擴音播放串流", "下載後刪除不分享"], answer: 2 },
+            { question: "下列哪項屬於合理使用範圍內常見的利用行為(法條例舉示者)？", options: ["任意改作並商業販售", "移除著作人署名再公布", "永久公開完整作品供下載", "重製、公開播送或公開傳輸等"], answer: 3 },
+            { question: "教學上使用他人重製之講義並同時播放公播版影片，是否可能符合合理使用？", options: ["絕對不行", "只有在期末才可以", "可能符合合理使用，若有注明來源並使用公播版", "需向教育部申請許可"], answer: 2 },
+            { question: "引用文獻之撰寫格式通常包含哪些要素？", options: ["只需寫出網址即可", "作者、出版年、著作名稱、出版者及頁碼等資訊", "只要標題和作者即可", "僅列出作者與電子郵件地址"], answer: 1 },
+            { question: "Creative Commons (CC) 授權中，下列哪一項不是四種主要元素之一？", options: ["Attribution (姓名標示)", "Non-Commercial (非商業)", "Share Alike (相同方式分享)", "Public Performance (公開表演)"], answer: 3 },
+            { question: "下列哪個網站專門提供 Creative Commons 授權素材的搜尋？", options: ["https://ncs.io/music", "https://search.creativecommons.org/", "https://cc0.wfublog.com/", "https://example.com/creativecommons"], answer: 1 },
+            { question: "CC0 (Creative Commons Zero) 的用途是什麼？", options: ["放棄著作權並授予公有領域使用", "僅允許非商業使用", "禁止改作與改編", "強制要求相同方式分享"], answer: 0 },
+            { question: "在 CC 授權中，Share Alike 條款最可能要求創用條件為何？", options: ["禁止衍生作品", "僅允許作者署名", "衍生作品須以相同授權發布", "允許任何商業利用"], answer: 2 },
+            { question: "下列哪一項屬於 Non-Commercial (非商業) 條款的限制？", options: ["禁止署名作者", "要求同樣授權發布", "自動進入公有領域", "禁止以商業目的使用"], answer: 3 },
+            { question: "使用 Scratch 作為教學工具，下列敘述何者最恰當？", options: ["只能用於專業程式開發", "需要付費授權才能在教室使用", "適合透過組合程式積木教授程式邏輯", "不支援圖形化介面"], answer: 2 },
+            { question: "下列哪一項是在教材中提到可以作為免費資源的試算表軟體？", options: ["LibreOffice Calc", "Microsoft Excel (僅付費)", "Photoshop", "AutoCAD"], answer: 0 },
+            { question: "下列哪個網站被列為提供免版權或 CC0 資源的連結？", options: ["https://search.creativecommons.org/", "https://ncs.io/music", "https://creativecommons.org/", "https://cc0.wfublog.com/"], answer: 3 },
+            { question: "Attribution 條款在 Creative Commons 中的主要要求為何？", options: ["必須標示原作者與來源", "禁止一切改作", "限定只能於非商業用途", "作品自動進入公有領域"], answer: 0 },
+            { question: "教材中提到的 NCS Music 網站主要提供哪類資源？", options: ["可用於多媒體的音樂素材", "免責聲明範本", "試算表模板", "程式教學課程"], answer: 0 },
+            { question: "若作品標示「No Derivative Works」，代表什麼限制？", options: ["必須標示作者姓名", "僅限非商業用途", "衍生作品須相同授權", "禁止改作或製作衍生作品"], answer: 3 },
+            { question: "教材建議使用免費資源時，應注意什麼？", options: ["只要免費就可任意改作", "確認並遵守原始授權條款", "免費資源皆為公有領域", "不用標示來源"], answer: 1 },
+            { question: "CC 授權通常由哪幾種元素組合而成以形成不同授權條款？", options: ["僅署名與公有領域兩種元素", "版稅與專利授權", "署名、非商業、禁止改作、相同方式分享等元素", "地理限制與語言條款"], answer: 2 },
+            { question: "把作品釋出為公有領域 (public domain) 最接近哪種 CC 工具？", options: ["CC0 (Creative Commons Zero)", "CC BY-NC", "CC BY-ND", "CC BY-SA"], answer: 0 },
+            { question: "教材指出在課堂上使用 CC 授權素材時，第一步應該是什麼？", options: ["確認素材的授權類型與條款", "直接改作後再標示來源", "假設所有網路資源均可自由使用", "僅在非公開課堂使用即可"], answer: 0 },
+            { question: "教材中提到著作權法補充資料，主要是為了幫助學生理解什麼？", options: ["如何註冊專利", "著作權與合理使用的實務範例", "商標註冊流程", "如何加密檔案"], answer: 1 },
+            { question: "在教材中，使用 CC 授權素材時常見的錯誤觀念是什麼？", options: ["CC 授權不能在教育上使用", "所有授權都允許商業使用", "免費素材不代表可任意使用", "署名是可選項目"], answer: 2 },
+            { question: "教材列出的免費資源網站不包含下列哪一項用途？", options: ["專門的程式語法教學影片平台", "創用 CC 搜尋入口", "提供可用於多媒體的音樂素材", "提供 CC0 免版權資源"], answer: 0 },
+            { question: "教材提到以組合程式積木方式教學，這樣的教學重點為何？", options: ["強調記憶程式語法細節", "主要訓練硬體架設能力", "僅適合專業程式設計師", "透過積木化介面學習程式邏輯"], answer: 3 },
+            { question: "教材中提到的著作合理使用補充範例，主要目的為何？", options: ["教導如何侵權獲利", "說明合理使用的實際範例與判斷", "提供免費音樂下載", "示範如何申請 CC 授權"], answer: 1 }
+        ];
+
+        let currentDifficulty = 'normal';
+        let maxLives = 2;
+        let currentLives = 2;
+        let score = 0;
+        let roundQuestionCount = 0;
+        let selectedOptionIndex = null;
+        let currentCorrectOptionIndex = null;
+        
+        let timeLeft = 10;
+        const TIME_LIMIT = 10;
+        let timerInterval = null;
+        let timerStartTimestamp = 0;
+
+        let correctAnswersCount = 0;
+        let wrongAnswersCount = 0;
+
+        let questionQueue = [];
+        let totalQuestionsAtStart = 0;
+        let isFinalScoreSubmittable = false;
+
+        const screens = {
+            start: document.getElementById('screen-start'),
+            quiz: document.getElementById('screen-quiz'),
+            result: document.getElementById('screen-result'),
+            leaderboard: document.getElementById('screen-leaderboard')
+        };
+        const ui = {
+            mainContainer: document.getElementById('main-container'),
+            score: document.getElementById('score-display'),
+            lives: document.getElementById('lives-container'),
+            questionCounter: document.getElementById('question-counter'),
+            timeText: document.getElementById('time-text'),
+            timeContainer: document.getElementById('time-text-container'),
+            timerBar: document.getElementById('timer-bar'),
+            questionText: document.getElementById('question-text'),
+            optionsContainer: document.getElementById('options-container'),
+            submitBtn: document.getElementById('submit-btn'),
+            feedbackOverlay: document.getElementById('feedback-overlay'),
+            feedbackContent: document.getElementById('feedback-content')
+        };
+
+        // 洗牌陣列函式
+        function shuffleArray(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        function showScreen(screenName) {
+            Object.values(screens).forEach(screen => screen.classList.add('hidden-screen'));
+            screens[screenName].classList.remove('hidden-screen');
+        }
+
+        function showStartScreen() {
+            showScreen('start');
+        }
+
+        function showLeaderboardScreen() {
+            showScreen('leaderboard');
+            loadLeaderboardData('normal'); // 預設載入普通模式
+        }
+
+        function startGame(difficulty) {
+            currentDifficulty = difficulty;
+            switch(difficulty) {
+                case 'easy': maxLives = 3; break;
+                case 'normal': maxLives = 2; break;
+                case 'hard': maxLives = 1; break;
+            }
+            
+            currentLives = maxLives;
+            score = 0;
+            roundQuestionCount = 0;
+            correctAnswersCount = 0;
+            wrongAnswersCount = 0;
+            
+            if (questionQueue.length === 0) {
+                questionQueue = shuffleArray([...allQuestions]);
+            }
+            totalQuestionsAtStart = questionQueue.length;
+            
+            updateUIState();
+            renderLives();
+            
+            // 重置登錄表單狀態
+            document.getElementById('record-submission-area').classList.add('hidden-screen');
+            document.getElementById('submission-success').classList.add('hidden-screen');
+            document.getElementById('submit-score-btn').disabled = false;
+            document.getElementById('student-id-input').value = '';
+            document.getElementById('student-id-input').disabled = false;
+            
+            showScreen('quiz');
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            if (currentLives <= 0) {
+                endGame(false);
+                return;
+            }
+            if (questionQueue.length === 0) {
+                endGame(true);
+                return;
+            }
+
+            roundQuestionCount++;
+            const currentQ = questionQueue[0];
+            
+            selectedOptionIndex = null;
+            currentCorrectOptionIndex = null;
+            ui.submitBtn.disabled = true;
+            ui.feedbackOverlay.classList.add('hidden-screen');
+            ui.mainContainer.classList.remove('screen-shake'); 
+            
+            ui.questionCounter.textContent = `第 ${roundQuestionCount} 題 (剩餘 ${questionQueue.length} 題)`;
+            ui.questionText.textContent = currentQ.question;
+            
+            let shuffledOptions = currentQ.options.map((text, index) => ({ text: text, originalIndex: index }));
+            shuffledOptions = shuffleArray(shuffledOptions);
+            currentCorrectOptionIndex = shuffledOptions.findIndex(opt => opt.originalIndex === currentQ.answer);
+            
+            ui.optionsContainer.innerHTML = '';
+            shuffledOptions.forEach((optionObj, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-tv w-full text-left p-4 rounded-2xl font-bold text-lg tracking-wide flex items-center';
+                
+                const letterBadge = document.createElement('span');
+                letterBadge.className = 'inline-block bg-slate-800 text-blue-400 w-8 h-8 rounded-full flex items-center justify-center mr-3 border border-blue-500/50 shadow-inner shrink-0';
+                letterBadge.textContent = String.fromCharCode(65 + index); 
+                
+                const textSpan = document.createElement('span');
+                textSpan.textContent = optionObj.text;
+                
+                btn.appendChild(letterBadge);
+                btn.appendChild(textSpan);
+
+                btn.onclick = () => selectOption(index, btn);
+                ui.optionsContainer.appendChild(btn);
+            });
+
+            startTimer();
+        }
+
+        function selectOption(index, btnElement) {
+            selectedOptionIndex = index;
+            const options = ui.optionsContainer.querySelectorAll('.option-tv');
+            options.forEach(opt => opt.classList.remove('selected'));
+            btnElement.classList.add('selected');
+            ui.submitBtn.disabled = false;
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timeLeft = TIME_LIMIT;
+            updateTimerDisplay();
+            timerStartTimestamp = Date.now();
+            
+            timerInterval = setInterval(() => {
+                const elapsedSeconds = (Date.now() - timerStartTimestamp) / 1000;
+                timeLeft = TIME_LIMIT - elapsedSeconds;
+
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    clearInterval(timerInterval);
+                    updateTimerDisplay();
+                    handleTimeout();
+                } else {
+                    updateTimerDisplay();
+                }
+            }, 50);
+        }
+
+        function updateTimerDisplay() {
+            const displaySeconds = Math.ceil(timeLeft);
+            ui.timeText.textContent = displaySeconds;
+
+            const percentage = (timeLeft / TIME_LIMIT) * 100;
+            ui.timerBar.style.width = `${percentage}%`;
+
+            if (percentage > 50) {
+                ui.timerBar.className = 'h-full timer-bar bg-green-400 timer-glow-green';
+                ui.timeContainer.className = 'bg-slate-800 w-12 h-12 rounded-full flex items-center justify-center border-2 border-slate-600 shadow-[0_0_10px_rgba(0,0,0,0.5)]';
+                ui.timeText.className = 'text-xl font-black text-white';
+            } else if (percentage > 25) {
+                ui.timerBar.className = 'h-full timer-bar bg-yellow-400 timer-glow-yellow';
+                ui.timeContainer.className = 'bg-yellow-500/20 w-12 h-12 rounded-full flex items-center justify-center border-2 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.5)]';
+                ui.timeText.className = 'text-xl font-black text-yellow-400';
+            } else {
+                ui.timerBar.className = 'h-full timer-bar bg-red-500 timer-glow-red';
+                ui.timeContainer.className = 'bg-red-500/30 w-12 h-12 rounded-full flex items-center justify-center border-2 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse';
+                ui.timeText.className = 'text-xl font-black text-red-400';
+            }
+        }
+
+        function handleTimeout() {
+            processAnswer(false, true);
+        }
+
+        function submitAnswer() {
+            if (selectedOptionIndex === null) return;
+            clearInterval(timerInterval);
+            const isCorrect = selectedOptionIndex === currentCorrectOptionIndex;
+            processAnswer(isCorrect, false);
+        }
+
+        function processAnswer(isCorrect, isTimeout) {
+            clearInterval(timerInterval);
+            ui.submitBtn.disabled = true;
+
+            const answeredQ = questionQueue.shift();
+
+            if (isCorrect) {
+                const bonusSeconds = Math.ceil(timeLeft);
+                const earnedScore = 1000 + (bonusSeconds * 100); 
+                
+                score += earnedScore;
+                correctAnswersCount++;
+                showFeedback('correct', earnedScore, bonusSeconds);
+            } else {
+                currentLives--;
+                wrongAnswersCount++;
+                questionQueue.push(answeredQ); 
+                renderLives();
+                showFeedback(isTimeout ? 'timeout' : 'wrong');
+            }
+
+            updateUIState();
+
+            setTimeout(() => {
+                if (currentLives <= 0) {
+                    endGame(false);
+                } else if (questionQueue.length === 0) {
+                    endGame(true);
+                } else {
+                    loadQuestion();
+                }
+            }, 1800); 
+        }
+
+        function updateUIState() {
+            ui.score.textContent = score.toLocaleString();
+        }
+
+        function renderLives() {
+            ui.lives.innerHTML = '';
+            for (let i = 0; i < maxLives; i++) {
+                const heart = document.createElement('span');
+                heart.textContent = '❤️';
+                heart.className = i < currentLives ? 'heart-icon' : 'heart-icon heart-lost';
+                ui.lives.appendChild(heart);
+            }
+        }
+
+        function showFeedback(type, earnedScore = 0, bonusSeconds = 0) {
+            ui.feedbackOverlay.classList.remove('hidden-screen');
+            const content = ui.feedbackContent;
+            
+            content.classList.remove('scale-100', 'opacity-100', 'scale-50', 'opacity-0');
+            void content.offsetWidth; 
+            content.classList.add('scale-100', 'opacity-100');
+
+            if (type === 'correct') {
+                content.innerHTML = `
+                    <div class="relative inline-block mb-6">
+                        <div class="absolute inset-0 bg-green-500 rounded-full blur-3xl opacity-50 animate-pulse"></div>
+                        <div class="relative w-40 h-40 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(74,222,128,0.8)] border-4 border-white">
+                            <span class="text-7xl text-white font-black drop-shadow-lg">⭕</span>
+                        </div>
+                    </div>
+                    <h3 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-green-300 to-green-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] mb-2 tracking-widest">正解！</h3>
+                    <p class="text-green-300 font-black text-4xl tracking-widest mb-2">+${earnedScore.toLocaleString()} 分</p>
+                    ${bonusSeconds > 0 ? `<p class="text-yellow-400 font-bold text-xl tracking-wide drop-shadow-md">極速加分: ${bonusSeconds}秒 × 100</p>` : ''}
+                `;
+            } else if (type === 'wrong') {
+                ui.mainContainer.classList.add('screen-shake');
+                content.innerHTML = `
+                    <div class="relative inline-block mb-6">
+                        <div class="absolute inset-0 bg-red-600 rounded-full blur-3xl opacity-60 animate-pulse"></div>
+                        <div class="relative w-40 h-40 bg-gradient-to-br from-red-500 to-red-700 rounded-full flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(239,68,68,0.8)] border-4 border-white">
+                            <span class="text-7xl text-white font-black drop-shadow-lg">❌</span>
+                        </div>
+                    </div>
+                    <h3 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-red-400 to-red-600 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] mb-2 tracking-widest">錯誤！</h3>
+                    <p class="text-red-300 font-black text-2xl tracking-widest">失去一命</p>
+                `;
+            } else if (type === 'timeout') {
+                ui.mainContainer.classList.add('screen-shake');
+                content.innerHTML = `
+                    <div class="relative inline-block mb-6">
+                        <div class="absolute inset-0 bg-yellow-500 rounded-full blur-3xl opacity-50 animate-pulse"></div>
+                        <div class="relative w-40 h-40 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(234,179,8,0.8)] border-4 border-white">
+                            <svg class="w-20 h-20 text-white drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                    </div>
+                    <h3 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] mb-2 tracking-widest">時間到！</h3>
+                    <p class="text-yellow-300 font-black text-2xl tracking-widest">失去一命</p>
+                `;
+            }
+
+            setTimeout(() => {
+                content.classList.remove('scale-100', 'opacity-100');
+                content.classList.add('scale-50', 'opacity-0');
+            }, 1500);
+        }
+
+        async function endGame(isWin) {
+            clearInterval(timerInterval);
+            const resultIconContainer = document.getElementById('result-icon-container');
+            const resultTitle = document.getElementById('result-title');
+            
+            if (!isWin) {
+                ui.mainContainer.style.boxShadow = "0 0 50px rgba(239, 68, 68, 0.4)";
+                ui.mainContainer.style.borderColor = "rgba(239, 68, 68, 0.5)";
+                resultIconContainer.innerHTML = `
+                    <div class="absolute inset-0 bg-red-600 rounded-full blur-2xl opacity-40"></div>
+                    <div class="relative w-32 h-32 bg-slate-900 border-4 border-red-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(239,68,68,0.6)]">
+                        <span class="text-6xl">💀</span>
+                    </div>
+                `;
+                resultTitle.textContent = "挑戰失敗";
+                resultTitle.className = "text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-b from-red-400 to-red-600 drop-shadow-lg tracking-widest";
+            } else {
+                ui.mainContainer.style.boxShadow = "0 0 50px rgba(250, 204, 21, 0.5)";
+                ui.mainContainer.style.borderColor = "rgba(250, 204, 21, 0.6)";
+                resultIconContainer.innerHTML = `
+                    <div class="absolute inset-0 bg-yellow-400 rounded-full blur-2xl opacity-50"></div>
+                    <div class="relative w-32 h-32 bg-slate-900 border-4 border-yellow-400 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(250,204,21,0.8)]">
+                        <span class="text-6xl">🏆</span>
+                    </div>
+                `;
+                resultTitle.textContent = "全破通關！";
+                resultTitle.className = "text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-500 drop-shadow-lg tracking-widest";
+            }
+
+            document.getElementById('final-score').textContent = score.toLocaleString();
+            document.getElementById('correct-count').textContent = correctAnswersCount;
+            document.getElementById('wrong-count').textContent = wrongAnswersCount;
+
+            showScreen('result');
+
+            // 檢查是否符合英雄榜資格
+            if (score > 0 && db) {
+                checkLeaderboardEligibility();
+            }
+        }
+
+        async function checkLeaderboardEligibility() {
+            try {
+                // 讀取當前難度的前10名 (更換集合名稱以區分新挑戰，改為 mega160 確保排行榜獨立)
+                const snapshot = await leaderboardRef(currentDifficulty)
+                                        .orderBy('score', 'desc')
+                                        .limit(10)
+                                        .get();
+                
+                const scores = [];
+                snapshot.forEach(doc => scores.push(doc.data().score));
+
+                // 如果未滿10人，或者分數高於第10名
+                if (scores.length < 10 || score > scores[scores.length - 1]) {
+                    isFinalScoreSubmittable = true;
+                    document.getElementById('record-submission-area').classList.remove('hidden-screen');
+                }
+            } catch (error) {
+                console.error("無法檢查英雄榜資格:", error);
+            }
+        }
+
+        async function submitScoreToLeaderboard() {
+            if (!isFinalScoreSubmittable || !db) return;
+
+            const inputElement = document.getElementById('student-id-input');
+            const errorElement = document.getElementById('submission-error');
+            const studentId = inputElement.value.trim();
+
+            // 驗證：必須是 7 位數數字，且以 15 開頭
+            const isValid = window.LearnerProfile
+                ? window.LearnerProfile.isValidStudentId(studentId)
+                : /^15[12]\d{4}$/.test(studentId);
+
+            if (!isValid) {
+                errorElement.textContent = "學號格式錯誤！請輸入 7 位數字且需以 15 開頭。";
+                errorElement.classList.remove('hidden-screen');
+                return;
+            }
+
+            errorElement.classList.add('hidden-screen');
+            const btn = document.getElementById('submit-score-btn');
+            btn.disabled = true;
+            btn.textContent = "登錄中...";
+            inputElement.disabled = true;
+
+            try {
+                // 寫入 11502 期別的排行榜集合。
+                await leaderboardRef(currentDifficulty).add({
+                    studentId: studentId,
+                    score: score,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                isFinalScoreSubmittable = false;
+                document.getElementById('submission-success').classList.remove('hidden-screen');
+                btn.textContent = "已登錄";
+            } catch (error) {
+                console.error("登錄分數失敗:", error);
+                errorElement.textContent = "連線失敗，請稍後再試。";
+                errorElement.classList.remove('hidden-screen');
+                btn.disabled = false;
+                btn.textContent = "登錄";
+                inputElement.disabled = false;
+            }
+        }
+
+        async function loadLeaderboardData(difficulty) {
+            // 切換按鈕樣式
+            ['easy', 'normal', 'hard'].forEach(d => {
+                const tab = document.getElementById(`tab-${d}`);
+                if (d === difficulty) {
+                    tab.className = 'flex-1 py-2 text-sm font-bold rounded-md bg-purple-600 text-white shadow-md transition-colors';
+                } else {
+                    tab.className = 'flex-1 py-2 text-sm font-bold rounded-md text-slate-400 hover:text-white transition-colors';
+                }
+            });
+
+            const tbody = document.getElementById('leaderboard-body');
+            const emptyMsg = document.getElementById('leaderboard-empty');
+            const loading = document.getElementById('leaderboard-loading');
+
+            tbody.innerHTML = '';
+            emptyMsg.classList.add('hidden-screen');
+            
+            if (!db) {
+                emptyMsg.textContent = "資料庫未連線，無法載入英雄榜。";
+                emptyMsg.classList.remove('hidden-screen');
+                return;
+            }
+
+            loading.classList.remove('hidden-screen');
+
+            try {
+                // 讀取 11502 期別的排行榜集合。
+                const snapshot = await leaderboardRef(difficulty)
+                                        .orderBy('score', 'desc')
+                                        .limit(10)
+                                        .get();
+                
+                loading.classList.add('hidden-screen');
+
+                if (snapshot.empty) {
+                    emptyMsg.textContent = "尚無紀錄，成為第一位上榜者吧！";
+                    emptyMsg.classList.remove('hidden-screen');
+                    return;
+                }
+
+                let rank = 1;
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const tr = document.createElement('tr');
+                    
+                    let rankDisplay = rank;
+                    if (rank === 1) rankDisplay = '🥇';
+                    else if (rank === 2) rankDisplay = '🥈';
+                    else if (rank === 3) rankDisplay = '🥉';
+
+                    // 將學號稍微遮蔽保護隱私 (選用，目前僅顯示)
+                    tr.innerHTML = `
+                        <td class="font-black text-lg">${rankDisplay}</td>
+                        <td class="font-mono tracking-wider">${data.studentId}</td>
+                        <td class="font-black text-yellow-400">${data.score.toLocaleString()}</td>
+                    `;
+                    tbody.appendChild(tr);
+                    rank++;
+                });
+
+            } catch (error) {
+                console.error("載入英雄榜失敗:", error);
+                loading.classList.add('hidden-screen');
+                emptyMsg.textContent = "載入失敗，請檢查網路連線。";
+                emptyMsg.classList.remove('hidden-screen');
+            }
+        }
+
+        // 初始化
+        showStartScreen();
+
+    </script>
+</body>
+</html>

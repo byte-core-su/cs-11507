@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一一五學年度下學期 資訊科技學習系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 1.5rem;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        .pass-card {
+            background: white;
+            border: 4px solid #3b82f6;
+            position: relative;
+            overflow: hidden;
+        }
+        .pass-card::before {
+            content: "PASSED";
+            position: absolute;
+            top: 30px;
+            right: -40px;
+            transform: rotate(45deg);
+            background: #10b981;
+            color: white;
+            padding: 8px 50px;
+            font-weight: 900;
+            font-size: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+        .study-note-box {
+            background: #fffdf5;
+            border-left: 6px solid #f59e0b;
+        }
+        /* 重點整理內的標題樣式 */
+        .study-note-box h4 {
+            color: #b45309;
+            font-weight: 900;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        .study-note-box ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .study-note-box p {
+            margin-bottom: 0.5rem;
+        }
+        
+        @keyframes pop {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
+        .pdf-link {
+            display: inline-flex;
+            align-items: center;
+            background-color: #ef4444; 
+            color: white;
+            font-size: 0.75rem;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            margin-left: 12px;
+            font-weight: 700;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+        }
+        .pdf-link:hover {
+            background-color: #b91c1c;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(185, 28, 28, 0.3);
+        }
+    </style>
+    <script src="../../firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+    <script src="../../shared/learner-profile.js"></script>
+    <script src="../../shared/site-shell.js" defer></script>
+</head>
+<body class="p-4 md:p-8 text-slate-800">
+
+    <div id="app" class="max-w-2xl mx-auto">
+        <!-- 1. 登入畫面 -->
+        <div id="login-screen" class="glass-card p-10">
+            <div class="text-center mb-10">
+                <span class="text-blue-500 font-bold tracking-widest uppercase text-sm">前峰國中七年級</span>
+                <h1 class="text-3xl font-black text-gray-800 mt-2 leading-tight">一一五學年度下學期<br><span class="text-blue-600">資訊科技學習系統</span></h1>
+            </div>
+            
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-bold text-gray-600 mb-2">選擇班級</label>
+                    <select id="class-select" class="w-full p-4 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-600 mb-2">選擇座號</label>
+                    <select id="no-select" class="w-full p-4 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-600 mb-2">學生姓名</label>
+                    <input type="text" id="name-input" placeholder="請輸入姓名" class="w-full p-4 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition">
+                </div>
+                <button onclick="goToChapters()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl shadow-lg shadow-blue-200 transition duration-300 transform active:scale-95 text-lg">
+                    進入學習系統
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. 章節選擇畫面 -->
+        <div id="chapter-screen" class="glass-card p-8 hidden">
+            <div class="mb-8 overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 p-6 text-white shadow-lg"><div class="flex flex-wrap items-center justify-between gap-4"><div><p class="text-xs font-black tracking-[0.22em] text-blue-200">INFORMATION SECURITY</p><h2 class="mt-2 text-3xl font-black">資訊安全・章節選擇</h2><p class="mt-2 text-sm text-blue-100">完成各小節測驗，收集八枚安全印章並解鎖知識大擂台。</p></div><div class="rounded-2xl bg-white/15 px-4 py-3 text-center backdrop-blur"><span class="block text-3xl">🏅</span><span class="mt-1 block text-xs font-black">可集章挑戰</span></div></div></div>
+            
+            <div class="space-y-6">
+                <!-- 第 04 章 -->
+                <div class="p-5 border-2 border-gray-50 rounded-2xl bg-white shadow-sm hover:shadow-md transition">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex flex-wrap items-center">
+                            <span class="text-xl font-black text-blue-700 text-left">第 04 章 資料保護與資訊安全</span>
+                            <a href="https://drive.google.com/file/d/1gnmRJWz30-EtO_bDeK3ML6BIrh8XjE1h/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <button onclick="showStudyNotes('4-1')" class="py-2 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs hover:bg-blue-600 hover:text-white transition">4-1 個人資料的定義</button>
+                        <button onclick="showStudyNotes('4-2')" class="py-2 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs hover:bg-blue-600 hover:text-white transition">4-2 個人資料的保護措施</button>
+                        <button onclick="showStudyNotes('4-3')" class="py-2 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs hover:bg-blue-600 hover:text-white transition">4-3 資訊安全與防範措施</button>
+                    </div>
+                </div>
+
+                <!-- 第 05 章 -->
+                <div class="p-5 border-2 border-gray-50 rounded-2xl bg-white shadow-sm hover:shadow-md transition">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex flex-wrap items-center">
+                            <span class="text-xl font-black text-emerald-700 text-left">第 05 章 基礎程式設計 (2)</span>
+                            <a href="https://drive.google.com/file/d/1F95LyMt5I6Ka1ZS5JQflz5vetT-8B_sH/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="showStudyNotes('5-1')" class="py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-xs hover:bg-emerald-600 hover:text-white transition">5-1 遊戲篇</button>
+                        <button onclick="showStudyNotes('5-2')" class="py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-xs hover:bg-emerald-600 hover:text-white transition">5-2 模擬篇</button>
+                    </div>
+                </div>
+
+                <!-- 第 06 章 -->
+                <div class="p-5 border-2 border-gray-50 rounded-2xl bg-white shadow-sm hover:shadow-md transition">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex flex-wrap items-center">
+                            <span class="text-xl font-black text-purple-700 text-left">第 06 章 數位著作合理使用</span>
+                            <a href="https://drive.google.com/file/d/1Oh5pzS9NQI6vnd4M8vAyoi2Mx6SF0tZP/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <button onclick="showStudyNotes('6-1')" class="py-2 bg-purple-50 text-purple-700 rounded-lg font-bold text-xs hover:bg-purple-600 hover:text-white transition">6-1 數位著作的意義</button>
+                        <button onclick="showStudyNotes('6-2')" class="py-2 bg-purple-50 text-purple-700 rounded-lg font-bold text-xs hover:bg-purple-600 hover:text-white transition">6-2 著作合理使用的判斷</button>
+                        <button onclick="showStudyNotes('6-3')" class="py-2 bg-purple-50 text-purple-700 rounded-lg font-bold text-xs hover:bg-purple-600 hover:text-white transition">6-3 著作利用的其他建議</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 章節重點閱讀頁面 -->
+        <div id="study-screen" class="glass-card p-8 hidden">
+            <h2 id="study-title" class="text-2xl font-black text-gray-800 mb-6 border-b-4 border-blue-500 pb-2 inline-block">章節重點</h2>
+            <div id="study-content" class="study-note-box p-6 mb-8 text-gray-700 leading-relaxed space-y-4 text-lg max-h-[60vh] overflow-y-auto"></div>
+            <div class="flex space-x-4">
+                <button onclick="backToChapters()" class="flex-1 py-4 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition">返回目錄</button>
+                <button id="start-quiz-btn" class="flex-2 px-10 py-4 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition transform active:scale-95">開始測驗挑戰</button>
+            </div>
+        </div>
+
+        <!-- 4. 測驗介面 -->
+        <div id="quiz-screen" class="glass-card p-8 hidden">
+            <div class="flex justify-between items-center mb-8 border-b pb-6">
+                <div class="max-w-[70%]">
+                    <div id="current-chapter-title" class="text-blue-600 font-black text-xl leading-tight"></div>
+                    <div class="flex items-center space-x-3 mt-2">
+                        <span id="score-counter" class="bg-orange-500 text-white text-xs px-3 py-1 rounded-full font-black shadow-sm">進度: 0</span>
+                        <span id="target-counter" class="bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full font-bold">目標: ?</span>
+                        <span id="wrong-counter" class="bg-red-100 text-red-600 text-xs px-3 py-1 rounded-full font-bold shadow-sm">容錯: 20</span>
+                    </div>
+                </div>
+                <div id="timer" class="text-red-500 font-mono font-black text-2xl bg-red-50 px-4 py-1 rounded-lg border border-red-100">00:00</div>
+            </div>
+            <div id="question-container" class="min-h-[300px]"></div>
+            <div class="mt-10 flex justify-end">
+                <button id="next-btn" onclick="checkAnswer()" class="px-10 py-4 bg-blue-600 text-white font-black rounded-xl shadow-xl hover:bg-blue-700 transition transform active:scale-95">送出答案</button>
+            </div>
+        </div>
+
+        <!-- 5. 通關卡畫面 -->
+        <div id="result-screen" class="glass-card p-8 hidden animate-pop">
+            <div class="pass-card rounded-[2rem] p-8 shadow-2xl">
+                <div class="text-center mb-6">
+                    <h2 id="pass-status-title" class="text-4xl font-black text-blue-600 italic underline tracking-tighter uppercase">QUIZ PASS CARD</h2>
+                    <p class="text-[10px] text-gray-400 font-bold tracking-[0.3em] mt-1">INFORMATION TECHNOLOGY LEARNING SYSTEM</p>
+                </div>
+                
+                <div class="bg-blue-50/30 border-y-4 border-double border-blue-50 rounded-xl p-6 mb-6">
+                    <div class="flex justify-around items-center mb-4">
+                        <div class="text-center">
+                            <span class="block text-[10px] text-blue-400 font-black uppercase mb-1">Class</span>
+                            <span id="res-class" class="text-2xl font-black text-gray-800"></span>
+                        </div>
+                        <div class="h-8 w-[2px] bg-blue-100"></div>
+                        <div class="text-center">
+                            <span class="block text-[10px] text-blue-400 font-black uppercase mb-1">No.</span>
+                            <span id="res-no" class="text-2xl font-black text-gray-800"></span>
+                        </div>
+                        <div class="h-8 w-[2px] bg-blue-100"></div>
+                        <div class="text-center">
+                            <span class="block text-[10px] text-blue-400 font-black uppercase mb-1">Name</span>
+                            <span id="res-name" class="text-2xl font-black text-gray-800"></span>
+                        </div>
+                    </div>
+                    <div class="text-center pt-2 border-t border-blue-100/50">
+                        <span class="text-[10px] text-blue-400 font-black uppercase mr-2">Challenge Date:</span>
+                        <span id="res-date" class="text-sm font-bold text-gray-600 tracking-widest"></span>
+                    </div>
+                </div>
+
+                <div class="space-y-4 mb-8">
+                    <div class="bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                        <span class="text-[10px] text-gray-400 font-black uppercase block mb-1">Completed Chapter</span>
+                        <span id="res-chapter" class="font-black text-blue-800 text-lg leading-tight"></span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                            <span class="text-[10px] text-gray-400 font-black block mb-1">DURATION</span>
+                            <span id="res-duration" class="font-black text-orange-600 text-lg"></span>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                            <span class="text-[10px] text-gray-400 font-black block mb-1">ACCURACY</span>
+                            <span id="res-rate" class="font-black text-green-600 text-lg">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 text-center mb-8">
+                    <div>
+                        <div class="text-[10px] text-gray-400 font-bold">CORRECT</div>
+                        <div id="res-correct" class="text-2xl font-black text-green-500">0</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-gray-400 font-bold">TOTAL Q.</div>
+                        <div id="res-total" class="text-2xl font-black text-gray-800">0</div>
+                    </div>
+                </div>
+
+                <p id="pass-msg" class="text-center text-sm text-gray-400 mb-8 italic font-bold"></p>
+                
+                <button onclick="returnToChapters()" class="w-full bg-gray-900 text-white py-5 rounded-2xl font-black text-xl shadow-xl hover:bg-black transition transform active:scale-95">
+                    完成挑戰
+                </button>
+            </div>
+        </div>
+
+        <!-- 6. 學習狀態警示單畫面 -->
+        <div id="warning-screen" class="glass-card p-8 hidden animate-pop">
+            <div class="bg-white border-4 border-red-500 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-4 bg-red-500"></div>
+                <div class="text-center mb-6 mt-4">
+                    <h2 class="text-4xl font-black text-red-600 italic tracking-tighter uppercase">LEARNING WARNING</h2>
+                    <p class="text-xs text-red-400 font-bold tracking-[0.2em] mt-2">學習狀態警示單</p>
+                </div>
+                
+                <div class="bg-red-50 p-6 rounded-xl border border-red-100 text-center mb-8">
+                    <div class="text-6xl mb-4">⚠️</div>
+                    <h3 class="text-2xl font-black text-gray-800 mb-3">累積答錯已達 20 題！</h3>
+                    <p class="text-gray-600 font-bold leading-relaxed text-lg">
+                        看來學習遇到了一點小瓶頸呢。<br>
+                        請先暫停測驗，<span class="text-red-600 underline">重新閱讀課本</span>或<span class="text-red-600 underline">仔細查看重點整理</span>後，準備好再來挑戰吧！
+                    </p>
+                </div>
+
+                <button onclick="backToStudyFromWarning()" class="w-full bg-red-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl hover:bg-red-700 transition transform active:scale-95">
+                    返回閱讀重點
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示框 -->
+    <div id="modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl border-4 border-blue-600">
+            <h3 id="modal-title" class="text-2xl font-black mb-4 text-blue-600">提示</h3>
+            <p id="modal-msg" class="text-gray-600 font-bold mb-8 text-lg"></p>
+            <div class="flex justify-end">
+                <button id="modal-confirm" class="w-full py-3 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-700 transition">我知道了</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 重點整理資料 (Study Notes) ---
+        const studyNotes = {
+            // 第四章：資料保護與資訊安全
+            "4-1": { 
+                title: "4-1 個人資料的定義", 
+                content: `
+                    <h4>一、個人資料保護法（個資法）的立法目的</h4>
+                    <p>法律的主要目的是為了規範個人資料的蒐集、處理及利用。透過這些規範，旨在避免個人的人格權受到侵害，同時在合法且合適的情況下，促進個人資料的合理利用。</p>
+                    
+                    <h4>二、個人資料的定義與識別範圍</h4>
+                    <p>個資是指「自然人」的各項資料，範圍非常廣泛，包含姓名、出生年月日、身分證字號、指紋、學歷、職業及財務情況等。識別方式分為兩類：</p>
+                    <ul>
+                        <li><strong>直接識別：</strong>能直接辨識出特定個人的資料（如姓名、特徵）。</li>
+                        <li><strong>間接識別：</strong>單獨看可能無法識別，但結合其他資料後即可辨識出特定個人的資料，例如學號、電子郵件、會員編號等，同樣受到法律保護。</li>
+                    </ul>
+
+                    <h4>三、特種（敏感）個人資料的嚴格限制</h4>
+                    <p>特別列出「病歷、醫療、基因、性生活、健康檢查及犯罪前科」等高度隱私的資料。除非法律另有特別規定，否則原則上這類敏感資料是不得進行蒐集、處理或利用的。</p>
+                ` 
+            },
+            "4-2": { 
+                title: "4-2 個人資料的保護措施", 
+                content: `
+                    <h4>一、個人資料的合理利用與當事人權利</h4>
+                    <p>公務或非公務機關在蒐集、處理及利用個資時，應有特定目的並經當事人同意。蒐集單位必須告知當事人蒐集目的、利用期間及方式等資訊，而當事人依法擁有查詢閱覽、製給複製本、補充更正、停止蒐集處理利用以及要求刪除等權利。</p>
+                    
+                    <h4>二、機關單位的法律管理責任</h4>
+                    <p>為了防止個資被竊取或洩漏，公務機關應採行安全措施並指派專人管理。非公務機關則須訂定個資檔案安全維護計畫或業務終止後的處理方法。若未盡保護責任，除了面臨罰款外，情節嚴重者還需負擔刑事責任。</p>
+
+                    <h4>三、個人的自我保護與隱私設定</h4>
+                    <p>個人在日常生活中應養成良好的資安習慣，例如：</p>
+                    <ul>
+                        <li><strong>行為防護：</strong>不任意提供個資、作業完畢即登出、公用電腦使用「無痕模式」並避免連接不安全的無線網路。</li>
+                        <li><strong>帳號與裝置管理：</strong>密碼不隨意抄寫或共用，並為社群帳號設定為私人帳號及開啟雙重驗證（2FA）。</li>
+                        <li><strong>App 授權控管：</strong>安裝行動應用程式（App）前應仔細閱讀授權內容，並時常檢視其存取控制權限。</li>
+                    </ul>
+                ` 
+            },
+            "4-3": { 
+                title: "4-3 資訊安全與防範措施", 
+                content: `
+                    <h4>一、資安意識與 CIA 三要素</h4>
+                    <p>資訊安全的核心在於保護資料與系統免受非法侵害，主要涉及三大要素：</p>
+                    <ul>
+                        <li><strong>機密性 (Confidentiality)：</strong>確保資料隱密，避免未經授權的揭露。</li>
+                        <li><strong>完整性 (Integrity)：</strong>避免資料遭到未經授權的竄改。</li>
+                        <li><strong>可用性 (Availability)：</strong>確保資料隨時保持堪用狀態，防止因駭客攻擊（如阻斷服務）而癱瘓。</li>
+                    </ul>
+
+                    <h4>二、資安技術與電腦防護工具</h4>
+                    <p>透過多元技術降低安全風險，常見手段包括：</p>
+                    <ul>
+                        <li><strong>數位浮水印：</strong>分為顯性與隱性，用於保護著作權並防止非法複製。</li>
+                        <li><strong>防火牆與加密：</strong>防火牆依規則篩選封包；加密技術（如 HTTPS）則將明文轉為密文，確保傳輸安全。</li>
+                        <li><strong>防毒軟體與權限管理：</strong>安裝如 Windows Defender 並定期更新病毒碼；妥善設定文件的存取權限（如檢視者、編輯者）以控管共用範圍。</li>
+                    </ul>
+
+                    <h4>三、資安管理機制（3A 與 4D）</h4>
+                    <p>有效的資安管理需結合內部與外部的防護架構：</p>
+                    <ul>
+                        <li><strong>組織內部 (3A 安全防護)：</strong>包含認證（辨別身分）、授權（資源存取控管）及紀錄（蒐集互動資料供後續稽核）。</li>
+                        <li><strong>組織外部 (4D 防護管理)：</strong>包含嚇阻（提高入侵風險）、偵測（發現入侵行為）、阻延（增加入侵難度）及禁制（直接阻止入侵）。</li>
+                    </ul>
+                    <p>此外，需警覺利用人性弱點的社交工程攻擊及假冒身分的網路釣魚郵件。</p>
+                ` 
+            },
+            // 第五章：基礎程式設計 (2)
+            "5-1": { 
+                title: "5-1 遊戲篇", 
+                content: `
+                    <h4>一、遊戲設計的劇本化與問題拆解</h4>
+                    <p>設計遊戲就像編排一齣舞臺劇，包含主角、反派、配角、劇本、背景與音效。在實作時，需將設計過程步驟化，並透過「問題拆解」分析任務（例如：如何建立背景、如何控制角色移動、如何變換姿勢），這是培養運算思維的重要途徑。</p>
+                    
+                    <h4>二、核心程式結構與隨機性的運用</h4>
+                    <p>根據不同遊戲情境，運用多樣的程式結構來達成目標：</p>
+                    <ul>
+                        <li><strong>迴圈結構：</strong>包含「計次式迴圈」（固定次數的動作，如散步）、「條件式迴圈」（執行到條件成立，如馬兒跑到終點）及「無窮迴圈」（持續執行，如魚兒游動）。</li>
+                        <li><strong>隨機性：</strong>使用「隨機取數」積木控制角色的速度或移動方向，使每次遊戲的互動過程與結果都不盡相同。</li>
+                    </ul>
+
+                    <h4>三、互動機制、邏輯運算與變數管理</h4>
+                    <p>遊戲透過多種技術達成互動與邏輯判斷：</p>
+                    <ul>
+                        <li><strong>事件驅動與偵測：</strong>利用「當角色被點擊」或「偵測碰到鼠標」來觸發程式，實現玩家與角色的互動。</li>
+                        <li><strong>邏輯運算與變數：</strong>運用「且 (and)」、「或 (or)」、「反向 (not)」等邏輯運算判斷複雜條件（如判斷準星是否射中魔鬼），並透過「變數」功能來累積並記錄遊戲分數。</li>
+                    </ul>
+                ` 
+            },
+            "5-2": { 
+                title: "5-2 模擬篇", 
+                content: `
+                    <h4>一、電腦模擬的核心目的與問題拆解</h4>
+                    <p>模擬篇的主旨是讓學生理解如何應用電腦來模擬日常生活事物（如電子琴、電梯）。在設計過程開始前，必須先分析模擬物件上每個可調控的裝置及其對應反應。透過「問題分析與拆解」，將複雜的模擬任務（如：如何建立背景、製作角色功能、排列角色位置）步驟化，是培養程式設計能力的重要方式。</p>
+                    
+                    <h4>二、Scratch 模擬的技術實現與邏輯運算</h4>
+                    <p>模擬程式需結合多種程式積木來達成逼真的互動效果：</p>
+                    <ul>
+                        <li><strong>互動動畫與音效：</strong>利用「當角色被點擊」事件觸發「造型換成按下」與「演奏音階（採用 MIDI 標準）」，模擬實體裝置的操作感。</li>
+                        <li><strong>坐標規律與自動定位：</strong>運用「運算積木」找出物件排列的數學規則，例如白鍵每格間距 31 個點，電梯樓層高度約為 69 個點，以精確控制位置。</li>
+                        <li><strong>變數管理與廣播機制：</strong>使用「變數」記錄狀態（如電梯的「搭乘樓層」與「目標樓層」），並透過「廣播訊息」同步多個角色間的複雜動作。</li>
+                    </ul>
+
+                    <h4>三、模擬概念的延伸應用（App Inventor）</h4>
+                    <p>模擬技術不僅限於 Scratch，也可延伸至行動裝置開發。透過 App Inventor 設計「兒童小鋼琴」，重點在於介面配置、屬性設定與多媒體元件的應用。實作中會學習將程式「模組化」，利用「定義程序（副程式）」處理重複的邏輯（如播放音階或自訂暫停功能），並搭配計時器精確控制執行節奏。</p>
+                ` 
+            },
+            // 第六章：數位著作合理使用
+            "6-1": { 
+                title: "6-1 數位著作的意義", 
+                content: `
+                    <h4>一、著作權的組成與保護期限</h4>
+                    <p>著作權法旨在保障創作者的權益，著作人於著作完成時即受到保護，無需向任何機關註冊或登記。著作權分為兩大類：</p>
+                    <ul>
+                        <li><strong>著作人格權：</strong>保護作者的人格及聲譽（如署名權），專屬於著作人，不得讓與或繼承。</li>
+                        <li><strong>著作財產權：</strong>包括重製、公開傳輸、改作等權利，使著作人獲得經濟利益。保護期間通常為著作人生存期間至死後 50 年。</li>
+                    </ul>
+                    
+                    <h4>二、受保護著作的種類與衍生著作</h4>
+                    <p>法律例示了十種主要著作類型，包括語文、音樂、攝影、戲劇、圖形、美術、建築、視聽、錄音及電腦程式著作。此外，將既有著作進行翻譯、編曲或改寫所產生的<strong>「衍生著作」</strong>（或稱改作著作），因投入了新的創意心力，同樣受到獨立保護。</p>
+
+                    <h4>三、保護「表達」而非「思想」的原則</h4>
+                    <p>著作權僅保護著作的<strong>「表達」（即創作物的客觀存在），而不保護其背後的思想、程序、製程、系統、操作方法或概念</strong>。例如，不同人可針對同一個「概念」（如：吶喊）各自創作不同的作品，只要不是抄襲，皆各別享有版權。針對生成式 AI，內容是否受保護則視有無<strong>「人類精神創作」</strong>而定。</p>
+                ` 
+            },
+            "6-2": { 
+                title: "6-2 著作合理使用的判斷", 
+                content: `
+                    <h4>一、合理使用的定義與目的</h4>
+                    <p>著作的合理使用是指利用人不需要經著作人授權，在合理範圍內利用他人著作，且不會構成著作財產權侵害的行為。其主要目的是為了調和社會公共利益並促進文化發展，例如在學術研究、評論、教學、教科書編撰及新聞報導等情境下使用。</p>
+                    
+                    <h4>二、校園與日常生活的實務判斷</h4>
+                    <p>透過多個案例說明判斷準則：</p>
+                    <ul>
+                        <li><strong>個人利用：</strong>為個人欣賞、研究或學習等非營利使用，在合理範圍內下載儲存（重製）屬合法，但不能隨意上傳分享。</li>
+                        <li><strong>教學與研究：</strong>教學時可少量引用已公開著作或播放影片片段，但播放整部影片或大量重製他人講義則有侵權之虞。</li>
+                        <li><strong>活動播放：</strong>學校舉辦非經常性且免費的活動（如校慶晚會），若未向觀眾收費也未支付表演者酬勞，可公開播放已發表著作。</li>
+                    </ul>
+
+                    <h4>三、引用規範與權利尊重</h4>
+                    <p>利用他人著作時必須遵守相關規範以確保「合理」：</p>
+                    <ul>
+                        <li><strong>註明出處：</strong>引用時必須標示作者、著作名稱、出版者等資訊，否則在學術上會被視為抄襲或剽竊。</li>
+                        <li><strong>比例原則：</strong>引用的量應以少量為原則，以免影響原著作的潛在市場。</li>
+                        <li><strong>徵得同意：</strong>針對未正式發表的講義或校外人士的演講，若要錄音、錄影，應先徵得老師或演講者的同意（最好簽署書面授權）。</li>
+                    </ul>
+                ` 
+            },
+            "6-3": { 
+                title: "6-3 著作利用的其他建議", 
+                content: `
+                    <h4>一、創用 CC 授權（Creative Commons）的應用</h4>
+                    <p>創用 CC 是由非營利組織發布的一套授權條款，讓創作者能以自願分享的方式釋出作品。其包含四種主要元素：姓名標示、非商業性、禁止改作與相同方式分享，這四種元素可組合成六種授權條款。此外，若創作者想拋棄著作權保護，可使用 <strong>CC0 宣告（公眾領域貢獻宣告）</strong>，讓他人能自由重製、修改與散布作品而不受法律限制。</p>
+
+                    <h4>二、自由軟體與免費資源的運用</h4>
+                    <p>為了避免因軟體經費不足而觸法，建議優先使用自由軟體或開源碼軟體（如 Scratch、LibreOffice Calc）。自由軟體賦予使用者使用、研究、散布及改良的四項自由，而免費軟體雖然不收費，但不一定公開原始碼，且通常不允許修改或複製。學習者可利用專門的搜尋引擎（如 CC Search、NCS Music、CC0 免費圖庫）來尋找合法的數位素材。</p>
+
+                    <h4>三、圖書館與文教機構的重製規範</h4>
+                    <p>針對期刊或論文等著作，法律在公共圖書館或文教機構等場所有較明確的合理使用規定。每人僅限重製一份已公開發表之研討會論文集的單篇著作，或是學位論文與學術論文的摘要。若欲印製論文全文或多份複印，則必須經過著作財產權人的授權，否則即屬違法行為。</p>
+                ` 
+            },
+            
+            // 總複習
+            "CH4": { title: "第 04 章 資料保護與資訊安全", content: "<p>● 本章重點回顧：個資定義、密碼安全、防毒防駭、網路隱私保護。</p>" },
+            "CH5": { title: "第 05 章 基礎程式設計 (2)", content: "<p>● 本章重點回顧：遊戲邏輯設計、科學模擬原理、變數與事件應用。</p>" },
+            "CH6": { title: "第 06 章 數位著作合理使用", content: "<p>● 本章重點回顧：著作權法規、合理使用四大原則、校園授權實務。</p>" }
+        };
+
+        // --- 2. 題庫生成 (每小節 20 題) ---
+        // 4-1 ~ 5-2 保持不變 (省略以節省長度，實作時會完整包含)
+        // 此處僅列出更新的 6-1, 6-2, 6-3 題目
+
+        // 6-1: 數位著作的法律根基
+        const q6_1 = [
+            {q: "阿顯想自己繪製園遊會海報，主要理由為何？", options: ["因為自己畫比較快", "因為手機素材不夠漂亮", "因為老師要求手繪", "避免不小心觸犯著作權，擁有自己的著作"], correct: 3},
+            {q: "下列何者屬於著作權保護之外的內容？", options: ["具體的文字敘述", "原創的插畫風格", "抽象的概念或想法", "完整的音樂譜曲"], correct: 2},
+            {q: "老師提到「著作人格權 vs. 著作財產權」，兩者主要差別是？", options: ["兩者沒有差別", "人格權只在商業作品適用", "人格權關乎作者本身，財產權關乎經濟利用", "財產權只能由政府管理"], correct: 2},
+            {q: "若某人重製他人海報的製程或畫法，是否受著作權保護？", options: ["總是受保護", "只有在商業用途才受保護", "不受著作權保護", "僅在註冊後才受保護"], correct: 2},
+            {q: "下列哪一項最貼切描述「著作的表達」？", options: ["具體呈現的作品，例如完整畫作或文字", "抽象概念或設計思路", "製作工具或軟體來源碼", "操作方法或程序"], correct: 0},
+            {q: "在教材中提及的十種著作，主要目的為何？", options: ["說明著作權可保護哪些創作類型", "列出不能受保護的項目", "教導如何迴避著作權", "列出法律條文全文"], correct: 0},
+            {q: "星兒問為何不用手機素材直接做海報，隱含的著作權風險是？", options: ["手機素材總是免版權", "可能未經授權而侵害他人著作權", "手機素材解析度太低", "手機素材較不專業"], correct: 1},
+            {q: "哪一項不是著作權保護的條件？", options: ["具有原創性並有固定表現", "單純的概念或發現", "具體的文字或圖像作品", "可被辨識的音樂旋律"], correct: 1},
+            {q: "下列哪種行為最能減少侵犯著作權的風險？", options: ["使用網路上未標示來源的圖片", "自行創作原創海報", "只修改他人作品少量文字", "分享私人購買的圖片"], correct: 1},
+            {q: "著作權中所稱的「思想」與「表達」之關係，下列敘述何者正確？", options: ["思想與表達同樣受著作權保護", "只有思想受保護", "表達不能被保護", "思想不受保護，具體表達才受保護"], correct: 3},
+            {q: "若他人以相同主題創作不同作品，依據教材，此情形代表什麼？", options: ["只能由最早創作者擁有權利", "屬於明顯侵權", "不同人可基於相同主題各自創作", "必須付費給概念原作者"], correct: 2},
+            {q: "教材提到的「著作利用的其他建議」最可能包含何者？", options: ["完全禁止任何再利用", "建立秘密共享平台", "鼓勵盜用只要不公開", "取得授權或自行創作以尊重著作權"], correct: 3},
+            {q: "關於著作權的教學中提及 AI，最可能的討論重點為何？", options: ["AI 可自動授權所有作品", "AI 完全取代人類創作", "AI 作品不需考慮著作權", "討論 AI 生成內容與著作權的關聯與使用建議"], correct: 3},
+            {q: "下列哪一項最能描述著作財產權？", options: ["與作者名譽無關的私人權利", "只保護作品的道德面向", "關乎作品的經濟利用與收益", "由政府永久持有"], correct: 2},
+            {q: "若某幅畫被命名為代表某概念（如《吶喊》），該『概念』是否受著作權保護？", options: ["概念自動取得著作權", "只能在特定國家受保護", "概念需登記才受保護", "概念本身不受著作權保護"], correct: 3},
+            {q: "教材中「著作權先生的十種著作」意在說明什麼？", options: ["十種不可受保護的項目", "不同類型的受保護著作範例", "著作權法律條文摘要", "著作權歷史年表"], correct: 1},
+            {q: "在課本情境中，海報屬於哪一類著作的典型例子？", options: ["視覺藝術或平面設計類著作", "專利或發明類", "自然科學發現", "未具體表現的想法"], correct: 0},
+            {q: "下列哪一項行為屬於尊重著作人格權的做法？", options: ["未經許可大量複製販售", "移除作者署名後再發布", "改動作品主要內容並宣稱為己作", "標示作者署名並不扭曲原作"], correct: 3},
+            {q: "教材中強調為避免侵犯著作權，學生在製作作品時最好採取何種做法？", options: ["以原創方式自行繪製或創作", "直接複製網路素材不標示來源", "只使用未授權的圖片縮圖", "改寫他人長文再發布"], correct: 0},
+            {q: "哪種說法最符合教材關於著作權保護範圍的結論？", options: ["任何思想或發現都受著作權保護", "製程與系統總是受保護", "只有具體表達才受著作權保護", "所有公開資訊都無需授權"], correct: 2}
+        ];
+
+        // 6-2: 合理使用 (Fair Use) 判定邏輯
+        const q6_2 = [
+            {q: "何謂著作的合理使用？", options: ["任何情況下都可自由使用他人著作", "只有教育機構才可使用他人著作", "著作人放棄所有權利的情形", "在合理範圍內、不經授權仍不構成侵害的利用"], correct: 3},
+            {q: "若法律列舉多條合理使用情形，但個案未涵蓋，應如何主張合理使用？", options: ["無法主張合理使用", "僅能依行政規定處理", "必須取得著作人書面同意", "可依第六十五條概括規定主張"], correct: 3},
+            {q: "下列哪一項不是合理使用主張前應確認的要點？", options: ["創作是否為著作權法所定義的著作", "合理使用是否為著作人的專屬權利", "不同條款允許的利用行為與範圍可能不同", "利用人應先查明相關法條以免逾越範圍"], correct: 0},
+            {q: "下列哪一情境最可能屬於合理使用的重製行為？", options: ["將下載之作品公開販售", "未註明出處轉載整篇文章供他人閱讀", "改作後做為商業廣告使用", "個人下載並儲存以供私人欣賞或研究"], correct: 3},
+            {q: "學生張貼自撰含少量引用他人文章並註明出處的報導到社群網站，這樣做是否合理使用？", options: ["符合合理使用", "必定構成侵權", "唯有教授同意才可", "需支付著作權人酬金"], correct: 0},
+            {q: "老師要求學生報告並附上最多三張代表畫作，為何限制數量？", options: ["因為法律只允許三張圖片引用", "為確保學生節省報告篇幅", "為了避免侵犯著作人格權", "限制數量以維持引用為「少量」的合理使用"], correct: 3},
+            {q: "在教學時播放他人介紹樂曲的一小段影片，未取得授權，是否屬合理使用？", options: ["永遠違法", "只有校長可以決定", "需付酬金給著作權人", "播放一小段作為教學通常屬合理使用"], correct: 3},
+            {q: "學生可否未經老師同意，拍攝老師未公開之講義或簡報作為課後複習？", options: ["不應在未經同意下拍攝或錄製", "只要是為了複習就可拍攝", "只要不公開即不構成重製", "只需口頭告知老師即可"], correct: 0},
+            {q: "老師在課堂引用公開發表之文章片段並註明出處，學生能否將該文章電子檔上傳供人閱讀？", options: ["絕對禁止公開上傳", "若未署名可上傳", "上傳只要不收費即可", "若為老師原創或合理引用且不侵害原作市場，則可上傳"], correct: 3},
+            {q: "若學校為非經常性且免費之活動公開播放影片，是否可能屬合理使用？", options: ["有可能屬合理使用", "永遠屬於侵權", "只有政府機構可播放", "必須先取得國家授權"], correct: 0},
+            {q: "若透過電腦直接播放網路串流影音而未經放大於公眾場所，這屬於何種情形？", options: ["公開演出", "改作", "單純接收", "公開傳輸"], correct: 2},
+            {q: "引用他人資料時未註明出處，主要會造成什麼問題？", options: ["被視為抄襲或剽竊", "自動成為公有領域", "可視為合理使用", "只要在報告末寫參考文獻即可無問題"], correct: 0},
+            {q: "作為報告證據引用的文字或圖片，為何應以少量為原則？", options: ["法律規定最多只能引用一頁", "因為教科書禁止引用圖片", "為避免違反著作人格權", "以少量為宜以免影響原著作市場"], correct: 3},
+            {q: "學校若欲錄製校外講師演講並上傳，應如何處理？", options: ["只要不公開發佈即可錄製", "事前徵求並取得講師同意，最好以書面確認用途", "僅在校內播放就無須同意", "只要標示講師姓名即可"], correct: 1},
+            {q: "社團為招募設計海報使用某網站照片並加以改作，未取得授權，此行為最可能的法律風險為何？", options: ["屬於公有領域可自由使用", "只要標明來源即合法", "可能逾越合理使用且構成侵權", "學校同意即可合法"], correct: 2},
+            {q: "何者不是避免社團海報使用他人圖片而觸法的建議方法？", options: ["直接取得著作權人授權", "使用免費授權的圖庫素材", "隨意改作並註明來源就安全", "自行拍攝或使用創用CC授權素材"], correct: 2},
+            {q: "何種情形下公開播放音樂會被視為公開演出而非單純接收？", options: ["個人在家用耳機聆聽", "在手機上私人觀看串流", "在公眾場所以擴音播放串流", "下載後刪除不分享"], correct: 2},
+            {q: "下列哪項屬於合理使用範圍內常見的利用行為(法條例舉示者)？", options: ["任意改作並商業販售", "移除著作人署名再公布", "永久公開完整作品供下載", "重製、公開播送或公開傳輸等"], correct: 3},
+            {q: "教學上使用他人重製之講義並同時播放公播版影片，是否可能符合合理使用？", options: ["絕對不行", "只有在期末才可以", "可能符合合理使用，若有注明來源並使用公播版", "需向教育部申請許可"], correct: 2},
+            {q: "引用文獻之撰寫格式通常包含哪些要素？", options: ["只需寫出網址即可", "作者、出版年、著作名稱、出版者及頁碼等資訊", "只要標題和作者即可", "僅列出作者與電子郵件地址"], correct: 1}
+        ];
+
+        // 6-3: 校園實務與前瞻議題 (更新題庫)
+        const q6_3 = [
+            {q: "Creative Commons (CC) 授權中，下列哪一項不是四種主要元素之一？", options: ["Attribution (姓名標示)", "Non-Commercial (非商業)", "Share Alike (相同方式分享)", "Public Performance (公開表演)"], correct: 3},
+            {q: "下列哪個網站專門提供 Creative Commons 授權素材的搜尋？", options: ["https://ncs.io/music", "https://search.creativecommons.org/", "https://cc0.wfublog.com/", "https://example.com/creativecommons"], correct: 1},
+            {q: "CC0 (Creative Commons Zero) 的用途是什麼？", options: ["放棄著作權並授予公有領域使用", "僅允許非商業使用", "禁止改作與改編", "強制要求相同方式分享"], correct: 0},
+            {q: "在 CC 授權中，Share Alike 條款最可能要求創用條件為何？", options: ["禁止衍生作品", "僅允許作者署名", "衍生作品須以相同授權發布", "允許任何商業利用"], correct: 2},
+            {q: "下列哪一項屬於 Non-Commercial (非商業) 條款的限制？", options: ["禁止署名作者", "要求同樣授權發布", "自動進入公有領域", "禁止以商業目的使用"], correct: 3},
+            {q: "使用 Scratch 作為教學工具，下列敘述何者最恰當？", options: ["只能用於專業程式開發", "需要付費授權才能在教室使用", "適合透過組合程式積木教授程式邏輯", "不支援圖形化介面"], correct: 2},
+            {q: "下列哪一項是在教材中提到可以作為免費資源的試算表軟體？", options: ["LibreOffice Calc", "Microsoft Excel (僅付費)", "Photoshop", "AutoCAD"], correct: 0},
+            {q: "下列哪個網站被列為提供免版權或 CC0 資源的連結？", options: ["https://search.creativecommons.org/", "https://ncs.io/music", "https://creativecommons.org/", "https://cc0.wfublog.com/"], correct: 3},
+            {q: "Attribution 條款在 Creative Commons 中的主要要求為何？", options: ["必須標示原作者與來源", "禁止一切改作", "限定只能於非商業用途", "作品自動進入公有領域"], correct: 0},
+            {q: "教材中提到的 NCS Music 網站主要提供哪類資源？", options: ["可用於多媒體的音樂素材", "免責聲明範本", "試算表模板", "程式教學課程"], correct: 0},
+            {q: "若作品標示「No Derivative Works」，代表什麼限制？", options: ["必須標示作者姓名", "僅限非商業用途", "衍生作品須相同授權", "禁止改作或製作衍生作品"], correct: 3},
+            {q: "教材建議使用免費資源時，應注意什麼？", options: ["只要免費就可任意改作", "確認並遵守原始授權條款", "免費資源皆為公有領域", "不用標示來源"], correct: 1},
+            {q: "CC 授權通常由哪幾種元素組合而成以形成不同授權條款？", options: ["僅署名與公有領域兩種元素", "版稅與專利授權", "署名、非商業、禁止改作、相同方式分享等元素", "地理限制與語言條款"], correct: 2},
+            {q: "把作品釋出為公有領域 (public domain) 最接近哪種 CC 工具？", options: ["CC0 (Creative Commons Zero)", "CC BY-NC", "CC BY-ND", "CC BY-SA"], correct: 0},
+            {q: "教材指出在課堂上使用 CC 授權素材時，第一步應該是什麼？", options: ["確認素材的授權類型與條款", "直接改作後再標示來源", "假設所有網路資源均可自由使用", "僅在非公開課堂使用即可"], correct: 0},
+            {q: "教材中提到著作權法補充資料，主要是為了幫助學生理解什麼？", options: ["如何註冊專利", "著作權與合理使用的實務範例", "商標註冊流程", "如何加密檔案"], correct: 1},
+            {q: "在教材中，使用 CC 授權素材時常見的錯誤觀念是什麼？", options: ["CC 授權不能在教育上使用", "所有授權都允許商業使用", "免費素材不代表可任意使用", "署名是可選項目"], correct: 2},
+            {q: "教材列出的免費資源網站不包含下列哪一項用途？", options: ["專門的程式語法教學影片平台", "創用 CC 搜尋入口", "提供可用於多媒體的音樂素材", "提供 CC0 免版權資源"], correct: 0},
+            {q: "教材提到以組合程式積木方式教學，這樣的教學重點為何？", options: ["強調記憶程式語法細節", "主要訓練硬體架設能力", "僅適合專業程式設計師", "透過積木化介面學習程式邏輯"], correct: 3},
+            {q: "教材中提到的著作合理使用補充範例，主要目的為何？", options: ["教導如何侵權獲利", "說明合理使用的實際範例與判斷", "提供免費音樂下載", "示範如何申請 CC 授權"], correct: 1}
+        ];
+
+        // 整合題庫 (Ref: other chapters are kept same as previous context to save space, but logically included)
+        const q4_1 = [
+            {q: "個人資料保護的主要目的是什麼?", options: ["避免人格權受侵害並促進合理利用個人資料", "只為政府收集資料提供依據", "強制所有公司公開個人資訊", "只規範電子資料的保存方式"], correct: 0},
+            {q: "以下哪一項屬於直接識別個人的資料?", options: ["姓名", "一般職務描述", "匿名統計數據", "模糊的地區資訊"], correct: 0},
+            {q: "在課本列出的個人資料類別中,下列哪一項被視為敏感資料?", options: ["病歷", "聯絡方式", "職業", "教育程度"], correct: 0},
+            {q: "哪一項屬於可用來間接識別個人的資料?", options: ["家庭狀況", "護照號碼", "身分證統一編碼", "指紋"], correct: 0},
+            {q: "下列關於個人資料蒐集的原則,哪一項最符合課本精神?", options: ["無限制蒐集以備未來使用", "公開所有資料以維持透明", "僅為特定合理目的蒐集必要資料", "蒐集後可無期限保存"], correct: 2},
+            {q: "哪一項不是課本列出的個人資料範例?", options: ["出生年月日", "天氣偏好", "聯絡方式", "犯罪前科"], correct: 1},
+            {q: "下列哪一項最能代表基因資料的性質?", options: ["高度敏感且可揭示生物特徵", "僅用於一般人口統計", "可公開於社交媒體", "屬於非個人化統計資料"], correct: 0},
+            {q: "課本提到哪些資料可能影響個人人格權?", options: ["病歷、犯罪前科、性生活等敏感資訊", "公司營運數據", "公開的政府政策", "一般產品價格"], correct: 0},
+            {q: "以下哪一項是聯絡方式的例子?", options: ["電話號碼或電子郵件", "基因序列", "犯罪前科紀錄", "指紋"], correct: 0},
+            {q: "若要避免個人資料被濫用,最重要的做法為何?", options: ["將資料公開以增加透明度", "不進行任何資料蒐集", "限制使用目的並採取安全措施", "隨意與第三方分享"], correct: 2},
+            {q: "在個人資料類別中,哪一項與健康相關?", options: ["戶籍地址", "醫療與健康檢查紀錄", "社會活動參與次數", "職業名稱"], correct: 1},
+            {q: "何者屬於財務相關的個人資料範例?", options: ["婚姻狀況", "財務情況", "指紋樣本", "出生年月日"], correct: 1},
+            {q: "關於犯罪前科資料,下列敘述何者正確?", options: ["為一般公開資訊,無需保護", "屬於敏感資料,需要嚴格保護", "僅限於醫療機構使用", "可自由與第三方交換"], correct: 1},
+            {q: "個人資料的合理利用應遵守下列何者?", options: ["無需告知當事人即可任意利用", "只要有利可圖即為合理", "不受任何法律限制", "基於合法與必要的目的使用"], correct: 3},
+            {q: "以下哪種資料最不可能單獨用於識別個人?", options: ["護照號碼", "指紋資料", "身分證統一編碼", "一般社會活動紀錄"], correct: 3},
+            {q: "課本提到哪些資料類型可以直接或間接識別個人?", options: ["只有姓名屬於個人資料", "只有生物特徵才算個人資料", "直接識別與間接識別資料皆屬個人資料", "只有財務資料屬於個人資料"], correct: 2},
+            {q: "為何醫療與病歷資料需特別保護?", options: ["因為醫療資料通常不重要", "因為醫療機構已自動公開資料", "因為會揭露個人健康與隱私,可能造成傷害", "因為所有人都有公開權"], correct: 2},
+            {q: "哪一種措施最能減少個人資料遭濫用的風險?", options: ["公開全部資料以利監督", "實施存取控制並限制使用目的", "不記錄任何資料以避免風險", "將資料交由第三方自由管理"], correct: 1},
+            {q: "哪一項不是課本中列出的個人資料類別?", options: ["教育", "職業", "指紋", "地球板塊運動資料"], correct: 3},
+            {q: "在資料保護中,何者是評估是否可利用資料的重要考量?", options: ["資料量越大越可以任意使用", "是否符合合理目的且不侵害人格權", "僅看資料是否為電子格式", "只有當事人同意才可永久公開"], correct: 1}
+        ];
+        const q4_2 = [
+            {q: "依據教材，蒐集單位在利用他人個人資料前應該先做什麼？", options: ["僅在必要時使用個資", "在網站上公開蒐集目的", "取得當事人同意並告知使用範圍與目的", "只要公司內部知道即可"], correct: 2},
+            {q: "商店在辦理會員資料時，應該如何處理個人資料？", options: ["不需告知即可蒐集", "告知使用目的並取得當事人同意", "只需標記用途即可不需同意", "將資料出售給第三方以增加收益"], correct: 1},
+            {q: "銀行開戶要求填寫個人資料，從教材判斷這種做法屬於？", options: ["合理的個資蒐集", "不合理的過度蒐集", "違法公開個資", "應該匿名處理才合理"], correct: 0},
+            {q: "問卷調查要求填寫身分證字號，依教材這樣做應如何評估？", options: ["視必要性而定，非必要應避免蒐集", "永遠合理以利資料比對", "只要有填表就可公開使用", "應該將身分證號碼張貼於牆上"], correct: 0},
+            {q: "在社群媒體中指名道姓公開他人個資，根據教材這屬於哪一類行為？", options: ["合理資訊分享", "必要的公共資訊揭露", "鼓勵的行為", "不合理且可能侵害隱私"], correct: 3},
+            {q: "活動結束後若已取得「同意書」提供個資，事後要求刪除個資是否合理？", options: ["不可刪除，同意即永久授權", "只能部分刪除", "合理，當事人可要求刪除", "應轉售他方保存"], correct: 2},
+            {q: "學校在圍牆上公布學生榮譽榜單並列出全名，教材傾向認為這樣做是：", options: ["完全沒有問題", "可能有隱私疑慮，需要注意", "屬於刑事犯罪", "必須公開才能表揚"], correct: 1},
+            {q: "教材說明在公共環境使用公用網路時，最需要留意的風險為何？", options: ["網速變慢影響使用體驗", "個資被他人窺視或攔截的風險", "公用網路付費方式複雜", "設備電池消耗較快"], correct: 1},
+            {q: "教材中出現 Cindy 在社群貼文透露就讀學校與班級，這屬於何種行為？", options: ["匿名發布", "公開個人就學資訊", "揭露銀行帳戶資料", "法律強制揭露"], correct: 1},
+            {q: "根據個資法相關規定，單位應對個資採取何種內部措施？", options: ["不需任何特別措施", "由第三方完全負責", "只需加密後公開", "採行適當安全措施並有專人管理"], correct: 3},
+            {q: "教材指出蒐集單位須訂定哪些計畫或方法？", options: ["個資檔案安全維護計畫或業務終止後處理方法", "僅訂定人事管理辦法", "只需制定行銷計畫", "無需任何計畫"], correct: 0},
+            {q: "教材列出個資保護應注意的項目，下列哪一項不屬其重點？", options: ["採取安全措施", "設專人負責管理", "無需管理即可公開使用", "訂定個資處理方法"], correct: 2},
+            {q: "在行動作業系統中，若想變更應用程式的權限，iOS 與 Android 分別應在哪裡操作？", options: ["iOS 在應用程式內設定，Android 在隱私設定", "iOS 在「設定」>「隱私權與安全性」，Android 在「設定」>「應用程式」後選權限", "兩者均在應用程式內的隱私頁面", "必須卸載後重裝才能改變權限"], correct: 1},
+            {q: "教材中提到誰應負責個資的管理？", options: ["專人負責管理", "所有使用者共同管理即可", "只要有系統就不需人管理", "交由外部匿名人員管理"], correct: 0},
+            {q: "當單位終止業務後，對所蒐集的個資應如何處理？", options: ["直接公開以利他人使用", "無需做特別處理", "依訂定方法刪除或妥善處理", "轉售給任何購買者"], correct: 2},
+            {q: "教材示意圖中，公用網路使用時最應注意哪一項安全行為？", options: ["在公用網路上大量下載影片", "避免在公用網路輸入敏感個資", "關閉手機藍牙即可完全安全", "只使用公共電腦登入私人帳號"], correct: 1},
+            {q: "關於個資檔案安全維護計畫，下列哪一項是合理的內容？", options: ["僅列出公司目標即可", "交由員工自行決定管理方式", "訂定存取控制與處理程序", "公開所有個資以利透明"], correct: 2},
+            {q: "教材建議在蒐集個資時，最重要的原則是？", options: ["只蒐集達成目的之必要資料並告知用途", "蒐集越多越好以備未來使用", "不需告知即可蒐集", "將個資公開以利共享"], correct: 0},
+            {q: "若學校要公布學生名單以表揚，依教材最佳做法為何？", options: ["直接在牆上張貼完整資料最方便", "先取得同意或避免顯示敏感識別資訊", "將資料賣給媒體以擴大表揚效果", "以學生學號公布而不告知當事人"], correct: 1},
+            {q: "教材中提到應用程式權限管理，使用者應如何做比較安全？", options: ["允許所有權限以確保功能完整", "只在安裝時設定一次即可", "在設定中檢查並只授予必要權限", "刪除系統更新以避免權限更動"], correct: 2}
+        ];
+        const q4_3 = [
+            {q: "資訊安全的三大要素 CIA 中的 A 代表什麼？", options: ["保密性", "完整性", "可驗證性", "可用性"], correct: 3},
+            {q: "數位浮水印的主要目的是什麼？", options: ["保護著作權與阻止未授權複製", "加速檔案傳輸", "壓縮影像檔案", "提高解析度"], correct: 0},
+            {q: "下列哪一項屬於顯性數位浮水印特徵？", options: ["不可見嵌入", "加密後的標記", "動態浮動符號", "肉眼可見的作者標誌"], correct: 3},
+            {q: "防火牆的主要功能為何？", options: ["依規則篩檢封包以允許或限制傳輸", "自動加密所有資料", "替代鑑別使用者身分", "儲存所有備份資料"], correct: 0},
+            {q: "加密的主要目的為何？", options: ["使資料在未授權者看不懂", "提高儲存速度", "減少網路流量", "自動修復錯誤"], correct: 0},
+            {q: "3A 管理架構中的第一層「認證」主要做什麼？", options: ["授權存取資源", "紀錄使用行為", "防止外部攻擊", "辨別使用者身分"], correct: 3},
+            {q: "在授權 (authorization) 的範例中，下列哪一項最貼切？", options: ["系統驗證使用者密碼", "加密資料傳輸", "設定教務處與學務處的資料存取權限", "監控網路封包"], correct: 2},
+            {q: "3A 中的第三層「紀錄」主要目的為何？", options: ["加密所有日誌檔案", "即時阻擋惡意程式", "提供使用者角色管理", "蒐集使用者與系統互動以供稽核"], correct: 3},
+            {q: "4D 防護管理中，哪一項不屬於 4D？", options: ["deliver", "detect", "deny", "delay"], correct: 0},
+            {q: "防毒軟體的「病毒碼自動更新」功能為何重要？", options: ["可取代防火牆功能", "讓系統更省電", "避免使用者輸入密碼", "維持對新型病毒的偵測能力"], correct: 3},
+            {q: "下列哪一項是社交工程攻擊的典型手法？", options: ["誘導提供個人資料或點擊可疑連結", "直接用暴力破解密碼", "物理破壞硬體", "公開發佈安全修補程式"], correct: 0},
+            {q: "釣魚郵件最常利用下列哪個方式誘騙使用者？", options: ["偽造超連結誘導點擊", "大量寄送附件以增加信任", "提供合法的系統更新", "使用加密信件傳送"], correct: 0},
+            {q: "判斷電子郵件是否可疑時，下列哪一項不是主要檢查項目？", options: ["郵件字體顏色", "附加檔案副檔名", "寄件時間是否異常", "郵件內含可疑超連結"], correct: 0},
+            {q: "關於數位浮水印，下列敘述何者較不正確？", options: ["顯性浮水印肉眼可見", "隱性浮水印通常可見以便辨識", "浮水印可同步被複製", "浮水印用於保護著作權"], correct: 1},
+            {q: "防火牆部署於哪一個位置最常見？", options: ["個別使用者桌面上", "資料庫內部", "公有雲儲存內", "外部網路與內部網路之間"], correct: 3},
+            {q: "下列哪一項不是加密的效果？", options: ["隱藏資料內容", "需要解密才能還原", "保護傳輸過程中的機密性", "自動防止資料被竄改"], correct: 3},
+            {q: "在資安管理中，哪一個步驟用於確認使用者確實是他所聲稱的身分？", options: ["授權", "認證", "紀錄", "稽核"], correct: 1},
+            {q: "4D 中的 detect 主要功能是什麼？", options: ["延遲攻擊發生", "偵測入侵或異常事件", "立即拒絕一切連線", "紀錄使用者日誌"], correct: 1},
+            {q: "Windows Defender 的一項特色是什麼？", options: ["提供線上備份", "專門處理硬體故障", "僅在付費版可用", "提供即時掃描並阻止惡意程式執行"], correct: 3},
+            {q: "個人資料保護的重點不包括下列哪一項？", options: ["定義個人資料範圍", "實施保護措施", "遵循相關法律規範", "增加公開個資"], correct: 3}
+        ];
+        const q5_1 = [
+            {q: "在 Scratch 範例中，若要讓角色靠滑鼠移動並追隨游標，哪一個事件方塊最適合使用？", options: ["當被點擊", "當綠旗被點擊", "重複無限次", "碰到邊緣就反彈"], correct: 0},
+            {q: "在小狗散步範例中，常見用來讓角色跑步動畫切換的方塊是什麼？", options: ["造型換成下一個", "碰到邊緣就反彈", "到隨機取數", "設為顯示/隱藏"], correct: 0},
+            {q: "在賽馬遊戲中，若要讓馬每次前進不同距離以增加不確定性，應使用哪個方塊？", options: ["點移動", "秒等待", "到隨機取數", "碰到邊緣就反彈"], correct: 2},
+            {q: "在水族箱範例中，要讓魚在畫面邊緣轉向並繼續游動，應使用哪個動作方塊？", options: ["點移動", "秒等待", "碰到邊緣就反彈", "造型換成下一個"], correct: 2},
+            {q: "打擊魔鬼遊戲中，若要在滑鼠按下時改變魔鬼數量，應該用哪一類方塊？", options: ["播放音效", "造型換成被射中", "變數改變", "碰到準星就隱藏"], correct: 2},
+            {q: "在 Scratch 中，要讓動作持續重複直到滿足某個條件，應使用哪個控制方塊？", options: ["重複直到", "重複無限次", "如果 那麼", "當綠旗被點擊"], correct: 0},
+            {q: "在賽馬範例中，常用來模擬奔跑聲的方塊是哪一類？", options: ["造型換成下一個", "播放音效", "到隨機取數", "隱藏/顯示"], correct: 1},
+            {q: "在角色定位時，若要把某個精靈放到畫面最左邊的近似 x 座標，應設定哪一個 x 值？", options: ["x = 0", "x = 170", "x = -170", "x = 220"], correct: 2},
+            {q: "在 Scratch 範例中，若要讓角色在被點擊時播放聲音並移動，哪兩個方塊通常會一起使用？", options: ["重複無限次 + 造型換成下一個", "當被點擊 + 播放音效", "碰到邊緣就反彈 + 隱藏", "到隨機取數 + 秒等待"], correct: 1},
+            {q: "在水族箱範例，若要讓背景播放泡泡音效直到結束，應使用哪個方塊？", options: ["播放音效直到結束", "播放音效", "重複直到", "隱藏角色"], correct: 0},
+            {q: "在打擊魔鬼遊戲中，常用哪一種結構來判斷滑鼠是否在準星上並且滑鼠鍵被按下？", options: ["重複無限次", "重複直到", "播放音效", "如果 那麼 且/或 結構"], correct: 3},
+            {q: "教材提到在角色被點擊時常用的兩個動作方塊是哪兩個？", options: ["重複無限次 + 隱藏", "碰到邊緣就反彈 + 造型換成下一個", "播放音效 + 點移動", "到隨機取數 + 秒等待"], correct: 2},
+            {q: "在賽馬範例中，為了連續顯示奔跑動作通常會搭配哪兩個方塊？", options: ["碰到終點 + 停止全部", "播放音效 + 到隨機取數", "造型換成下一個 + 秒等待", "隱藏 + 顯示"], correct: 2},
+            {q: "在程式邏輯教學中，當要同時要求左右兩個條件都成立時，應使用哪一種布林運算？", options: ["或", "反向", "不存在", "且"], correct: 3},
+            {q: "在小狗散步與其他範例中，若希望某段程式從開始就一直執行，哪個方塊最適合使用？", options: ["重複直到", "當被點擊", "當綠旗被點擊", "重複無限次"], correct: 3},
+            {q: "教材中在設定角色初始位置常見會同時設定哪兩個座標？", options: ["x 與 y 座標", "旋轉角度與大小", "造型編號與音效", "顯示狀態與圖層"], correct: 0},
+            {q: "在打擊魔鬼遊戲中，若要讓魔鬼從右邊出現到左邊消失，通常會改變哪一個值來實現移動？", options: ["變更造型", "改變旋轉方向", "改變 x 座標", "改變大小"], correct: 2},
+            {q: "在水族箱或打擊魔鬼範例中，常用哪個方塊來等待短暫時間以控制節奏？", options: ["重複無限次", "到隨機取數", "播放音效直到結束", "秒等待"], correct: 3},
+            {q: "教材說明中，若要在被射中時改變造型以顯示受擊效果，應使用哪個方塊？", options: ["播放音效 Zoop", "隱藏角色", "變數改變 魔鬼數目", "造型換成被射中"], correct: 3},
+            {q: "在教材的各範例內，為了讓多個馬或魚產生不同起始位置，通常會使用哪種方法？", options: ["設定不同的 x/y 座標或使用隨機數", "全部使用同一造型", "停止全部程式", "隱藏所有角色"], correct: 0}
+        ];
+        const q5_2 = [
+            {q: "在 Scratch 的電子琴範例中，按下白鍵通常會執行哪兩個主要動作？", options: ["改變角色大小並移動到隨機位置", "顯示對話框並廣播訊息", "只播放預錄音效", "造型換成按下並演奏對應音階"], correct: 3},
+            {q: "在電子琴程式中，為了讓按鍵呈現「按下」狀態，通常會使用哪個積木？", options: ["播放音效直到結束", "滑行到位置", "改變變數", "造型換成(按下)"], correct: 3},
+            {q: "電子琴使用的音符數值（例如 C = 60）屬於哪一類技術格式？", options: ["頻率(Hz)", "音程名稱", "MIDI 音階編號", "相對音高百分比"], correct: 2},
+            {q: "在 Scratch 電梯模擬中，代表每層樓垂直距離的數值大約為多少？", options: ["10 點", "120 點", "189 點", "69 點"], correct: 3},
+            {q: "在電梯範例中，選擇樓層的按鍵被點擊後常會執行什麼動作來告知其他角色？", options: ["直接改變背景顏色", "播放背景音樂", "隱藏所有角色", "廣播訊息並設定搭乘或目標樓層變數"], correct: 3},
+            {q: "要讓電梯角色平滑移動到目標樓層，哪個積木最常用？", options: ["定位到 x:y", "改變圖像效果", "說出持續秒", "秒到 x: y: 滑行"], correct: 3},
+            {q: "在 Scratch 中，哪一類事件積木可在角色被點擊時啟動程式？", options: ["當角色被點擊", "當收到訊息", "重複無限次", "如果...否則"], correct: 0},
+            {q: "在電子琴範例中，要分別處理白鍵與黑鍵的視覺與音效，最方便的方法是？", options: ["同一角色使用不同造型並播放對應音", "每次重製角色", "只靠變數顯示文字", "使用背景切換"], correct: 0},
+            {q: "教材中常用變數來存放電梯的哪兩個資訊？", options: ["電梯速度與顏色", "門的開關狀態與音量", "搭乘樓層與目標樓層", "背景與角色造型"], correct: 2},
+            {q: "若要讓多個角色收到同一個指令並做不同處理，Scratch 最常用的機制是？", options: ["寫到同一個變數再輪詢", "使用隱藏/顯示切換", "直接移動角色", "廣播訊息並讓各角色收到處理"], correct: 3},
+            {q: "在電子琴的節拍控制中，教材提到用哪個積木來控制演奏持續時間？", options: ["造型換成下一個", "600.5 拍演奏音階 (註：對應「演奏音階」積木及其設定參數)", "改變大小積木", "隨機取數"], correct: 1},
+            {q: "在電梯範例，若要暫停程式直到電梯抵達，最合適的積木是？", options: ["重複無限次", "停止全部", "說出持續秒", "秒等待(或等待滑行結束)"], correct: 3},
+            {q: "教材中將音階序列 DO RE MI... 對應到一連串數字，這樣做的主要目的為何？", options: ["為了美觀顯示", "便於手動唱歌", "便於程式以數值播放音高", "為了降低記憶體用量"], correct: 2},
+            {q: "在電梯程式中，按鍵亮起與熄滅通常透過哪兩個動作達成？", options: ["改變變數顏色並播放音效", "按下換成亮造型，結束換成不亮造型", "刪除按鍵角色再重建", "隱藏電梯並顯示文字"], correct: 1},
+            {q: "設計電子琴時，若要避免快速重複按鍵導致聲音重疊，可以採取哪項措施？", options: ["隨機改變音高", "改變造型尺寸", "隱藏按鍵", "設定最小間隔或播放直到結束"], correct: 3},
+            {q: "在 Scratch 中，要判斷滑鼠是否被按下應使用哪個偵測積木？", options: ["碰到邊緣就反彈", "說出持續秒", "設為變數", "滑鼠鍵被按下？"], correct: 3},
+            {q: "電梯模擬中，為何要在按鍵被點擊後先設定『搭乘樓層』再設定『目標樓層』？", options: ["為了節省記憶體", "可避免角色閃", "只是程式習慣，無實際差異", "分別記錄搭乘樓層與目標樓層以便控制行為"], correct: 3},
+            {q: "教材指出在模擬篇做電子琴與電梯範例的主要學習目的為何？", options: ["僅為美工設計練習", "學習如何製作背景音樂", "測試電腦效能", "用電腦模擬日常事物並培養程式設計能力"], correct: 3},
+            {q: "在教材的 App Inventor 小鋼琴範例中，若要設定每個琴鍵對應的音檔來源，通常要指定哪些屬性？", options: ["背景顏色與字體大小", "音檔來源檔名與最小間隔(ms)", "畫面解析度與螢幕方向", "角色座標與滑行時間"], correct: 1},
+            {q: "在 Scratch 程式設計中，哪個控制積木可以讓程式在特定條件下分支執行？", options: ["如果...否則", "重複無限次", "廣播訊息", "秒等待"], correct: 0}
+        ];
+
+        const questionBank = {};
+        questionBank["4-1"] = q4_1; questionBank["4-2"] = q4_2; questionBank["4-3"] = q4_3;
+        questionBank["5-1"] = q5_1; questionBank["5-2"] = q5_2;
+        questionBank["6-1"] = q6_1; questionBank["6-2"] = q6_2; questionBank["6-3"] = q6_3;
+
+        // 大章節題庫整合
+        questionBank["CH4"] = [...q4_1, ...q4_2, ...q4_3];
+        questionBank["CH5"] = [...q5_1, ...q5_2];
+        questionBank["CH6"] = [...q6_1, ...q6_2, ...q6_3];
+
+        // --- 變數與邏輯 ---
+        let currentUser = {};
+        let currentChapterId = "";
+        let currentQuestions = [];
+        let currentQuestionIndex = 0;
+        let userAnswers = [];
+        let streak = 0;
+        let correctCount = 0; 
+        let targetScore = 0;  
+        let quizMode = "streak"; 
+        let seconds = 0;
+        let timerInterval;
+
+        async function recordInfoLifePass(chapterId, score) {
+            try {
+                if (!window.SCHOOL_APP?.isFirebaseConfigured() || !window.firebase) return;
+                const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(window.SCHOOL_APP.firebaseConfig);
+                const user = firebase.auth(app).currentUser;
+                if (!user) return;
+                const termId = window.SCHOOL_APP.currentTermId;
+                const portalTaskByChapter = {
+                    '4-1': '1-2', '4-2': '2-2', '4-3': '3-2', '5-1': '4-2',
+                    '5-2': '5-2', '6-1': '6-2', '6-2': '7-2', '6-3': '8-2'
+                };
+                const taskId = portalTaskByChapter[chapterId];
+                if (!taskId) return;
+                const now = new Date().toISOString();
+                const certificateId = `security-${chapterId}`;
+                const certificate = { course: '資訊安全', chapterKey: chapterId, chapterTitle: studyNotes[chapterId]?.title || chapterId, score, awardedAt: now };
+                await firebase.firestore(app).collection('users').doc(user.uid).set({
+                    terms: {
+                        [termId]: {
+                            tasks: { [taskId]: now },
+                            certificates: { [certificateId]: certificate },
+                            infoLife: { passedChapters: { [chapterId]: { passedAt: now, score } } },
+                            updatedAt: now
+                        }
+                    }
+                }, { merge: true });
+                markCollectibleChapters();
+                refreshKnowledgeArenaUnlock();
+            } catch (error) {
+                console.error('Unable to record information-life completion:', error);
+            }
+        }
+        let wrongCount = 0; // 新增：記錄累積答錯次數
+
+        async function refreshKnowledgeArenaUnlock() {
+            const screen = document.getElementById('chapter-screen');
+            if (!screen) return;
+            let card = document.getElementById('knowledge-arena-unlock');
+            if (!card) {
+                card = document.createElement('section');
+                card.id = 'knowledge-arena-unlock';
+                card.className = 'mt-6 overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm';
+                screen.append(card);
+            }
+            card.innerHTML = '<div class="bg-gradient-to-r from-violet-700 to-indigo-700 p-5 text-white"><p class="text-xs font-black tracking-[0.18em] text-violet-200">ADVANCED REVIEW</p><h3 class="mt-1 text-xl font-black">🏆 知識大擂台</h3><p class="mt-1 text-sm text-violet-100">集滿八枚資訊安全印章後開放進階挑戰。</p></div><div id="knowledge-arena-content" class="p-5"><div class="rounded-xl bg-violet-50 p-4 text-center text-sm font-bold text-violet-700">正在確認通關進度…</div></div>';
+            const content = document.getElementById('knowledge-arena-content');
+            try {
+                if (!window.SCHOOL_APP?.isFirebaseConfigured() || !window.firebase) throw new Error('Firebase unavailable');
+                const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(window.SCHOOL_APP.firebaseConfig);
+                const user = firebase.auth(app).currentUser;
+                if (!user) {
+                    content.innerHTML = '<div class="rounded-xl bg-violet-50 p-4 text-center text-sm font-bold text-violet-700">正在同步登入狀態…</div>';
+                    if (!card.dataset.retry) { card.dataset.retry = '1'; setTimeout(refreshKnowledgeArenaUnlock, 600); }
+                    return;
+                }
+                const snapshot = await firebase.firestore(app).collection('users').doc(user.uid).get();
+                const termData = snapshot.data()?.terms?.[window.SCHOOL_APP.currentTermId] || {};
+                const certificates = termData.certificates || {};
+                const stampSlots = [['4-1', '資訊科技與生活'], ['4-2', '資訊科技議題'], ['4-3', '數位生活'], ['5-1', '網路安全'], ['5-2', '資訊倫理'], ['6-1', '個資保護'], ['6-2', '網路詐騙'], ['6-3', '數位足跡']];
+                const passed = stampSlots.filter(([chapterKey]) => certificates[`security-${chapterKey}`]).length;
+                const stamps = stampSlots.map(([chapterKey, title], index) => certificates[`security-${chapterKey}`]
+                    ? `<article class="relative rounded-xl border-2 border-emerald-400 bg-emerald-50 p-3 text-center text-emerald-800"><span class="absolute right-1 top-1 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white">PASSED</span><div class="text-2xl">🏅</div><p class="mt-1 text-xs font-black">${index + 1}. ${title}</p></article>`
+                    : `<article class="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-3 text-center text-slate-400"><div class="text-2xl grayscale">🏅</div><p class="mt-1 text-xs font-black">${index + 1}. ${title}</p></article>`).join('');
+                content.innerHTML = `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">${stamps}</div>${passed === stampSlots.length
+                    ? '<div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center"><p class="font-black text-emerald-800">🎉 八枚印章已集滿！</p><p class="mt-1 text-sm text-emerald-700">知識大擂台已開放。</p><a href="quiz.html" class="mt-3 inline-flex rounded-xl bg-violet-700 px-4 py-2 text-sm font-black text-white hover:bg-violet-800">進入知識大擂台 →</a></div>'
+                    : `<p class="mt-4 rounded-xl border border-dashed border-violet-200 bg-violet-50 p-3 text-center text-sm font-bold text-violet-700">目前已集 ${passed} / ${stampSlots.length} 枚印章；完成所有資訊安全測驗後開放知識大擂台。</p>`}`;
+            } catch (error) {
+                console.error('Unable to check knowledge arena unlock:', error);
+                content.innerHTML = '<div class="rounded-xl bg-rose-50 p-4 text-center text-sm font-bold text-rose-700">暫時無法讀取通關進度，請稍後再試。</div>';
+            }
+        }
+
+        window.onload = () => {
+            const classSel = document.getElementById('class-select');
+            const noSel = document.getElementById('no-select');
+            
+            // 加入預設提示選項，並移除選單中的「班」與「號」
+            let classOptions = '<option value="" disabled selected>請選擇班級</option>';
+            for(let i=701; i<=712; i++) {
+                classOptions += `<option value="${i}">${i}</option>`;
+            }
+            classSel.innerHTML = classOptions;
+
+            let noOptions = '<option value="" disabled selected>請選擇座號</option>';
+            for(let i=1; i<=30; i++) {
+                let noStr = i < 10 ? '0' + i : i;
+                noOptions += `<option value="${noStr}">${noStr}</option>`;
+            }
+            noSel.innerHTML = noOptions;
+        };
+
+        function markCollectibleChapters() {
+            document.querySelectorAll('#chapter-screen button[onclick^="showStudyNotes"]').forEach((button) => {
+                if (button.dataset.collectibleMarked) return;
+                button.dataset.collectibleMarked = 'true';
+                button.classList.add('relative', 'pt-7');
+                const badge = document.createElement('span');
+                badge.className = 'absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-amber-950 shadow-sm';
+                badge.textContent = '🏅 可集章';
+                button.prepend(badge);
+            });
+        }
+
+        function goToChapters() {
+            const portalProfile = window.LearnerProfile && window.LearnerProfile.readLocalProfile();
+            if (portalProfile && window.LearnerProfile.isValidStudentId(portalProfile.studentId)) {
+                currentUser = { studentId: portalProfile.studentId, name: portalProfile.name || '同學' };
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('chapter-screen').classList.remove('hidden');
+                markCollectibleChapters();
+                refreshKnowledgeArenaUnlock();
+                return;
+            }
+            location.replace('index.html');
+            return;
+            const classVal = document.getElementById('class-select').value;
+            const noVal = document.getElementById('no-select').value;
+            const name = document.getElementById('name-input').value.trim();
+            
+            // 強制檢查是否都有選取與填寫
+            if(!classVal) return showModal("提醒", "請選擇班級");
+            if(!noVal) return showModal("提醒", "請選擇座號");
+            if(!name) return showModal("提醒", "請填寫學生姓名");
+            
+            currentUser = { class: classVal, no: noVal, name };
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('chapter-screen').classList.remove('hidden');
+            document.getElementById('welcome-info').textContent = `${currentUser.class} 班 ${currentUser.no} 號 ${currentUser.name}`;
+        }
+
+        function showStudyNotes(id) {
+            currentChapterId = id;
+            const note = studyNotes[id] || { title: id, content: "內容整理中..." };
+            document.getElementById('study-title').textContent = note.title;
+            document.getElementById('study-content').innerHTML = note.content;
+            document.getElementById('start-quiz-btn').onclick = () => startQuiz(id);
+            document.getElementById('chapter-screen').classList.add('hidden');
+            document.getElementById('study-screen').classList.remove('hidden');
+        }
+
+        function backToChapters() {
+            document.getElementById('study-screen').classList.add('hidden');
+            document.getElementById('chapter-screen').classList.remove('hidden');
+        }
+
+        function shuffle(arr) {
+            return arr.sort(() => Math.random() - 0.5);
+        }
+
+        function showModal(title, msg, onConfirm) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-msg').textContent = msg;
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal-confirm').onclick = () => {
+                document.getElementById('modal').classList.add('hidden');
+                if(onConfirm) onConfirm();
+            };
+        }
+
+        // --- 核心測驗邏輯 ---
+        function startQuiz(id) {
+            currentQuestions = shuffle([...questionBank[id]]);
+            currentQuestionIndex = 0;
+            userAnswers = [];
+            streak = 0;
+            correctCount = 0;
+            seconds = 0;
+            wrongCount = 0; // 重置答錯次數
+            
+            // 設定模式與目標
+            if (id.startsWith("CH")) {
+                quizMode = "accumulate"; // 大章節：累積模式
+                targetScore = 20;
+                document.getElementById('score-counter').textContent = `累積答對: 0`;
+            } else {
+                quizMode = "streak";     // 小章節：連勝模式
+                targetScore = 10;
+                document.getElementById('score-counter').textContent = `當前連勝: 0`;
+            }
+            
+            document.getElementById('target-counter').textContent = `目標: ${targetScore}`;
+            document.getElementById('wrong-counter').textContent = `容錯: 20`;
+            
+            const fullTitle = studyNotes[id] ? studyNotes[id].title : id;
+            document.getElementById('current-chapter-title').textContent = fullTitle;
+            
+            document.getElementById('study-screen').classList.add('hidden');
+            document.getElementById('quiz-screen').classList.remove('hidden');
+            
+            renderQuestion();
+            startTimer();
+        }
+
+        function startTimer() {
+            if(timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                seconds++;
+                const m = Math.floor(seconds/60).toString().padStart(2, '0');
+                const s = (seconds%60).toString().padStart(2, '0');
+                document.getElementById('timer').textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function renderQuestion() {
+            if (currentQuestionIndex >= currentQuestions.length) {
+                currentQuestions = shuffle([...questionBank[currentChapterId]]);
+                currentQuestionIndex = 0;
+            }
+
+            const rawQ = currentQuestions[currentQuestionIndex];
+            if(!rawQ) return;
+            
+            const correctText = rawQ.options[rawQ.correct];
+            const shuffledOpts = shuffle([...rawQ.options]);
+            const newCorrectIdx = shuffledOpts.indexOf(correctText);
+
+            rawQ.activeOpts = shuffledOpts;
+            rawQ.activeCorrect = newCorrectIdx;
+
+            let html = `<p class="text-2xl font-black text-gray-800 mb-6 leading-relaxed">${rawQ.q}</p><div class="space-y-4">`;
+            shuffledOpts.forEach((opt, idx) => {
+                html += `
+                    <label class="flex items-center p-5 border-2 border-gray-100 rounded-2xl hover:bg-blue-50 hover:border-blue-200 cursor-pointer transition group">
+                        <input type="radio" name="opt" value="${idx}" class="w-6 h-6 accent-blue-600">
+                        <span class="ml-4 font-bold text-gray-700 text-lg group-hover:text-blue-700">${opt}</span>
+                    </label>
+                `;
+            });
+            document.getElementById('question-container').innerHTML = html + "</div>";
+        }
+
+        function checkAnswer() {
+            const sel = document.querySelector('input[name="opt"]:checked');
+            if(!sel) return showModal("未選擇", "請先選擇一個答案！");
+
+            const ans = parseInt(sel.value);
+            const q = currentQuestions[currentQuestionIndex];
+            const isCorrect = ans === q.activeCorrect;
+
+            userAnswers.push({ correct: isCorrect });
+
+            if (isCorrect) {
+                streak++;
+                correctCount++;
+            } else {
+                streak = 0; // 連勝中斷
+                wrongCount++; // 增加答錯次數
+                document.getElementById('wrong-counter').textContent = `容錯: ${20 - wrongCount}`;
+                if (quizMode === "streak") {
+                    currentQuestions = shuffle([...questionBank[currentChapterId]]);
+                    currentQuestionIndex = -1; 
+                }
+            }
+
+            // 檢查是否達到警示標準 (答錯 20 題)
+            if (wrongCount >= 20) {
+                clearInterval(timerInterval);
+                document.getElementById('quiz-screen').classList.add('hidden');
+                document.getElementById('warning-screen').classList.remove('hidden');
+                return;
+            }
+
+            // 更新顯示
+            if (quizMode === "streak") {
+                document.getElementById('score-counter').textContent = `當前連勝: ${streak}`;
+                if (streak >= targetScore) return showModal("🎉 恭喜達標", `達成連續答對 ${targetScore} 題！`, finishQuiz);
+            } else {
+                document.getElementById('score-counter').textContent = `累積答對: ${correctCount}`;
+                if (correctCount >= targetScore) return showModal("🎉 恭喜達標", `累積答對 ${targetScore} 題！`, finishQuiz);
+            }
+
+            currentQuestionIndex++;
+            renderQuestion();
+        }
+
+        function finishQuiz() {
+            clearInterval(timerInterval);
+            const correctTotal = userAnswers.filter(a => a.correct).length;
+            const rate = Math.round((correctTotal / userAnswers.length) * 100) || 0;
+
+            const now = new Date();
+            const dateStr = `${now.getFullYear()} / ${now.getMonth() + 1} / ${now.getDate()}`;
+
+            document.getElementById('quiz-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('hidden');
+
+            document.getElementById('res-class').textContent = currentUser.class;
+            document.getElementById('res-no').textContent = currentUser.no;
+            document.getElementById('res-name').textContent = currentUser.name;
+            document.getElementById('res-date').textContent = dateStr;
+            
+            const fullChapterName = studyNotes[currentChapterId] ? studyNotes[currentChapterId].title : currentChapterId;
+            document.getElementById('res-chapter').textContent = fullChapterName;
+            
+            document.getElementById('res-duration').textContent = `${Math.floor(seconds/60)}m ${seconds%60}s`;
+            document.getElementById('res-total').textContent = userAnswers.length;
+            document.getElementById('res-correct').textContent = correctTotal;
+            document.getElementById('res-rate').textContent = rate + "%";
+            
+            // 判斷是否過關
+            let isPass = false;
+            if (quizMode === "streak" && streak >= targetScore) isPass = true;
+            if (quizMode === "accumulate" && correctCount >= targetScore) isPass = true;
+            if (isPass) recordInfoLifePass(currentChapterId, rate);
+
+            const titleEl = document.getElementById('pass-status-title');
+            titleEl.textContent = isPass ? "QUIZ PASS CARD" : "QUIZ REPORT";
+            titleEl.className = isPass ? "text-4xl font-black text-blue-600 italic underline tracking-tighter uppercase" : "text-4xl font-black text-red-500 italic underline tracking-tighter uppercase";
+            document.getElementById('pass-msg').textContent = isPass ? "Excellent! You have mastered this chapter." : "Keep practicing! You can do it.";
+        }
+
+        // 新增：從警示單返回重點閱讀畫面
+        function backToStudyFromWarning() {
+            document.getElementById('warning-screen').classList.add('hidden');
+            document.getElementById('study-screen').classList.remove('hidden');
+        }
+
+        // 新增：完成挑戰後返回章節選擇畫面
+        function returnToChapters() {
+            document.getElementById('result-screen').classList.add('hidden');
+            document.getElementById('chapter-screen').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

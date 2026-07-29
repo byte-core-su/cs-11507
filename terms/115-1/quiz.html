@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動式測驗遊戲 - 知識大擂台</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入字體：黑體(粗) 讓字體更有綜藝節目的張力 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Firebase：使用學習平台共用的新專案設定 -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="../../firebase-config.js"></script>
+    <script src="../../shared/learner-profile.js"></script>
+    <script defer src="../../shared/site-shell.js"></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0f172a; 
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.4) 0%, transparent 60%),
+                radial-gradient(circle at 50% 100%, rgba(139, 92, 246, 0.3) 0%, transparent 60%);
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        
+        .hidden-screen {
+            display: none !important;
+        }
+
+        /* 綜藝節目主舞台面板 */
+        .tv-panel {
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+            border: 2px solid rgba(96, 165, 250, 0.3);
+            box-shadow: 
+                0 0 30px rgba(0, 0, 0, 0.8), 
+                inset 0 0 20px rgba(96, 165, 250, 0.1),
+                0 0 15px rgba(59, 130, 246, 0.4); 
+            backdrop-filter: blur(12px);
+        }
+
+        .title-text {
+            font-weight: 900;
+            background: linear-gradient(to bottom, #fef08a 0%, #eab308 50%, #b45309 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.8));
+            letter-spacing: 2px;
+        }
+
+        .btn-3d {
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            transform: translateY(0);
+        }
+        .btn-3d:active:not(:disabled) {
+            transform: translateY(6px); 
+        }
+        .btn-3d.bg-green-500 { box-shadow: 0 6px 0 #166534, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-green-500:active { box-shadow: 0 0px 0 #166534, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-yellow-500 { box-shadow: 0 6px 0 #854d0e, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-yellow-500:active { box-shadow: 0 0px 0 #854d0e, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-red-500 { box-shadow: 0 6px 0 #991b1b, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-red-500:active { box-shadow: 0 0px 0 #991b1b, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-blue-600 { box-shadow: 0 6px 0 #1e3a8a, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-blue-600:active:not(:disabled) { box-shadow: 0 0px 0 #1e3a8a, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-purple-600 { box-shadow: 0 6px 0 #581c87, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-purple-600:active:not(:disabled) { box-shadow: 0 0px 0 #581c87, 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .btn-3d.bg-slate-600 { box-shadow: 0 6px 0 #334155, 0 8px 10px rgba(0,0,0,0.5); }
+        .btn-3d.bg-slate-600:active:not(:disabled) { box-shadow: 0 0px 0 #334155, 0 2px 5px rgba(0,0,0,0.5); }
+
+        .btn-3d:disabled { transform: translateY(6px); box-shadow: none; opacity: 0.7; }
+
+        .option-tv {
+            background: linear-gradient(to right, #1e293b, #0f172a);
+            border: 2px solid #334155;
+            color: #cbd5e1;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+            position: relative;
+            overflow: hidden;
+        }
+        .option-tv:hover {
+            border-color: #60a5fa;
+            background: linear-gradient(to right, #1e3a8a, #172554);
+            color: #fff;
+            transform: scale(1.01);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+        .option-tv.selected {
+            background: linear-gradient(to right, #ea580c, #c2410c); 
+            border-color: #fb923c;
+            color: #fff;
+            transform: scale(1.03);
+            box-shadow: 0 0 20px rgba(234, 88, 12, 0.6), 0 4px 0 #9a3412; 
+        }
+        .option-tv.selected:active {
+            transform: scale(1.03) translateY(4px);
+            box-shadow: 0 0 20px rgba(234, 88, 12, 0.6), 0 0px 0 #9a3412;
+        }
+
+        .neon-score {
+            font-family: monospace;
+            color: #22d3ee; 
+            text-shadow: 0 0 5px #22d3ee, 0 0 10px #22d3ee, 0 0 20px #0891b2;
+        }
+
+        .timer-bar {
+            transition: width 1s linear, background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .timer-glow-green { box-shadow: 0 0 15px #4ade80; }
+        .timer-glow-yellow { box-shadow: 0 0 15px #facc15; }
+        .timer-glow-red { box-shadow: 0 0 15px #f87171; }
+
+        @keyframes pulse-heart {
+            0% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.8)); }
+            50% { transform: scale(1.15); filter: drop-shadow(0 0 15px rgba(239, 68, 68, 1)); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.8)); }
+        }
+        .heart-icon {
+            display: inline-block;
+            color: #ef4444; 
+            font-size: 1.5rem;
+            margin-right: 4px;
+            animation: pulse-heart 1.5s infinite;
+        }
+        .heart-lost {
+            color: #334155; 
+            text-decoration: line-through;
+            opacity: 0.5;
+            animation: none;
+            filter: none;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-15px) rotate(-2deg); }
+            40% { transform: translateX(15px) rotate(2deg); }
+            60% { transform: translateX(-10px) rotate(-1deg); }
+            80% { transform: translateX(10px) rotate(1deg); }
+        }
+        .screen-shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .live-indicator {
+            animation: blink 1.5s infinite;
+        }
+        
+        /* 英雄榜表格樣式 */
+        .leaderboard-table th, .leaderboard-table td {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem;
+            text-align: center;
+        }
+        .leaderboard-table tr:last-child td {
+            border-bottom: none;
+        }
+        .leaderboard-table tr:nth-child(1) td { color: #fef08a; font-weight: bold; } /* 第一名黃金 */
+        .leaderboard-table tr:nth-child(2) td { color: #e2e8f0; font-weight: bold; } /* 第二名白銀 */
+        .leaderboard-table tr:nth-child(3) td { color: #fed7aa; font-weight: bold; } /* 第三名青銅 */
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="fixed top-0 left-0 w-full h-full pointer-events-none z-0 flex justify-between px-10 pt-10">
+        <div class="w-32 h-32 rounded-full bg-blue-600/20 blur-3xl"></div>
+        <div class="w-32 h-32 rounded-full bg-purple-600/20 blur-3xl"></div>
+    </div>
+
+    <div id="main-container" class="tv-panel rounded-3xl w-full max-w-md overflow-hidden relative z-10 my-4">
+        
+        <!-- 左上角 LIVE 標籤 -->
+        <div class="absolute top-4 left-4 flex items-center space-x-2 z-20">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500 live-indicator shadow-[0_0_8px_#ef4444]"></div>
+            <span class="text-xs font-bold text-red-400 tracking-wider">LIVE</span>
+        </div>
+
+        <div id="screen-locked" class="hidden-screen p-8 pt-16 text-center">
+            <div class="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-full border border-yellow-300/40 bg-yellow-400/10 text-4xl shadow-[0_0_30px_rgba(250,204,21,0.18)]">🔒</div>
+            <p class="text-xs font-black tracking-[0.18em] text-yellow-400">ADVANCED REVIEW</p>
+            <h1 class="mt-2 text-3xl font-black text-white">知識大擂台尚未開放</h1>
+            <p id="unlock-status" class="mt-4 leading-relaxed text-slate-300">正在確認資訊生活集章進度…</p>
+            <div class="mt-7 space-y-3">
+                <a href="infolife.html" class="btn-3d flex w-full items-center justify-center rounded-2xl border border-blue-400 bg-blue-600 px-6 py-4 text-lg font-black text-white">前往資訊生活・集章牆</a>
+                <button onclick="refreshQuizUnlock()" class="w-full rounded-xl py-2 text-sm font-bold text-slate-400 hover:text-white">重新檢查解鎖狀態</button>
+            </div>
+        </div>
+
+        <div id="screen-start" class="p-8 text-center pt-16">
+            <div class="mb-4 relative">
+                <div class="absolute -top-6 -left-2 text-yellow-400 animate-pulse text-2xl">✨</div>
+                <div class="absolute bottom-0 -right-2 text-yellow-400 animate-pulse text-xl" style="animation-delay: 0.5s">✨</div>
+                
+                <h1 class="text-5xl title-text mb-2">知識大擂台</h1>
+                <h2 class="text-xl font-bold text-blue-300 tracking-widest mt-2">KNOWLEDGE QUIZ</h2>
+            </div>
+            
+            <p class="text-slate-300 mb-6 font-medium">挑戰 120 題極限題庫！<br>每題 <span class="text-yellow-400 text-lg font-bold">10</span> 秒，準備好稱霸全場了嗎？</p>
+            
+            <div class="space-y-4 mb-6">
+                <button onclick="startGame('easy')" class="btn-3d w-full py-4 px-6 bg-green-500 text-white rounded-2xl font-black text-xl flex justify-between items-center border border-green-400">
+                    <span class="tracking-widest">簡單模式</span>
+                    <span class="text-sm bg-black/30 px-3 py-1.5 rounded-lg border border-white/20">3 條命 ❤️❤️❤️</span>
+                </button>
+                <button onclick="startGame('normal')" class="btn-3d w-full py-4 px-6 bg-yellow-500 text-white rounded-2xl font-black text-xl flex justify-between items-center border border-yellow-400">
+                    <span class="tracking-widest">普通模式</span>
+                    <span class="text-sm bg-black/30 px-3 py-1.5 rounded-lg border border-white/20">2 條命 ❤️❤️</span>
+                </button>
+                <button onclick="startGame('hard')" class="btn-3d w-full py-4 px-6 bg-red-500 text-white rounded-2xl font-black text-xl flex justify-between items-center border border-red-400">
+                    <span class="tracking-widest">地獄模式</span>
+                    <span class="text-sm bg-black/30 px-3 py-1.5 rounded-lg border border-white/20">1 條命 ❤️</span>
+                </button>
+            </div>
+            
+            <!-- 查看英雄榜按鈕 -->
+            <button onclick="showLeaderboardScreen()" class="btn-3d w-full py-3 px-6 bg-purple-600 text-white rounded-2xl font-bold text-lg border border-purple-400">
+                🏆 查看英雄榜
+            </button>
+        </div>
+
+        <div id="screen-quiz" class="hidden-screen flex flex-col h-full">
+            <div class="bg-slate-900/80 p-4 border-b border-slate-700 flex justify-between items-center pt-10">
+                <div class="flex flex-col">
+                    <span class="text-xs text-blue-400 uppercase font-black tracking-widest mb-1 shadow-sm">SCORE / 分數</span>
+                    <span id="score-display" class="text-3xl font-black neon-score">0</span>
+                </div>
+                <div class="flex flex-col items-end">
+                    <span class="text-xs text-red-400 uppercase font-black tracking-widest mb-1">LIVES / 生命</span>
+                    <div id="lives-container" class="flex bg-black/40 px-2 py-1 rounded-lg border border-slate-700">
+                    </div>
+                </div>
+            </div>
+
+            <div class="h-2 w-full bg-slate-800 border-b border-slate-700/50">
+                <div id="timer-bar" class="h-full bg-green-400 timer-bar timer-glow-green w-full"></div>
+            </div>
+
+            <div class="p-6 flex-grow relative">
+                <div class="flex justify-between items-end mb-4">
+                    <span class="text-sm font-bold text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700" id="question-counter">第 1 題 (剩餘 120 題)</span>
+                    <div id="time-text-container" class="bg-slate-800 w-12 h-12 rounded-full flex items-center justify-center border-2 border-slate-600 shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                        <span id="time-text" class="text-xl font-black text-white">10</span>
+                    </div>
+                </div>
+                
+                <div class="bg-gradient-to-b from-blue-900/40 to-slate-900/40 border border-blue-500/30 p-5 rounded-2xl mb-6 shadow-inner relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
+                    <h2 id="question-text" class="text-xl font-bold text-white mb-2 leading-relaxed tracking-wide text-shadow"></h2>
+                </div>
+
+                <div id="options-container" class="space-y-4"></div>
+            </div>
+
+            <div class="p-6 bg-slate-900/80 border-t border-slate-700/50">
+                <button id="submit-btn" onclick="submitAnswer()" disabled class="btn-3d w-full py-4 bg-blue-600 disabled:bg-slate-700 disabled:text-slate-500 disabled:border-slate-600 text-white rounded-2xl font-black text-xl tracking-widest border border-blue-400">
+                    確認送出 (LOCK IN)
+                </button>
+            </div>
+            
+            <div id="feedback-overlay" class="absolute inset-0 flex items-center justify-center bg-slate-900/90 hidden-screen backdrop-blur-md z-50">
+                <div id="feedback-content" class="text-center transform scale-50 opacity-0 transition-all duration-300 ease-out w-full px-6"></div>
+            </div>
+        </div>
+
+        <div id="screen-result" class="hidden-screen p-8 text-center pt-16">
+            <div id="result-icon-container" class="mb-6 relative inline-block"></div>
+            <h2 id="result-title" class="text-4xl font-black mb-2 text-white drop-shadow-lg">遊戲結束</h2>
+            <p id="result-message" class="text-slate-300 mb-6 font-medium">本次挑戰最終結算：</p>
+            
+            <div class="bg-black/50 rounded-2xl p-6 mb-6 border border-slate-700 shadow-inner relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-32 h-32 bg-blue-600/20 rounded-full blur-2xl"></div>
+                
+                <div class="text-sm text-blue-400 uppercase font-black tracking-widest mb-2">FINAL SCORE</div>
+                <div id="final-score" class="text-5xl font-black text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)] mb-4">0</div>
+                
+                <div class="border-t border-slate-700/50 pt-4 mt-2 flex justify-around text-lg font-bold text-slate-300">
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-slate-500 mb-1">答對</span>
+                        <span id="correct-count" class="text-green-400 text-2xl">0</span>
+                    </div>
+                    <div class="w-px bg-slate-700"></div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-slate-500 mb-1">答錯</span>
+                        <span id="wrong-count" class="text-red-400 text-2xl">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="record-submission-area" class="mb-6 p-4 bg-purple-900/30 border border-purple-500/50 rounded-xl hidden-screen">
+                <h3 class="text-yellow-400 font-bold mb-2">🎉 恭喜！您的分數進入前十名！</h3>
+                <p class="text-xs text-slate-300 mb-3">請輸入學號登錄英雄榜 (限7位數且15開頭)</p>
+                <div class="flex space-x-2">
+                    <input type="text" id="student-id-input" readonly class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-center font-mono focus:outline-none" aria-describedby="profile-score-help">
+                    <button onclick="submitScoreToLeaderboard()" id="submit-score-btn" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold transition-colors shrink-0">登錄</button>
+                </div>
+                <p id="profile-score-help" class="text-slate-400 text-xs mt-2">學號由入口網學生資料自動帶入。</p>
+                <p id="submission-error" class="text-red-400 text-xs mt-2 hidden-screen"></p>
+                <p id="submission-success" class="text-green-400 text-sm mt-2 font-bold hidden-screen">✅ 登錄成功！</p>
+            </div>
+
+            <div class="space-y-3">
+                <button onclick="showLeaderboardScreen()" class="btn-3d w-full py-3 bg-purple-600 text-white rounded-xl font-bold text-lg border border-purple-400">
+                    查看英雄榜
+                </button>
+                <button onclick="showStartScreen()" class="btn-3d w-full py-3 bg-slate-600 text-white rounded-xl font-bold text-lg border border-slate-500">
+                    回到首頁
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-leaderboard" class="hidden-screen p-6 pt-16 flex flex-col h-[600px]">
+            <h2 class="text-3xl font-black mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-md">🏆 英雄榜</h2>
+            
+            <!-- 難度分頁按鈕 -->
+            <div class="flex bg-slate-800 rounded-lg p-1 mb-6 border border-slate-700">
+                <button onclick="loadLeaderboardData('easy')" id="tab-easy" class="flex-1 py-2 text-sm font-bold rounded-md text-slate-400 transition-colors">簡單</button>
+                <button onclick="loadLeaderboardData('normal')" id="tab-normal" class="flex-1 py-2 text-sm font-bold rounded-md text-slate-400 transition-colors">普通</button>
+                <button onclick="loadLeaderboardData('hard')" id="tab-hard" class="flex-1 py-2 text-sm font-bold rounded-md text-slate-400 transition-colors">困難</button>
+            </div>
+
+            <div class="flex-grow bg-slate-900/80 border border-slate-700 rounded-xl overflow-hidden relative">
+                <div id="leaderboard-loading" class="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 hidden-screen">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+                </div>
+                
+                <div class="overflow-y-auto h-full p-2">
+                    <table class="w-full text-sm leaderboard-table">
+                        <thead class="text-xs text-slate-400 bg-slate-800/50">
+                            <tr>
+                                <th class="w-16">排名</th>
+                                <th>學號</th>
+                                <th class="w-24">分數</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body">
+                            <!-- 資料由 JS 動態填入 -->
+                        </tbody>
+                    </table>
+                    <div id="leaderboard-empty" class="text-center text-slate-500 py-8 hidden-screen">尚無紀錄，成為第一位上榜者吧！</div>
+                </div>
+            </div>
+
+            <button onclick="showStartScreen()" class="mt-6 btn-3d w-full py-3 bg-slate-600 text-white rounded-xl font-bold text-lg border border-slate-500 shrink-0">
+                返回首頁
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        const firebaseConfig = window.LEARNING_FIREBASE_CONFIG;
+        const currentTermId = '115-1';
+
+        // 初始化 Firebase (確保只初始化一次)
+        let db;
+        let authReadyPromise = Promise.resolve();
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+            authReadyPromise = new Promise((resolve, reject) => {
+                let unsubscribe = () => {};
+                unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+                    unsubscribe();
+                    if (user && !user.isAnonymous) resolve(user);
+                    else reject(new Error('請先由入口網完成學生登入'));
+                }, reject);
+            });
+        } catch (error) {
+            console.error("Firebase 初始化失敗:", error);
+            // alert("Firebase 未正確設定，英雄榜功能將無法運作。");
+        }
+
+        // --- 120 題完整題庫 ---
+        const allQuestions = [
+            // 第一批 (資訊科技與生活)
+            { question: "下列哪一項最能概括「資訊科技」的定義？", options: ["純粹的電腦硬體發展", "只指網路連線技術", "單一應用程式的功能", "資料取得、處理、傳遞與應用的技術與系統"], answer: 3 },
+            { question: "AI (人工智慧) 在日常生活中的典型應用是下列何者？", options: ["手動輸入資料的資料庫管理", "只用於工廠的機械臂控制", "純粹的硬體升級", "語音助理或個人化推薦系統"], answer: 3 },
+            { question: "下列哪項敘述最能描述「物聯網 (IoT)」？", options: ["只指大型資料中心的運算", "純粹是社群媒體平台", "只有行動應用程式的設計", "透過感測器與網路連結實體物品以交換資料"], answer: 3 },
+            { question: "QR Code 最常用來做為下列哪種用途？", options: ["快速連結到網頁或資訊", "替代雲端儲存服務", "作為高解析影像格式", "取代身分證或護照"], answer: 0 },
+            { question: "擴增實境 (AR) 與虛擬實境 (VR) 最大的差別是什麼？", options: ["AR 只能用在手機，VR 只能用在頭戴裝置", "兩者在原理上沒有差別", "VR 是 AR 的升級版", "AR 疊加虛擬資訊在真實世界，VR 創造完全虛擬的場景"], answer: 3 },
+            { question: "在內容中提到的「衣、住、行、育、樂」用來說明什麼概念？", options: ["生活各面向，顯示科技的影響", "只有傳統文化分類", "指特定的科技公司分類", "政府部門的行政區分"], answer: 0 },
+            { question: "App (應用程式) 在現代生活的主要功能為何？", options: ["取代作業系統的核心功能", "僅用於遊戲娛樂", "只在桌機上執行", "提供特定服務或功能以便利日常生活"], answer: 3 },
+            { question: "從過去到現在，科技對「住」的改變最可能包含下列哪一項？", options: ["全由人工管理而無自動化", "居家完全不受網路影響", "智慧家電與遠端監控功能", "僅增加居住空間大小"], answer: 2 },
+            { question: "教科內容中多次提到「AI 的出現代表什麼趨勢？」", options: ["智能化與自動化滲透生活與產業", "AI 只屬於科幻題材", "AI 完全取代人類所有職能", "AI 僅用於影像處理領域"], answer: 0 },
+            { question: "下列哪一項「不是」資訊科技對教育 (育) 可能帶來的改變？", options: ["遠距教學與線上資源普及", "完全消除學習中的人際互動", "個人化學習與即時回饋", "模擬與虛擬實驗的學習機會"], answer: 1 },
+            { question: "虛擬實境 (VR) 在娛樂產業的優勢主要是什麼？", options: ["提供高度沉浸式的體驗與互動", "降低內容製作成本為唯一優勢", "取代所有傳統影像媒體", "只能用於教育而非娛樂"], answer: 0 },
+            { question: "下列哪一項屬於擴增實境 (AR) 的應用範例？", options: ["手機鏡頭疊加導航路徑與說明", "完全由電腦生成的虛擬世界遊戲", "只有錄影功能的相機", "紙本書籍的靜態內容"], answer: 0 },
+            { question: "資訊科技普及後，對於交通 (行) 最可能的正面影響是？", options: ["完全消除所有交通需求", "使道路變得更狹窄", "導致交通資訊完全失真", "優化路況管理與導航，提高效率與安全"], answer: 3 },
+            { question: "在健康監測方面，物聯網 (IoT) 裝置最直接的好處為何？", options: ["完全替代醫師診斷", "只用於娛樂用途", "即時收集生理資料以利遠端監控", "使個人資料永遠不需保護"], answer: 2 },
+            { question: "在內容中多次以「過去」與「現在」對照科技的變化，這種比較最主要用意是什麼？", options: ["證明過去的技術總是不重要", "表示現在所有技術都是負面", "暗示科技進步沒有規律", "顯示科技演進如何改變生活與服務"], answer: 3 },
+            { question: "下列哪項是資訊科技帶來的普遍挑戰之一？", options: ["使所有資料都變得不可用", "減少人與人之間所有交流", "讓硬體不再需要更新", "資訊安全與個人隱私風險增加"], answer: 3 },
+            { question: "關於「AI 不是萬能」的常見誤解，下列哪一項是正確的修正？", options: ["AI 能自動具備所有倫理判斷", "AI 不需任何資料就能運作", "AI 在特定任務優秀但仍需人類監督", "AI 能完全替代創造力與直覺"], answer: 2 },
+            { question: "教學內容中，把「資訊科技導論」放在課程一章，主要目的為何？", options: ["建立基本概念與學習脈絡", "替代所有進階課程內容", "專門教習電腦硬體組裝", "僅為課程歷史回顧"], answer: 0 },
+            { question: "在文中提到的「現在」科技趨勢中，哪一項最常被反覆提及？", options: ["人工智慧 (AI)", "傳統紙本媒體", "手工製作工藝", "無需網路的技術"], answer: 0 },
+            { question: "以下關於資訊科技與生活的敘述，哪一項是合理的總結？", options: ["科技只有負面影響，應全面抵制", "科技從未改變日常生活", "科技帶來便利與風險，需平衡管理", "科技已達完美無須改進"], answer: 2 },
+            
+            // 第二批 (資訊安全與倫理)
+            { question: "下列哪一項最能代表資訊安全的重要性？", options: ["讓電腦跑比較快", "保護系統與個人資料免於被入侵或竊取", "增加手機功能", "提升網頁美觀度"], answer: 1 },
+            { question: "在搶票情境中，為何常會使用驗證碼 (captcha)？", options: ["避免登錄資料外洩", "阻止自動化程式大量搶票", "提高票價", "確認信用卡有效性"], answer: 1 },
+            { question: "下列哪一種行為屬於侵犯資訊安全的例子？", options: ["整理電腦檔案", "非法入侵他人網站", "定期備份資料", "使用防毒軟體"], answer: 1 },
+            { question: "何者不是數位著作合理使用原則討論的重點？", options: ["增加載具容量", "著作權法的限制與例外", "數位著作的取得與散布", "使用數位著作是否違法"], answer: 0 },
+            { question: "若要在影片頻道介紹古蹟並使用他人資料，首要的正確步驟是？", options: ["直接上傳並標註來源即可", "取得授權再使用", "只使用截圖不需授權", "只分享連結就能使用"], answer: 1 },
+            { question: "資訊倫理中提到的「近用權 (accessibility)」主要是指什麼？", options: ["個人資料的加密方式", "公平近用數位產品的權利", "網路速度的快慢", "網站外觀設計"], answer: 1 },
+            { question: "當同學在私下分享別人的糗事並在網路傳播，這違反了哪一項資訊倫理？", options: ["尊重隱私權", "著作權保護", "系統整合原則", "硬體製造規範"], answer: 0 },
+            { question: "下列哪一項屬於資訊科技與相關法律會規範的範圍？", options: ["手機外殼設計審核", "著作權與個人資料保護", "餐廳衛生檢查", "建築結構法規"], answer: 1 },
+            { question: "晴茹將動漫畫面印製鑰匙圈並販售，最可能違反下列哪一項？", options: ["個人資料保護法", "資訊安全政策", "著作權法", "交通規則"], answer: 2 },
+            { question: "數位匯流影響傳統媒體的一個明顯現象是：", options: ["所有報紙停刊", "電視無需廣告", "人人都能成為自媒體", "廣播成為唯一媒體"], answer: 2 },
+            { question: "資訊產業 (IT 產業) 通常不包括下列哪一項？", options: ["農業生產", "軟體設計", "硬體製造", "電子商務"], answer: 0 },
+            { question: "資訊產業的一個共同特徵是：", options: ["完全不需要專業訓練", "產品壽命極長不需更新", "低度國際化", "從業人員素質要求高"], answer: 3 },
+            { question: "在生活中，資訊科技如何改變人們的學習方式？", options: ["使學習不再受時間與空間限制", "完全取代教師的角色", "使所有人都停止閱讀書籍", "降低學習內容的多樣性"], answer: 0 },
+            { question: "面對 AI 介入網路世界與假訊息，下列何者為正確態度？", options: ["培養媒體素養與謹慎檢核資訊", "完全信任所有 AI 生成內容", "忽略所有網路資訊", "只相信社群媒體貼文"], answer: 0 },
+            { question: "當要使用網路上找到的圖片做教學簡報且不改賣，較安全的做法是：", options: ["直接放入簡報不需標註", "截圖並改色就合法", "確認授權或使用可自由授權的圖片", "翻拍他人畫面使用"], answer: 2 },
+            { question: "下列哪一項屬於資訊安全的常見威脅？", options: ["電腦病毒", "紙本書損壞", "雨天停電", "交通阻塞"], answer: 0 },
+            { question: "若想讓更多不同背景的人能使用線上課程，應優先考量什麼？", options: ["只增加內容長度", "提升廣告收益", "改善無障礙設計以提高近用性", "限制使用者人數"], answer: 2 },
+            { question: "何者描述最貼近自媒體的特性？", options: ["由政府統一發布訊息的平台", "個人或團隊在網路上發布內容的管道", "只有大公司能經營的平台", "僅限文字的媒體形式"], answer: 1 },
+            { question: "教材中提到的資訊產業類別不包含下列哪一項？", options: ["硬體製造", "軟體設計", "餐飲服務", "網路通訊"], answer: 2 },
+            { question: "若發現朋友在網路上散布別人未經同意的私密訊息，最合適的回應是？", options: ["立刻轉發給更多人", "私下提醒並請對方停止散布", "模仿散布以獲得關注", "公開羞辱當事人以示警告"], answer: 1 },
+
+            // 第三批 (流程圖與程式概念)
+            { question: "流程圖最主要的用途是什麼？", options: ["美化報告版面", "取代程式語言撰寫程式", "記錄使用者帳號密碼", "以圖形表示演算法步驟與決策"], answer: 3 },
+            { question: "下列哪一項最能代表低階語言的特性？", options: ["容易跨平台使用", "以自然語言為基礎", "主要用於網頁設計", "接近機器、需組譯轉為機器語言"], answer: 3 },
+            { question: "愛達.勒芙蕾絲 (Ada Lovelace) 在程式發展史上主要被視為什麼？", options: ["第一位程式設計師", "發明電腦硬體", "創立程式語言標準化機構", "發明二進位制"], answer: 0 },
+            { question: "Jacquard 提花織布機的重要意義為何？", options: ["以穿孔卡片概念啟發自動化控制", "發明電動馬達", "建立第一個程式語言語法", "解決布料染色問題"], answer: 0 },
+            { question: "在教材中提到 Scratch 版本為何？", options: ["Scratch 2.0", "Scratch 3.0", "Scratch 4.0", "未指定版本"], answer: 1 },
+            { question: "下列哪一個不是程式語言的主要功能 (根據教材)？", options: ["描述運算邏輯", "控制硬體資源分配", "用於塗鴉或藝術創作的美術工具", "處理資料與輸出結果"], answer: 2 },
+            { question: "在教材的 Scratch 範例中，計算兩數平均的方法主要用到哪個運算式？", options: ["A - B", "A * B", "(A + B) / 2", "A ^ B"], answer: 2 },
+            { question: "教材中顯示高階語言轉換為機器語言的過程通常稱為什麼？", options: ["加密", "壓縮", "模擬", "翻譯/編譯"], answer: 3 },
+            { question: "下列哪一項屬於教材提到的程式語言例子？", options: ["HTML5", "SQL Server", "LaTeX", "Python"], answer: 3 },
+            { question: "教材中展示的 Python 範例用於做什麼判斷？", options: ["計算平均數", "驗證輸入的密碼是否為特定值", "排序數列", "產生隨機數"], answer: 1 },
+            { question: "教材中提到的組譯程式 (assembler) 主要用途是什麼？", options: ["將高階語言轉為自然語言", "將機器語言轉為高階語言", "將組合語言轉為機器語言", "加速網路傳輸"], answer: 2 },
+            { question: "教材中以乾冰汽水製作流程為例，主要是用來說明哪個概念？", options: ["食譜配方的營養分析", "化學實驗安全守則", "用流程圖表示演算法步驟", "材料成本估算"], answer: 2 },
+            { question: "教材提到的歷史人物 Joseph Marie Jacquard 與哪一項發明有關？", options: ["電動引擎", "印刷機", "蒸汽機", "提花織布機"], answer: 3 },
+            { question: "在 Scratch 範例中，若要等待 0.2 秒再移動，哪個敘述最符合教材流程？", options: ["立即移動然後等待 2 秒", "重複移動直到滿足條件", "只等待不移動", "等待 0.2 秒後移動 10 點"], answer: 3 },
+            { question: "教材中提到的程式語言發展順序，下列敘述何者較合理？", options: ["高階語言先於低階語言", "現代語言出現在 1800 年代", "由低階與組合語言逐步發展到高階語言", "所有語言同時出現"], answer: 2 },
+            { question: "教材中展示 Scratch 的哪種概念屬於事件驅動？", options: ["遞迴呼叫", "同步等待輸入", "靜態排版", "當被點擊觸發動作"], answer: 3 },
+            { question: "教材中的問與答方塊 (ask and wait) 在 Scratch 中用途為何？", options: ["用於啟動背景音樂", "向使用者詢問並等待輸入", "重設角色造型", "清除舞台所有角色"], answer: 1 },
+            { question: "教材中顯示的二進位圖案 (0 1 0 1) 主要是用來表示什麼？", options: ["二進位資料表示法", "十進位數字系統", "字元語意標記", "顏色編碼"], answer: 0 },
+            { question: "教材裡提到的程式語言應用範圍不包含下列哪一項？", options: ["桌面應用程式開發", "替代手寫筆跡以進行書法藝術創作", "網路雲端服務", "教育與互動媒體"], answer: 1 },
+            { question: "教材中說明將使用者輸入存入變數的流程，下列哪一項描述正確？", options: ["直接將變數顯示在螢幕上即可完成儲存", "變數只能由系統自動建立", "輸入後無法在程式中再次使用", "使用 ask 並等待，然後把答案設為變數"], answer: 3 },
+
+            // 第四批 (Scratch 基礎測驗)
+            { question: "Scratch 的舞台座標原點通常位於哪裡?", options: ["左上角", "右下角", "左下角", "舞台中心"], answer: 3 },
+            { question: "哪一類積木用來改變角色的外觀或造型?", options: ["動作積木", "外觀積木", "偵測積木", "控制積木"], answer: 1 },
+            { question: "若要讓角色連續反覆執行某動作,應使用哪種控制積木?", options: ["等待秒", "重複次", "如果那麼", "說出持續秒"], answer: 1 },
+            { question: "哪一個事件可以在角色被點擊時觸發程式?", options: ["當被點擊", "當鍵被按下", "當背景換成", "廣播訊息"], answer: 0 },
+            { question: "要讓角色移動 10 點,應使用下列哪一個動作積木?", options: ["移動點 10", "右轉度 15", "定位到隨機位置", "滑行秒到 x:y"], answer: 0 },
+            { question: "哪一種積木可用來在各造型之間切換,以產生動畫效果?", options: ["造型換成下一個", "改變尺寸", "定位到 x:y", "廣播訊息"], answer: 0 },
+            { question: "在 Scratch 中,廣播訊息的主要用途是什麼?", options: ["改變背景", "播放音效", "改變造型", "讓其他腳本接收並執行動作"], answer: 3 },
+            { question: "要讓角色對話並維持 2 秒鐘,應使用哪個外觀積木?", options: ["造型換成", "想著持續秒", "說出", "說出持續秒"], answer: 3 },
+            { question: "下列哪一個不是事件積木的觸發條件?", options: ["當鍵被按下", "當收到訊息", "當角色被點擊", "移動點 10"], answer: 3 },
+            { question: "若想讓角色滑行 1 秒到指定座標,應使用何種積木?", options: ["定位到隨機位置", "定位到 x:y", "滑行秒到 x:y", "移動點 10"], answer: 2 },
+            { question: "哪一個積木可用來判斷條件並選擇執行路徑?", options: ["等待直到", "重複次", "如果那麼", "造型換成下一個"], answer: 2 },
+            { question: "在製作簡易動畫時,常把哪三種動作搭配使用?", options: ["改變尺寸、廣播、停止程式", "音效、變數、運算", "定位到 x:y、右轉、說出", "移動、造型換成下一個、等待秒"], answer: 3 },
+            { question: "Scratch 3.0 線上版可以從哪裡存取?", options: ["https://scratch.mit.edu", "https://example.com", "本地檔案總管", "第三方應用市集"], answer: 0 },
+            { question: "哪一個積木可以設定角色朝向滑鼠?", options: ["右轉度 15", "定位到 x:y", "面朝向鼠標", "面朝度 90"], answer: 2 },
+            { question: "將角色尺寸設為 100% 對應到哪一個外觀設定?", options: ["角色隱藏", "角色翻轉", "角色以原始大小顯示", "角色開始動畫"], answer: 2 },
+            { question: "下列何者屬於偵測積木常見用途?", options: ["切換造型", "檢查是否碰到其他角色或顏色", "播放音效", "廣播訊息並等待"], answer: 1 },
+            { question: "廣播訊息並等待與一般廣播的差別是什麼?", options: ["沒有差別", "並等待會取消廣播", "並等待只廣播一次", "並等待會等待接收腳本完成"], answer: 3 },
+            { question: "若要讓角色說一句話但不立即消失,應選用何積木並設定時間?", options: ["想著", "說出", "說出持續秒", "造型換成下一個"], answer: 2 },
+            { question: "在範例動畫中,讓角色先定位到特定座標再開始動作,最常使用哪個積木?", options: ["定位到 x:y", "滑行秒到 x:y", "面朝向鼠標", "右轉度 15"], answer: 0 },
+            { question: "在教材示範中,若要讓小貓廣播訊息叫小狗回應,哪個流程較正確?", options: ["小狗直接改變造型後再廣播", "小貓改變背景就能自動觸發小狗", "小狗按鍵觸發後等待小貓廣播", "小貓廣播訊息,並由小狗的當收到訊息腳本回應"], answer: 3 },
+
+            // 第五批 (變數與程式結構)
+            { question: "在 Scratch 中，哪一項屬於「變數」積木可執行的動作？", options: ["切換角色造型", "儲存或改變數值", "播放背景音樂", "偵測碰撞"], answer: 1 },
+            { question: "下列哪一個流程最符合「循序結構」的特性？", options: ["使用 if 判斷後選擇不同道路", "重複執行直到達成條件", "並行同時執行兩個腳本", "指令一行接一行依序執行"], answer: 3 },
+            { question: "在範例中計算平均數時，應該先做哪個步驟？", options: ["直接顯示平均數", "建立新造型", "播放提示音", "詢問並把答案存入變數"], answer: 3 },
+            { question: "在 Scratch 中，要讓角色說出「平均數是 X」並帶入變數，應使用哪種積木？", options: ["播放音效積木", "字串組合並用說出積木顯示變數", "移動到指定座標積木", "改變造型積木"], answer: 1 },
+            { question: "以下哪一個公式正確描述教材中學期成績的加權計算？", options: ["學期成績 = 作業 + 測驗 + 平時表現", "學期成績 = (作業 + 測驗 + 平時表現) / 3", "學期成績 = 作業*0.4 + 測驗*0.4 + 平時表現*0.2", "學期成績 = 作業*0.2 + 測驗*0.2 + 平時表現*0.6"], answer: 2 },
+            { question: "在判斷及格或不及格的流程中，哪一個條件檢查最常被使用？", options: ["學期成績 < 60", "改變造型", "播放音效", "重複執行"], answer: 0 },
+            { question: "在計次式迴圈中，如果要把 1 到 4 相加，應該使用哪種重複方式？", options: ["重複直到碰到邊緣", "無限重複", "只執行一次", "重複次 4 並每次累加數字"], answer: 3 },
+            { question: "教材中示範從 1 加到 N 的演算法，開始時通常要先做什麼初始化？", options: ["把 N 設為 1", "把和的變數設為 0", "把數字變為 N 後直接說出", "把累加變數設為 N"], answer: 1 },
+            { question: "若要計算 N 的階乘 (N!)，教材建議的初始值為何？", options: ["0", "N", "N+1", "1"], answer: 3 },
+            { question: "在 Scratch 範例中，要重複直到角色碰到邊緣應使用哪種積木？", options: ["重複直到 碰到邊緣", "重複次 10", "如果 那麼", "停止所有"], answer: 0 },
+            { question: "在輸入密碼示例中，若錯誤三次要做什麼處理？", options: ["顯示帳號已被鎖定", "無限次要求再輸入", "重設密碼為空白", "立即登入"], answer: 0 },
+            { question: "在數字累加的程式中，將變數「數字」每次加 1 的積木是下列哪一種？", options: ["把數字設為 數字 * 1", "把數字設為 1", "把數字設為 數字 + 1", "把數字設為 數字 - 1"], answer: 2 },
+            { question: "在 Scratch 範例中，若要讓小貓詢問並等待使用者輸入，應使用哪一個積木？", options: ["詢問並等待", "廣播訊息", "播放音效", "重複直到"], answer: 0 },
+            { question: "在選擇結構中，哪一種形式同時處理成立與不成立的兩個分支？", options: ["只用 if (如果) 沒有 else", "if-else (如果 那麼 否則)", "重複直到", "重複次"], answer: 1 },
+            { question: "在教材示範的累加範例，顯示結果前通常會先做什麼？", options: ["把累加結果存入變數並選擇該變數顯示", "立即停止程式", "改變背景顏色", "播放音效再結束"], answer: 0 },
+            { question: "教材中示範用變數「次數」來記錄密碼輸入次數，初始值應設為多少？", options: ["1", "10", "100", "-1"], answer: 0 },
+            { question: "在計算平均數的程式中，若有三個數值 A、B、C，平均數的正確公式為何？", options: ["A + B + C", "(A + B + C) / 3", "A × B × C", "A + B - C"], answer: 1 },
+            { question: "在示範讓角色移動並換造型的迴圈中，哪個偵測常用來結束迴圈？", options: ["按下鍵盤任意鍵", "計數達到固定數字", "背景改變", "碰到邊緣"], answer: 3 },
+            { question: "在教材的重複範例中，若要讓數字從 0 開始增加，數字初始值應為多少？", options: ["1", "N", "0", "10"], answer: 2 },
+            { question: "教材中用字串組合顯示成績時，哪個積木能把文字和變數連接起來？", options: ["字串組合", "播放音效", "移動到 x:y", "改變造型"], answer: 0 },
+
+            // 第六批 (Scratch 畫筆與圖形)
+            { question: "在 Scratch 製作繪圖時，哪個積木用來讓角色開始畫線？", options: ["停筆", "筆跡全部清除", "下筆", "定位到 x:y:"], answer: 2 },
+            { question: "要把角色移動到舞臺右上角座標 (100,100)，應該使用哪個積木？", options: ["移動點 10", "下筆", "滑行秒到 x:y:", "定位到 x:y:"], answer: 3 },
+            { question: "要畫一個邊長為 200 的正方形，哪一個角度旋轉值最常用？", options: ["右轉度 90", "右轉度 30", "右轉度 45", "右轉度 60"], answer: 0 },
+            { question: "若要重複畫四條邊並轉向，哪一類控制積木最適合？", options: ["當被點擊", "重複次", "等待秒", "偵測"], answer: 1 },
+            { question: "要畫一個邊長逐步增加的擴散方形，哪種程式結構最適合處理邊長變化？", options: ["只用一個固定移動積木", "只用事件積木", "只用偵測積木", "在迴圈或序列中改變移動距離"], answer: 3 },
+            { question: "在 Scratch 中，哪個積木用來清除舞臺上所有筆跡？", options: ["停筆", "筆跡全部清除", "下筆", "蓋章"], answer: 1 },
+            { question: "要讓角色面朝舞臺中心 (0,0)，應該調整哪個屬性？", options: ["定位到 x:y:", "x 改變", "面朝度", "y 改變"], answer: 2 },
+            { question: "要在每次迴圈中讓筆跡寬度增大，應使用哪個積木組合？", options: ["每次都呼叫筆跡全部清除", "用變數記錄並在迴圈中改變後設為筆跡寬度", "只用下筆", "用定位到 x:y: 來改變寬度"], answer: 1 },
+            { question: "畫旋轉正方形時，若內層迴圈重複 4 次、外層迴圈重複 12 次，實際繪製了幾個小正方形？", options: ["12 個", "4 個", "48 個", "1 個"], answer: 0 },
+            { question: "範例中用變數記錄邊長，若要每次迴圈讓邊長增加 10，應使用哪個積木？", options: ["變數顯示", "變數隱藏", "變數設為 10", "改變 長度 10"], answer: 3 },
+            { question: "要讓程式在執行時詢問使用者數字並存入變數，應使用哪組積木？", options: ["說出 + 變數設為", "詢問並等待 + 變數設為詢問的答案", "變數顯示 + 停筆", "筆跡全部清除 + 詢問並等待"], answer: 1 },
+            { question: "在範例中計算兩個數字平均值時，哪一個運算順序是正確的？", options: ["先除其中一個再相加", "先相減再除以 2", "直接顯示第一個數", "兩數相加後再除以 2"], answer: 3 },
+            { question: "哪個積木可以在執行期間顯示變數在舞臺上的值？", options: ["變數顯示", "變數隱藏", "變數設為", "建立一個變數"], answer: 0 },
+            { question: "要讓角色朝向滑鼠指標方向，應使用哪個動作積木？", options: ["面朝向鼠標", "面朝度", "定位到 x:y:", "右轉度 15"], answer: 0 },
+            { question: "在範例裡，若想停止畫筆但保留已畫線條，應使用哪個積木？", options: ["停筆", "筆跡全部清除", "下筆", "蓋章"], answer: 0 },
+            { question: "在繪製循序增加的邊長方形時，哪項概念最重要以確保邊長會改變？", options: ["只靠等待秒來改變距離", "用變數並在迴圈中改變其值", "用筆跡全部清除來改變邊長", "用蓋章來標記長度"], answer: 1 },
+            { question: "巢狀迴圈畫旋轉正方形時，外層控制什麼行為？", options: ["控制整體旋轉次數", "畫單一邊的移動", "設定筆跡寬度", "詢問使用者輸入"], answer: 0 },
+            { question: "哪個積木可以改變畫筆顏色或筆跡顏色？", options: ["筆跡顏色設為", "停筆", "筆跡全部清除", "下筆"], answer: 0 },
+            { question: "在範例計次式迴圈中，若要等待 0.5 秒再畫下一步，應使用哪個積木？", options: ["重複次", "等待秒", "下筆", "定位到 x:y:"], answer: 1 },
+            { question: "下列哪一項最能描述 Scratch 中的函式積木 (自訂積木) 用途？", options: ["用來顯示變數值在舞臺上", "自動清除所有筆跡", "只能處理偵測事件", "將常用程式碼封裝成可重複呼叫的積木"], answer: 3 }
+        ];
+
+        let currentDifficulty = 'normal';
+        let maxLives = 2;
+        let currentLives = 2;
+        let score = 0;
+        let roundQuestionCount = 0;
+        let selectedOptionIndex = null;
+        let currentCorrectOptionIndex = null;
+        
+        let timeLeft = 10;
+        const TIME_LIMIT = 10;
+        let timerInterval = null;
+        let timerStartTimestamp = 0;
+
+        let correctAnswersCount = 0;
+        let wrongAnswersCount = 0;
+
+        let questionQueue = [];
+        let totalQuestionsAtStart = 0;
+        let isFinalScoreSubmittable = false;
+        let quizUnlocked = false;
+        const leaderboardLimit = 20;
+        const requiredInfoLifeCertificates = new Set(['1-1', '1-2', 'CH1', '2-1', '2-2', '2-3', '2-4', 'CH2']);
+
+        const screens = {
+            locked: document.getElementById('screen-locked'),
+            start: document.getElementById('screen-start'),
+            quiz: document.getElementById('screen-quiz'),
+            result: document.getElementById('screen-result'),
+            leaderboard: document.getElementById('screen-leaderboard')
+        };
+        const ui = {
+            mainContainer: document.getElementById('main-container'),
+            score: document.getElementById('score-display'),
+            lives: document.getElementById('lives-container'),
+            questionCounter: document.getElementById('question-counter'),
+            timeText: document.getElementById('time-text'),
+            timeContainer: document.getElementById('time-text-container'),
+            timerBar: document.getElementById('timer-bar'),
+            questionText: document.getElementById('question-text'),
+            optionsContainer: document.getElementById('options-container'),
+            submitBtn: document.getElementById('submit-btn'),
+            feedbackOverlay: document.getElementById('feedback-overlay'),
+            feedbackContent: document.getElementById('feedback-content')
+        };
+
+        // 洗牌陣列函式
+        function shuffleArray(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        function showScreen(screenName) {
+            Object.values(screens).forEach(screen => screen.classList.add('hidden-screen'));
+            screens[screenName].classList.remove('hidden-screen');
+        }
+
+        function showStartScreen() {
+            showScreen(quizUnlocked ? 'start' : 'locked');
+        }
+        const leaderboardScores = (difficulty) => db.collection('leaderboards').doc(currentTermId).collection('difficulties').doc(difficulty).collection('scores');
+
+        function showLeaderboardScreen() {
+            if (!quizUnlocked) { showScreen('locked'); return; }
+            showScreen('leaderboard');
+            loadLeaderboardData('normal'); // 預設載入普通模式
+        }
+
+        function startGame(difficulty) {
+            if (!quizUnlocked) { showScreen('locked'); return; }
+            currentDifficulty = difficulty;
+            switch(difficulty) {
+                case 'easy': maxLives = 3; break;
+                case 'normal': maxLives = 2; break;
+                case 'hard': maxLives = 1; break;
+            }
+            
+            currentLives = maxLives;
+            score = 0;
+            roundQuestionCount = 0;
+            correctAnswersCount = 0;
+            wrongAnswersCount = 0;
+            
+            if (questionQueue.length === 0) {
+                questionQueue = shuffleArray([...allQuestions]);
+            }
+            totalQuestionsAtStart = questionQueue.length;
+            
+            updateUIState();
+            renderLives();
+            
+            // 重置登錄表單狀態
+            document.getElementById('record-submission-area').classList.add('hidden-screen');
+            document.getElementById('submission-success').classList.add('hidden-screen');
+            document.getElementById('submit-score-btn').disabled = false;
+            const profile = window.LearningProfile.get();
+            document.getElementById('student-id-input').value = window.LearningProfile.isComplete(profile) ? profile.studentId : '';
+            document.getElementById('student-id-input').disabled = false;
+            
+            showScreen('quiz');
+            loadQuestion();
+        }
+
+        async function refreshQuizUnlock() {
+            const status = document.getElementById('unlock-status');
+            quizUnlocked = false;
+            showScreen('locked');
+            status.textContent = '正在確認資訊生活集章進度…';
+            try {
+                await authReadyPromise;
+                const profile = window.LearningProfile.get();
+                const user = firebase.auth().currentUser;
+                if (!window.LearningProfile.isComplete(profile) || !user || user.isAnonymous || !db) {
+                    status.textContent = '請先從入口網登入，再完成資訊生活的八枚印章。';
+                    return;
+                }
+                const snapshot = await db.collection('users').doc(user.uid).get();
+                const certificates = snapshot.exists() ? Object.values(snapshot.data().terms?.[currentTermId]?.certificates || {}) : [];
+                const collected = new Set(certificates
+                    .filter(certificate => certificate && certificate.course === '資訊生活' && requiredInfoLifeCertificates.has(certificate.chapterKey))
+                    .map(certificate => certificate.chapterKey));
+                if (collected.size === requiredInfoLifeCertificates.size) {
+                    quizUnlocked = true;
+                    showScreen('start');
+                    return;
+                }
+                status.textContent = `已集 ${collected.size} / ${requiredInfoLifeCertificates.size} 枚印章；集滿八枚後即可挑戰知識大擂台與英雄榜。`;
+            } catch (error) {
+                console.error('檢查集章解鎖狀態失敗:', error);
+                status.textContent = '暫時無法讀取集章紀錄，請稍後再試。';
+            }
+        }
+
+        function loadQuestion() {
+            if (currentLives <= 0) {
+                endGame(false);
+                return;
+            }
+            if (questionQueue.length === 0) {
+                endGame(true);
+                return;
+            }
+
+            roundQuestionCount++;
+            const currentQ = questionQueue[0];
+            
+            selectedOptionIndex = null;
+            currentCorrectOptionIndex = null;
+            ui.submitBtn.disabled = true;
+            ui.feedbackOverlay.classList.add('hidden-screen');
+            ui.mainContainer.classList.remove('screen-shake'); 
+            
+            ui.questionCounter.textContent = `第 ${roundQuestionCount} 題 (剩餘 ${questionQueue.length} 題)`;
+            ui.questionText.textContent = currentQ.question;
+            
+            let shuffledOptions = currentQ.options.map((text, index) => ({ text: text, originalIndex: index }));
+            shuffledOptions = shuffleArray(shuffledOptions);
+            currentCorrectOptionIndex = shuffledOptions.findIndex(opt => opt.originalIndex === currentQ.answer);
+            
+            ui.optionsContainer.innerHTML = '';
+            shuffledOptions.forEach((optionObj, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-tv w-full text-left p-4 rounded-2xl font-bold text-lg tracking-wide flex items-center';
+                
+                const letterBadge = document.createElement('span');
+                letterBadge.className = 'inline-block bg-slate-800 text-blue-400 w-8 h-8 rounded-full flex items-center justify-center mr-3 border border-blue-500/50 shadow-inner shrink-0';
+                letterBadge.textContent = String.fromCharCode(65 + index); 
+                
+                const textSpan = document.createElement('span');
+                textSpan.textContent = optionObj.text;
+                
+                btn.appendChild(letterBadge);
+                btn.appendChild(textSpan);
+
+                btn.onclick = () => selectOption(index, btn);
+                ui.optionsContainer.appendChild(btn);
+            });
+
+            startTimer();
+        }
+
+        function selectOption(index, btnElement) {
+            selectedOptionIndex = index;
+            const options = ui.optionsContainer.querySelectorAll('.option-tv');
+            options.forEach(opt => opt.classList.remove('selected'));
+            btnElement.classList.add('selected');
+            ui.submitBtn.disabled = false;
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timeLeft = TIME_LIMIT;
+            updateTimerDisplay();
+            timerStartTimestamp = Date.now();
+            
+            timerInterval = setInterval(() => {
+                const elapsedSeconds = (Date.now() - timerStartTimestamp) / 1000;
+                timeLeft = TIME_LIMIT - elapsedSeconds;
+
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    clearInterval(timerInterval);
+                    updateTimerDisplay();
+                    handleTimeout();
+                } else {
+                    updateTimerDisplay();
+                }
+            }, 50);
+        }
+
+        function updateTimerDisplay() {
+            const displaySeconds = Math.ceil(timeLeft);
+            ui.timeText.textContent = displaySeconds;
+
+            const percentage = (timeLeft / TIME_LIMIT) * 100;
+            ui.timerBar.style.width = `${percentage}%`;
+
+            if (percentage > 50) {
+                ui.timerBar.className = 'h-full timer-bar bg-green-400 timer-glow-green';
+                ui.timeContainer.className = 'bg-slate-800 w-12 h-12 rounded-full flex items-center justify-center border-2 border-slate-600 shadow-[0_0_10px_rgba(0,0,0,0.5)]';
+                ui.timeText.className = 'text-xl font-black text-white';
+            } else if (percentage > 25) {
+                ui.timerBar.className = 'h-full timer-bar bg-yellow-400 timer-glow-yellow';
+                ui.timeContainer.className = 'bg-yellow-500/20 w-12 h-12 rounded-full flex items-center justify-center border-2 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.5)]';
+                ui.timeText.className = 'text-xl font-black text-yellow-400';
+            } else {
+                ui.timerBar.className = 'h-full timer-bar bg-red-500 timer-glow-red';
+                ui.timeContainer.className = 'bg-red-500/30 w-12 h-12 rounded-full flex items-center justify-center border-2 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse';
+                ui.timeText.className = 'text-xl font-black text-red-400';
+            }
+        }
+
+        function handleTimeout() {
+            processAnswer(false, true);
+        }
+
+        function submitAnswer() {
+            if (selectedOptionIndex === null) return;
+            clearInterval(timerInterval);
+            const isCorrect = selectedOptionIndex === currentCorrectOptionIndex;
+            processAnswer(isCorrect, false);
+        }
+
+        function processAnswer(isCorrect, isTimeout) {
+            clearInterval(timerInterval);
+            ui.submitBtn.disabled = true;
+
+            const answeredQ = questionQueue.shift();
+
+            if (isCorrect) {
+                const bonusSeconds = Math.ceil(timeLeft);
+                const earnedScore = 1000 + (bonusSeconds * 100); 
+                
+                score += earnedScore;
+                correctAnswersCount++;
+                showFeedback('correct', earnedScore, bonusSeconds);
+            } else {
+                currentLives--;
+                wrongAnswersCount++;
+                questionQueue.push(answeredQ); 
+                renderLives();
+                showFeedback(isTimeout ? 'timeout' : 'wrong');
+            }
+
+            updateUIState();
+
+            setTimeout(() => {
+                if (currentLives <= 0) {
+                    endGame(false);
+                } else if (questionQueue.length === 0) {
+                    endGame(true);
+                } else {
+                    loadQuestion();
+                }
+            }, 1800); 
+        }
+
+        function updateUIState() {
+            ui.score.textContent = score.toLocaleString();
+        }
+
+        function renderLives() {
+            ui.lives.innerHTML = '';
+            for (let i = 0; i < maxLives; i++) {
+                const heart = document.createElement('span');
+                heart.textContent = '❤️';
+                heart.className = i < currentLives ? 'heart-icon' : 'heart-icon heart-lost';
+                ui.lives.appendChild(heart);
+            }
+        }
+
+        function showFeedback(type, earnedScore = 0, bonusSeconds = 0) {
+            ui.feedbackOverlay.classList.remove('hidden-screen');
+            const content = ui.feedbackContent;
+            
+            content.classList.remove('scale-100', 'opacity-100', 'scale-50', 'opacity-0');
+            void content.offsetWidth; 
+            content.classList.add('scale-100', 'opacity-100');
+
+            if (type === 'correct') {
+                content.innerHTML = `
+                    <div class="relative inline-block mb-6">
+                        <div class="absolute inset-0 bg-green-500 rounded-full blur-3xl opacity-50 animate-pulse"></div>
+                        <div class="relative w-40 h-40 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(74,222,128,0.8)] border-4 border-white">
+                            <span class="text-7xl text-white font-black drop-shadow-lg">⭕</span>
+                        </div>
+                    </div>
+                    <h3 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-green-300 to-green-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] mb-2 tracking-widest">正解！</h3>
+                    <p class="text-green-300 font-black text-4xl tracking-widest mb-2">+${earnedScore.toLocaleString()} 分</p>
+                    ${bonusSeconds > 0 ? `<p class="text-yellow-400 font-bold text-xl tracking-wide drop-shadow-md">極速加分: ${bonusSeconds}秒 × 100</p>` : ''}
+                `;
+            } else if (type === 'wrong') {
+                ui.mainContainer.classList.add('screen-shake');
+                content.innerHTML = `
+                    <div class="relative inline-block mb-6">
+                        <div class="absolute inset-0 bg-red-600 rounded-full blur-3xl opacity-60 animate-pulse"></div>
+                        <div class="relative w-40 h-40 bg-gradient-to-br from-red-500 to-red-700 rounded-full flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(239,68,68,0.8)] border-4 border-white">
+                            <span class="text-7xl text-white font-black drop-shadow-lg">❌</span>
+                        </div>
+                    </div>
+                    <h3 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-red-400 to-red-600 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] mb-2 tracking-widest">錯誤！</h3>
+                    <p class="text-red-300 font-black text-2xl tracking-widest">失去一命</p>
+                `;
+            } else if (type === 'timeout') {
+                ui.mainContainer.classList.add('screen-shake');
+                content.innerHTML = `
+                    <div class="relative inline-block mb-6">
+                        <div class="absolute inset-0 bg-yellow-500 rounded-full blur-3xl opacity-50 animate-pulse"></div>
+                        <div class="relative w-40 h-40 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(234,179,8,0.8)] border-4 border-white">
+                            <svg class="w-20 h-20 text-white drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                    </div>
+                    <h3 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] mb-2 tracking-widest">時間到！</h3>
+                    <p class="text-yellow-300 font-black text-2xl tracking-widest">失去一命</p>
+                `;
+            }
+
+            setTimeout(() => {
+                content.classList.remove('scale-100', 'opacity-100');
+                content.classList.add('scale-50', 'opacity-0');
+            }, 1500);
+        }
+
+        async function endGame(isWin) {
+            clearInterval(timerInterval);
+            const resultIconContainer = document.getElementById('result-icon-container');
+            const resultTitle = document.getElementById('result-title');
+            
+            if (!isWin) {
+                ui.mainContainer.style.boxShadow = "0 0 50px rgba(239, 68, 68, 0.4)";
+                ui.mainContainer.style.borderColor = "rgba(239, 68, 68, 0.5)";
+                resultIconContainer.innerHTML = `
+                    <div class="absolute inset-0 bg-red-600 rounded-full blur-2xl opacity-40"></div>
+                    <div class="relative w-32 h-32 bg-slate-900 border-4 border-red-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(239,68,68,0.6)]">
+                        <span class="text-6xl">💀</span>
+                    </div>
+                `;
+                resultTitle.textContent = "挑戰失敗";
+                resultTitle.className = "text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-b from-red-400 to-red-600 drop-shadow-lg tracking-widest";
+            } else {
+                ui.mainContainer.style.boxShadow = "0 0 50px rgba(250, 204, 21, 0.5)";
+                ui.mainContainer.style.borderColor = "rgba(250, 204, 21, 0.6)";
+                resultIconContainer.innerHTML = `
+                    <div class="absolute inset-0 bg-yellow-400 rounded-full blur-2xl opacity-50"></div>
+                    <div class="relative w-32 h-32 bg-slate-900 border-4 border-yellow-400 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(250,204,21,0.8)]">
+                        <span class="text-6xl">🏆</span>
+                    </div>
+                `;
+                resultTitle.textContent = "全破通關！";
+                resultTitle.className = "text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-500 drop-shadow-lg tracking-widest";
+            }
+
+            document.getElementById('final-score').textContent = score.toLocaleString();
+            document.getElementById('correct-count').textContent = correctAnswersCount;
+            document.getElementById('wrong-count').textContent = wrongAnswersCount;
+
+            showScreen('result');
+
+            // 檢查是否符合英雄榜資格
+            if (score > 0 && db) {
+                checkLeaderboardEligibility();
+            }
+        }
+
+        async function checkLeaderboardEligibility() {
+            await authReadyPromise;
+            try {
+                // 讀取當前難度的前 20 名
+                const snapshot = await leaderboardScores(currentDifficulty)
+                                        .orderBy('score', 'desc')
+                                        .limit(leaderboardLimit)
+                                        .get();
+                
+                const scores = [];
+                snapshot.forEach(doc => scores.push(doc.data().score));
+
+                // 如果未滿 20 人，或者分數高於第 20 名
+                if (scores.length < leaderboardLimit || score > scores[scores.length - 1]) {
+                    isFinalScoreSubmittable = true;
+                    document.getElementById('record-submission-area').classList.remove('hidden-screen');
+                }
+            } catch (error) {
+                console.error("無法檢查英雄榜資格:", error);
+            }
+        }
+
+        async function submitScoreToLeaderboard() {
+            await authReadyPromise;
+            if (!isFinalScoreSubmittable || !db) return;
+
+            const inputElement = document.getElementById('student-id-input');
+            const errorElement = document.getElementById('submission-error');
+            const profile = window.LearningProfile.get();
+            const studentId = window.LearningProfile.isComplete(profile) ? profile.studentId : '';
+            const isValid = window.LearningProfile.isComplete(profile);
+
+            if (!isValid) {
+                errorElement.textContent = "請先回入口網完成學生資料設定。";
+                errorElement.classList.remove('hidden-screen');
+                return;
+            }
+
+            errorElement.classList.add('hidden-screen');
+            const btn = document.getElementById('submit-score-btn');
+            btn.disabled = true;
+            btn.textContent = "登錄中...";
+            inputElement.disabled = true;
+
+            try {
+                await leaderboardScores(currentDifficulty).add({
+                    studentId: studentId,
+                    score: score,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                isFinalScoreSubmittable = false;
+                document.getElementById('submission-success').classList.remove('hidden-screen');
+                btn.textContent = "已登錄";
+            } catch (error) {
+                console.error("登錄分數失敗:", error);
+                errorElement.textContent = "連線失敗，請稍後再試。";
+                errorElement.classList.remove('hidden-screen');
+                btn.disabled = false;
+                btn.textContent = "登錄";
+                inputElement.disabled = false;
+            }
+        }
+
+        async function loadLeaderboardData(difficulty) {
+            await authReadyPromise;
+            // 切換按鈕樣式
+            ['easy', 'normal', 'hard'].forEach(d => {
+                const tab = document.getElementById(`tab-${d}`);
+                if (d === difficulty) {
+                    tab.className = 'flex-1 py-2 text-sm font-bold rounded-md bg-purple-600 text-white shadow-md transition-colors';
+                } else {
+                    tab.className = 'flex-1 py-2 text-sm font-bold rounded-md text-slate-400 hover:text-white transition-colors';
+                }
+            });
+
+            const tbody = document.getElementById('leaderboard-body');
+            const emptyMsg = document.getElementById('leaderboard-empty');
+            const loading = document.getElementById('leaderboard-loading');
+
+            tbody.innerHTML = '';
+            emptyMsg.classList.add('hidden-screen');
+            
+            if (!db) {
+                emptyMsg.textContent = "資料庫未連線，無法載入英雄榜。";
+                emptyMsg.classList.remove('hidden-screen');
+                return;
+            }
+
+            loading.classList.remove('hidden-screen');
+
+            try {
+                const snapshot = await leaderboardScores(difficulty)
+                                        .orderBy('score', 'desc')
+                                        .limit(leaderboardLimit)
+                                        .get();
+                
+                loading.classList.add('hidden-screen');
+
+                if (snapshot.empty) {
+                    emptyMsg.textContent = "尚無紀錄，成為第一位上榜者吧！";
+                    emptyMsg.classList.remove('hidden-screen');
+                    return;
+                }
+
+                let rank = 1;
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const tr = document.createElement('tr');
+                    
+                    let rankDisplay = rank;
+                    if (rank === 1) rankDisplay = '🥇';
+                    else if (rank === 2) rankDisplay = '🥈';
+                    else if (rank === 3) rankDisplay = '🥉';
+
+                    // 將學號稍微遮蔽保護隱私 (選用，目前僅顯示)
+                    tr.innerHTML = `
+                        <td class="font-black text-lg">${rankDisplay}</td>
+                        <td class="font-mono tracking-wider">${data.studentId}</td>
+                        <td class="font-black text-yellow-400">${data.score.toLocaleString()}</td>
+                    `;
+                    tbody.appendChild(tr);
+                    rank++;
+                });
+
+            } catch (error) {
+                console.error("載入英雄榜失敗:", error);
+                loading.classList.add('hidden-screen');
+                emptyMsg.textContent = "載入失敗，請檢查網路連線。";
+                emptyMsg.classList.remove('hidden-screen');
+            }
+        }
+
+        // 初始化：知識大擂台僅在資訊生活八枚印章集滿後開放。
+        refreshQuizUnlock();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>運算思維挑戰系統</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="../../firebase-config.js"></script>
+    <script src="../../shared/learner-profile.js"></script>
+    <script defer src="../../shared/site-shell.js"></script>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 React 和 ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- 引入 Babel 用於解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* 隱藏捲軸但保留功能 (針對 iframe 優化) */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c7c7c7; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8; 
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen overflow-hidden">
+    <div id="root" class="h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        if (!firebase.apps.length) firebase.initializeApp(window.LEARNING_FIREBASE_CONFIG);
+        const thinkingDb = firebase.firestore();
+        const currentTermId = '115-1';
+        const getThinkingUser = async () => {
+            const current = firebase.auth().currentUser;
+            if (current && !current.isAnonymous) return current;
+            const user = await new Promise((resolve, reject) => {
+                let unsubscribe = () => {};
+                unsubscribe = firebase.auth().onAuthStateChanged((value) => { unsubscribe(); resolve(value); }, reject);
+            });
+            if (!user || user.isAnonymous) throw new Error('請先由入口網完成學生登入');
+            return user;
+        };
+
+        // --- Icon 組件 (SVG) ---
+        const Icon = ({ path, className }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="24" height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+            >
+                {path}
+            </svg>
+        );
+
+        const Icons = {
+            User: (props) => <Icon {...props} path={<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>} />,
+            Play: (props) => <Icon {...props} path={<polygon points="5 3 19 12 5 21 5 3"/>} />,
+            BookOpen: (props) => <Icon {...props} path={<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>} />,
+            Monitor: (props) => <Icon {...props} path={<><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></>} />,
+            Award: (props) => <Icon {...props} path={<><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></>} />,
+            Clock: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>} />,
+            Calendar: (props) => <Icon {...props} path={<><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></>} />,
+            Timer: (props) => <Icon {...props} path={<><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></>} />,
+        };
+
+        // --- 主應用程式 ---
+        const StudentChallengeSystem = () => {
+            // --- 狀態管理 ---
+            const [user, setUser] = useState(() => {
+                const profile = window.LearningProfile.get();
+                return window.LearningProfile.isComplete(profile) ? profile : null;
+            }); 
+            const [selectedChallenge, setSelectedChallenge] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [passedChallengeIds, setPassedChallengeIds] = useState([]);
+            const [progressStatus, setProgressStatus] = useState('loading');
+            
+            // 計時與日期狀態
+            const [currentDate, setCurrentDate] = useState(new Date());
+            const [studyTime, setStudyTime] = useState(0); 
+
+            // 挑戰題目列表
+            const challenges = [
+                { 
+                    id: 1, 
+                    title: "重排積木", 
+                    url: "https://reurl.cc/oYY5nM",
+                    difficulty: "★"
+                },
+                { 
+                    id: 2, 
+                    title: "寶箱開鎖", 
+                    url: "https://reurl.cc/mYXMpl", 
+                    difficulty: "★"
+                },
+                { 
+                    id: 3, 
+                    title: "畢業手鍊", 
+                    url: "https://reurl.cc/ekaGpL", 
+                    difficulty: "★★"
+                },
+                { 
+                    id: 4, 
+                    title: "彙整遊戲卡", 
+                    url: "https://reurl.cc/WOZmZy", 
+                    difficulty: "★★"
+                },
+                { 
+                    id: 5, 
+                    title: "班級出遊", 
+                    url: "https://reurl.cc/dajNX8", 
+                    difficulty: "★★★"
+                },
+                { 
+                    id: 6, 
+                    title: "夜市射氣球", 
+                    url: "https://reurl.cc/VWAN95", 
+                    difficulty: "★★★"
+                },
+                { 
+                    id: 7, 
+                    title: "團隊攀岩", 
+                    url: "https://reurl.cc/Rk5W56", 
+                    difficulty: "★★★★"
+                },
+                { 
+                    id: 8, 
+                    title: "誰的帽子", 
+                    url: "https://reurl.cc/Rk5Z79", 
+                    difficulty: "★★★★"
+                }
+            ];
+
+            // 輔助函式：取得難度顏色
+            const getDifficultyColor = (level) => {
+                switch (level) {
+                    case "★": return "text-green-500";       // 1星: 綠色 (簡單)
+                    case "★★": return "text-blue-500";       // 2星: 藍色 (普通)
+                    case "★★★": return "text-orange-500";    // 3星: 橘色 (困難)
+                    case "★★★★": return "text-red-500";      // 4星: 紅色 (挑戰)
+                    default: return "text-purple-500";       // 其他
+                }
+            };
+
+            // --- Effect: 計時器與時間更新 ---
+            useEffect(() => {
+                if (user) {
+                    const interval = setInterval(() => {
+                        setCurrentDate(new Date());
+                        setStudyTime(prev => prev + 1);
+                    }, 1000);
+                    return () => clearInterval(interval);
+                }
+            }, [user]);
+
+            useEffect(() => {
+                if (!user) return undefined;
+                let unsubscribe = null;
+                let active = true;
+                getThinkingUser().then((firebaseUser) => {
+                    if (!active) return;
+                    unsubscribe = thinkingDb.collection('users').doc(firebaseUser.uid).onSnapshot((snapshot) => {
+                        const completed = snapshot.exists ? (snapshot.data().teacherProgress?.[currentTermId]?.completedChallenges || {}) : {};
+                        const passed = Object.keys(completed).filter((id) => completed[id] === true).map(Number).filter(Number.isInteger);
+                        setPassedChallengeIds(passed);
+                        setProgressStatus('ready');
+                    }, () => setProgressStatus('error'));
+                }).catch(() => setProgressStatus('error'));
+                return () => { active = false; if (unsubscribe) unsubscribe(); };
+            }, [user]);
+
+            // --- 處理函式 ---
+            // 開啟挑戰視窗
+            const handleOpenChallenge = (challenge) => {
+                setSelectedChallenge(challenge);
+                
+                const width = 1024;
+                const height = 768;
+                const left = (window.screen.width - width) / 2;
+                const top = (window.screen.height - height) / 2;
+                
+                window.open(
+                    challenge.url,
+                    `Challenge_${challenge.id}`,
+                    `width=${width},height=${height},top=${top},left=${left},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
+                );
+            };
+
+            const formatTime = (seconds) => {
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = seconds % 60;
+                if (h > 0) {
+                    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                }
+                return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            };
+
+            const formatDate = (date) => {
+                const days = ['日', '一', '二', '三', '四', '五', '六'];
+                return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 星期${days[date.getDay()]}`;
+            };
+
+            // --- 渲染組件 ---
+            if (!user) {
+                return (
+                    <div className="min-h-full bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center p-4 font-sans">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                            <div className="bg-indigo-600 p-6 text-center">
+                                <Icons.Monitor className="w-12 h-12 text-white mx-auto mb-2" />
+                                <h1 className="text-2xl font-bold text-white">運算思維挑戰平台</h1>
+                                <p className="text-indigo-200 text-sm mt-1">入口網共用學生資料</p>
+                            </div>
+                            
+                            <div className="p-8 space-y-5 text-center">
+                                <p className="text-slate-600 leading-relaxed">學生資料由入口網統一設定。請先完成班級、座號、姓名與學號設定後再開始挑戰。</p>
+                                <a href="index.html" className="block w-full py-3 px-4 rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">前往入口網設定資料</a>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // 主畫面 (登入後)
+            return (
+                <div className="h-full bg-gray-100 flex flex-col font-sans">
+                    {/* 頂部導覽列 */}
+                    <header className="bg-white shadow-sm z-10 shrink-0">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
+                            <div className="flex items-center space-x-2">
+                                <div className="bg-indigo-600 p-2 rounded-lg">
+                                    <Icons.Award className="w-6 h-6 text-white" />
+                                </div>
+                                <span className="text-xl font-bold text-gray-800 hidden sm:block">運算思維挑戰</span>
+                            </div>
+                            
+                        </div>
+                    </header>
+
+                    {/* 主要內容區 */}
+                    <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col lg:flex-row gap-6 overflow-hidden">
+                        
+                        {/* 左側：挑戰列表 */}
+                        <aside className="w-full lg:w-1/3 xl:w-1/4 flex flex-col gap-4 h-full">
+                            <div className="learning-content-card bg-white rounded-xl shadow-sm overflow-hidden flex flex-col h-full border border-gray-200">
+                                <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between shrink-0">
+                                    <h2 className="font-bold text-gray-700 flex items-center">
+                                        <Icons.BookOpen className="w-5 h-5 mr-2 text-indigo-500" />
+                                        挑戰清單
+                                    </h2>
+                                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">共 {challenges.length} 題</span>
+                                    </div>
+                                <div className="learning-progress-panel mx-4 mt-4 p-4">
+                                    <div className="learning-progress-head">
+                                        <span className="learning-progress-title">教師核定通關進度</span>
+                                        <span className="learning-progress-count">{progressStatus === 'loading' ? '讀取中…' : `${passedChallengeIds.length} / ${challenges.length}`}</span>
+                                    </div>
+                                    <div className="learning-progress-track mt-2">
+                                        <div className="learning-progress-fill" style={{ width: `${(passedChallengeIds.length / challenges.length) * 100}%` }}></div>
+                                    </div>
+                                    <p className="learning-progress-note">{progressStatus === 'error' ? '暫時無法讀取教師核定紀錄，請稍後再試。' : '開啟題目不會增加進度；通關後由教師端核定。'}</p>
+                                </div>
+                                <div className="overflow-y-auto p-2 space-y-2 flex-1">
+                                    {challenges.map((challenge) => (
+                                        <button
+                                            key={challenge.id}
+                                            onClick={() => handleOpenChallenge(challenge)}
+                                            className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center justify-between group ${
+                                                selectedChallenge?.id === challenge.id 
+                                                ? 'bg-indigo-600 text-white shadow-md' 
+                                                : 'hover:bg-indigo-50 text-gray-700'
+                                            }`}
+                                        >
+                                            <div>
+                                                <div className={`font-bold text-xl ${selectedChallenge?.id === challenge.id ? 'text-white' : 'text-gray-800'}`}>
+                                                    {challenge.id}. {challenge.title}
+                                                </div>
+                                                <div className="text-sm mt-1 flex items-center">
+                                                    <span className={`${selectedChallenge?.id === challenge.id ? 'text-indigo-200' : 'text-gray-400'} mr-1`}>
+                                                        難度:
+                                                    </span>
+                                                    <span className={`font-bold text-lg ${
+                                                        selectedChallenge?.id === challenge.id 
+                                                            ? 'text-yellow-300' 
+                                                            : getDifficultyColor(challenge.difficulty)
+                                                    }`}>
+                                                        {challenge.difficulty}
+                                                    </span>
+                                                    <span className={`${passedChallengeIds.includes(challenge.id) ? (selectedChallenge?.id === challenge.id ? 'text-emerald-200' : 'text-emerald-600') : (selectedChallenge?.id === challenge.id ? 'text-indigo-200' : 'text-slate-400')} ml-2 text-xs font-bold`}>{passedChallengeIds.includes(challenge.id) ? '✓ 教師已核定' : '待教師核定'}</span>
+                                                </div>
+                                            </div>
+                                            <Icons.Play className={`w-6 h-6 ${selectedChallenge?.id === challenge.id ? 'text-white' : 'text-gray-300 group-hover:text-indigo-400'}`} />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </aside>
+
+                        {/* 右側：資訊顯示區域 */}
+                        <section className="flex-1 flex flex-col gap-4 h-full">
+                            
+                            {/* 中間：留白區域 */}
+                            <div className="learning-content-card flex-1 bg-white rounded-xl shadow-sm border border-gray-200 relative overflow-hidden flex items-center justify-center min-h-[200px]">
+                                {selectedChallenge ? (
+                                    <div className="text-center text-gray-400 p-8">
+                                        <Icons.Monitor className="w-16 h-16 mx-auto mb-4 text-indigo-100" />
+                                        <p>挑戰「{selectedChallenge.title}」正在新視窗中執行...</p>
+                                        <button 
+                                            onClick={() => handleOpenChallenge(selectedChallenge)}
+                                            className="learning-action-secondary mt-4 px-4 text-sm"
+                                        >
+                                            沒有開啟視窗？點此重新開啟
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-gray-300 text-lg">
+                                        請選擇左側挑戰開始學習
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 下排：日期與計時功能 */}
+                            <div className="learning-progress-panel bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
+                                {/* 日期 */}
+                                <div className="flex items-center space-x-3">
+                                    <Icons.Calendar className="w-6 h-6 text-indigo-500" />
+                                    <div>
+                                        <div className="text-sm text-gray-500">今天是</div>
+                                        <div className="text-xl font-bold text-gray-800">{formatDate(currentDate)}</div>
+                                    </div>
+                                </div>
+
+                                <div className="h-10 w-px bg-gray-200 hidden sm:block"></div>
+
+                                {/* 計時器 */}
+                                <div className="flex items-center space-x-3">
+                                    <Icons.Timer className="w-6 h-6 text-orange-500" />
+                                    <div className="text-right">
+                                        <div className="text-sm text-gray-500">本次學習時間</div>
+                                        <div className="text-2xl font-mono font-bold text-indigo-600 tabular-nums">
+                                            {formatTime(studyTime)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </section>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<StudentChallengeSystem />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>探索演算法的奧秘</title>
+    <!-- 引入 Tailwind CSS 進行快速樣式設計 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <style>
+        /* 增加平滑過渡效果 */
+        .feature-card {
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        /* 測驗選項按鈕動畫 */
+        .quiz-option {
+            transition: all 0.2s ease;
+        }
+        .quiz-option:hover:not(:disabled) {
+            transform: scale(1.02);
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        /* 淡入動畫 */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+    <script src="../../firebase-config.js"></script>
+    <script src="../../shared/learner-profile.js"></script>
+    <script src="../../shared/site-shell.js" defer></script>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans selection:bg-blue-200 selection:text-blue-900">
+
+    <div class="max-w-5xl mx-auto px-4 py-12">
+        <!-- 頁面標題區塊 -->
+        <header class="text-center mb-16">
+            <div class="inline-flex items-center justify-center p-3 bg-blue-100 rounded-full mb-4 text-blue-600">
+                <i data-lucide="cpu" class="w-8 h-8"></i>
+            </div>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-slate-800 mb-4 tracking-tight">
+                什麼是演算法？
+            </h1>
+            <p class="text-lg md:text-xl text-slate-600 max-w-2xl mx-auto">
+                演算法是解決問題的明確步驟。一個標準且良好的演算法，必須具備以下 <br>
+                <span class="font-bold text-blue-600">五個重要特徵</span>。
+            </p>
+        </header>
+
+        <!-- 演算法特徵互動卡片網格 -->
+        <section id="flowchart-reference-document" class="mb-12 overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
+            <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-7 text-white md:px-9"><p class="text-xs font-black tracking-[.2em] text-emerald-100">REFERENCE DOCUMENT</p><h2 class="mt-2 text-3xl font-black">流程圖實作參考文件</h2><p class="mt-3 max-w-3xl leading-7 text-emerald-50">這裡是閱讀與查閱用的參考文件。請先了解輸入、處理、判斷與輸出，再回到 Scratch 的指定單元完成流程圖任務。</p></div>
+            <ol class="grid gap-4 p-6 text-slate-700 md:grid-cols-5 md:p-8">
+                <li><b class="text-emerald-600">1．閱讀</b><span class="mt-1 block text-sm leading-6">閱讀本頁的流程圖概念。</span></li>
+                <li><b class="text-emerald-600">2．選單元</b><span class="mt-1 block text-sm leading-6">回到 Scratch 選擇要學習的課程。</span></li>
+                <li><b class="text-emerald-600">3．寫步驟</b><span class="mt-1 block text-sm leading-6">依題目說明改寫成程式步驟。</span></li>
+                <li><b class="text-emerald-600">4．產生 MD</b><span class="mt-1 block text-sm leading-6">下載含 Mermaid 語法的 Markdown。</span></li>
+                <li><b class="text-emerald-600">5．貼入圖表</b><span class="mt-1 block text-sm leading-6">貼到 Mermaid AI，完成後開啟程式連結。</span></li>
+            </ol>
+        </section>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+            <!-- 特徵 1: 輸入 -->
+            <div class="feature-card bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center mb-4">
+                    <i data-lucide="log-in" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">1. 輸入 (Input)</h3>
+                <p class="text-slate-600 leading-relaxed">
+                    演算法可以有零個或多個從外界取得的資料作為輸入。就像食譜需要準備相對應的食材。
+                </p>
+            </div>
+
+            <!-- 特徵 2: 輸出 -->
+            <div class="feature-card bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                <div class="w-12 h-12 bg-green-100 text-green-600 rounded-xl flex items-center justify-center mb-4">
+                    <i data-lucide="log-out" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">2. 輸出 (Output)</h3>
+                <p class="text-slate-600 leading-relaxed">
+                    演算法至少會產生一個或多個結果。這正是我們執行演算法的目的——為了解決問題並得到答案。
+                </p>
+            </div>
+
+            <!-- 特徵 3: 明確性 -->
+            <div class="feature-card bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center mb-4">
+                    <i data-lucide="target" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">3. 明確性 (Definiteness)</h3>
+                <p class="text-slate-600 leading-relaxed">
+                    每一個步驟的指令都必須非常清楚，不能有模稜兩可的情況，必須讓執行者（電腦）明確知道該做什麼。
+                </p>
+            </div>
+
+            <!-- 特徵 4: 有限性 -->
+            <div class="feature-card bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center mb-4">
+                    <i data-lucide="stop-circle" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">4. 有限性 (Finiteness)</h3>
+                <p class="text-slate-600 leading-relaxed">
+                    演算法必須在執行有限的步驟之後結束。也就是說，它不能陷入永無止境的「無限迴圈」中。
+                </p>
+            </div>
+
+            <!-- 特徵 5: 有效性 -->
+            <div class="feature-card bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center mb-4">
+                    <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">5. 有效性 (Effectiveness)</h3>
+                <p class="text-slate-600 leading-relaxed">
+                    演算法中的每一個步驟都必須是基本且可行的，只要手上有紙筆，原則上都能在有限時間內手動計算出來。
+                </p>
+            </div>
+
+            <!-- 裝飾用卡片，讓網格保持對稱 -->
+            <div class="hidden lg:flex items-center justify-center bg-transparent border-2 border-dashed border-slate-200 rounded-2xl p-6 text-slate-400">
+                <div class="text-center">
+                    <i data-lucide="lightbulb" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                    <p class="text-sm">掌握這五點，就能設計出好的演算法！</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 解鎖測驗區塊 -->
+        <div id="reference-reading-end" class="mb-10 h-2" aria-hidden="true"></div>
+        <div id="quiz-section" class="hidden bg-white rounded-3xl p-8 md:p-10 shadow-md border-t-4 border-indigo-500 mb-16 max-w-3xl mx-auto relative overflow-hidden">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-full mb-4 text-indigo-600">
+                    <i data-lucide="brain-circuit" class="w-8 h-8"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">解鎖測驗：特徵隨堂考</h2>
+                <p class="text-slate-500 font-medium">請答對至少 <span class="text-indigo-600 font-bold text-lg">3</span> 題，以解鎖下方的實作與練習工具！</p>
+            </div>
+
+            <!-- 測驗內容區 -->
+            <div id="quiz-content" class="w-full max-w-xl mx-auto">
+                <div class="flex justify-between items-center mb-4 text-sm font-semibold text-slate-500">
+                    <span id="progress-text">第 1 / 5 題</span>
+                    <span id="score-text">目前得分：0</span>
+                </div>
+                
+                <!-- 進度條 -->
+                <div class="w-full bg-slate-100 rounded-full h-2 mb-8">
+                    <div id="progress-bar" class="bg-indigo-500 h-2 rounded-full transition-all duration-300" style="width: 20%"></div>
+                </div>
+
+                <!-- 題目 -->
+                <h3 id="question-title" class="text-xl font-bold text-slate-700 mb-6 min-h-[60px] leading-relaxed">
+                    載入題目中...
+                </h3>
+
+                <!-- 選項 -->
+                <div id="options-container" class="space-y-3 flex flex-col">
+                    <!-- 選項按鈕會透過 JS 動態生成 -->
+                </div>
+
+                <!-- 下一步按鈕 -->
+                <div class="mt-8 text-right">
+                    <button id="next-btn" class="hidden px-6 py-2.5 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-700 transition-colors shadow-sm" onclick="nextQuestion()">
+                        下一題
+                    </button>
+                </div>
+            </div>
+
+            <!-- 測驗結果區 (預設隱藏) -->
+            <div id="quiz-result" class="hidden text-center fade-in py-8">
+                <div id="result-icon" class="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center"></div>
+                <h3 id="result-title" class="text-3xl font-bold mb-3"></h3>
+                <p id="result-message" class="text-lg text-slate-600 mb-8"></p>
+                <button id="retry-btn" class="hidden px-8 py-3 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-700 transition-colors shadow-sm" onclick="startQuiz()">
+                    再試一次
+                </button>
+            </div>
+        </div>
+
+        <!-- 實用工具連結區塊 (按鈕) - 預設隱藏 -->
+        <section id="flowchart-workshop" class="hidden mb-16 rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm md:p-10">
+            <div class="flex flex-col gap-4 border-b border-emerald-100 pb-6 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <p class="text-xs font-black tracking-[.2em] text-emerald-600">PROGRAMMING PREREQUISITE</p>
+                    <h2 class="mt-2 text-2xl font-black text-slate-800">程式設計前的流程圖工作室</h2>
+                    <p class="mt-2 max-w-2xl leading-7 text-slate-600">先把程式的想法畫清楚。完成並儲存一份流程圖後，即可開啟 Scratch 程式設計課程。</p>
+                </div>
+                <span id="flowchart-status" class="w-fit rounded-full bg-amber-100 px-3 py-2 text-sm font-bold text-amber-800">尚未完成流程圖</span>
+            </div>
+            <div class="mt-7 grid gap-8 lg:grid-cols-2">
+                <div class="space-y-4">
+                    <label class="block text-sm font-bold text-slate-700">作品名稱<input id="flowchart-title" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="例如：猜數字遊戲"></label>
+                    <label class="block text-sm font-bold text-slate-700">輸入資料<input id="flowchart-input" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="例如：玩家輸入的數字"></label>
+                    <label class="block text-sm font-bold text-slate-700">處理步驟<span class="ml-2 text-xs font-medium text-slate-400">每行一個步驟，至少兩行</span><textarea id="flowchart-steps" rows="5" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="產生答案&#10;比較玩家輸入&#10;顯示提示"></textarea></label>
+                    <label class="block text-sm font-bold text-slate-700">判斷條件<input id="flowchart-decision" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="例如：猜對了嗎？"></label>
+                    <label class="block text-sm font-bold text-slate-700">輸出結果<input id="flowchart-output" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="例如：顯示成功或提示"></label>
+                    <div class="flex flex-wrap gap-3 pt-2"><button id="generate-flowchart" type="button" class="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white shadow-lg shadow-emerald-200 transition hover:bg-emerald-700">產生並完成流程圖</button><button id="clear-flowchart" type="button" class="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-600 transition hover:bg-slate-200">清除內容</button></div>
+                    <p id="flowchart-message" class="text-sm font-medium text-slate-500" role="status"></p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <p class="text-xs font-black tracking-[.18em] text-slate-500">FLOWCHART PREVIEW</p>
+                    <h3 id="flowchart-preview-title" class="mt-2 text-xl font-black text-slate-700">尚未建立流程圖</h3>
+                    <div id="mermaid-preview" class="mt-5 min-h-64 overflow-auto rounded-xl bg-white p-4 text-center shadow-inner"><p class="pt-20 text-sm text-slate-400">填寫左側內容後，這裡會顯示你的流程圖。</p></div>
+                </div>
+            </div>
+        </section>
+
+        <div id="tools-section" class="hidden fade-in bg-white rounded-3xl p-8 md:p-10 shadow-sm border border-green-200 text-center relative">
+            <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-1 rounded-full text-sm font-bold shadow-sm flex items-center gap-1">
+                <i data-lucide="unlock" class="w-4 h-4"></i> 已解鎖
+            </div>
+            
+            <h2 class="text-2xl font-bold text-slate-800 mb-6 mt-4">實作與練習工具</h2>
+            <p class="text-slate-500 mb-8 max-w-xl mx-auto">
+                恭喜您完成理論學習！現在您可以透過以下工具進一步體驗演算法的設計，並將您的思維轉換成視覺化的流程圖。
+            </p>
+            
+            <!-- 視覺化操作流程說明 -->
+            <div class="bg-slate-50/50 rounded-2xl p-6 md:p-8 mb-10 text-left max-w-3xl mx-auto border border-slate-200 shadow-inner">
+                <h3 class="text-xl font-bold text-slate-800 mb-8 flex items-center gap-2 justify-center">
+                    <i data-lucide="map" class="w-6 h-6 text-indigo-600"></i>
+                    Gem 視覺化操作流程
+                </h3>
+                
+                <!-- 垂直時間軸容器 -->
+                <div class="relative before:absolute before:inset-0 before:ml-[1.15rem] md:before:ml-[1.4rem] before:-translate-x-px before:h-full before:w-1 before:bg-gradient-to-b before:from-blue-400 before:via-amber-400 before:to-green-400 space-y-8">
+                    
+                    <!-- 步驟 1 -->
+                    <div class="relative flex items-start gap-4 md:gap-6">
+                        <div class="w-10 h-10 rounded-full bg-blue-500 text-white flex-shrink-0 flex items-center justify-center font-bold border-4 border-slate-50 shadow-md z-10 mt-1">1</div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex-1 hover:shadow-md transition-shadow">
+                            <h4 class="font-bold text-slate-800 text-lg flex items-center gap-2 mb-2">
+                                <i data-lucide="message-square-text" class="w-5 h-5 text-blue-500"></i> 1. 輸入文字描述
+                            </h4>
+                            <p class="text-slate-600 leading-relaxed text-sm md:text-base">
+                                點擊下方連結進入 Gem，在對話框中用日常語言描述您想要解決的問題。
+                                <strong class="text-blue-600">請盡可能完整、詳細地描述所有的條件與細節</strong>（如：「計算購物車總額，滿千打九折」）。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 步驟 2 -->
+                    <div class="relative flex items-start gap-4 md:gap-6">
+                        <div class="w-10 h-10 rounded-full bg-indigo-500 text-white flex-shrink-0 flex items-center justify-center font-bold border-4 border-slate-50 shadow-md z-10 mt-1">2</div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex-1 hover:shadow-md transition-shadow">
+                            <h4 class="font-bold text-slate-800 text-lg flex items-center gap-2 mb-2">
+                                <i data-lucide="code-2" class="w-5 h-5 text-indigo-500"></i> 2. 生成虛擬碼
+                            </h4>
+                            <p class="text-slate-600 leading-relaxed text-sm md:text-base">
+                                Gem 會自動分析您的需求，將複雜的邏輯拆解成按部就班的「虛擬碼」(Pseudocode)，幫助您確認邏輯流程是否正確。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 步驟 3 (特別強調區塊) -->
+                    <div class="relative flex items-start gap-4 md:gap-6">
+                        <div class="w-10 h-10 rounded-full bg-amber-500 text-white flex-shrink-0 flex items-center justify-center font-bold border-4 border-slate-50 shadow-md z-10 mt-1 animate-pulse">3</div>
+                        <div class="bg-amber-50 p-5 rounded-xl shadow-sm border-2 border-amber-300 flex-1 relative overflow-hidden transform hover:-translate-y-1 transition-transform">
+                            <div class="absolute top-0 right-0 bg-amber-500 text-white text-xs px-3 py-1 rounded-bl-lg font-bold flex items-center gap-1 shadow-sm">
+                                <i data-lucide="alert-circle" class="w-3 h-3"></i> 必須操作
+                            </div>
+                            <h4 class="font-bold text-amber-900 text-lg flex items-center gap-2 mb-3 mt-4 md:mt-0">
+                                <i data-lucide="keyboard" class="w-5 h-5 text-amber-600"></i> 3. 轉換 Mermaid 代碼
+                            </h4>
+                            <p class="text-amber-800 leading-relaxed text-sm md:text-base">
+                                閱讀完虛擬碼後，<strong class="bg-amber-200 px-2 py-0.5 rounded text-amber-900 text-lg inline-block my-1 shadow-sm border border-amber-300">您必須在對話框中回覆「確認」或「繼續」</strong><br>
+                                收到確認指令後，Gem 才會正式為您生成可用於繪製視覺化流程圖的 Mermaid 代碼！
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 步驟 4 -->
+                    <div class="relative flex items-start gap-4 md:gap-6">
+                        <div class="w-10 h-10 rounded-full bg-green-500 text-white flex-shrink-0 flex items-center justify-center font-bold border-4 border-slate-50 shadow-md z-10 mt-1">4</div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex-1 hover:shadow-md transition-shadow">
+                            <h4 class="font-bold text-slate-800 text-lg flex items-center gap-2 mb-2">
+                                <i data-lucide="clipboard-paste" class="w-5 h-5 text-green-500"></i> 4. 貼上至 Mermaid AI
+                            </h4>
+                            <p class="text-slate-600 leading-relaxed text-sm md:text-base">
+                                複製產生的代碼並開啟 Mermaid AI 後，<span class="font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded border border-indigo-100">請務必點選上方「&lt;/&gt; Paste Mermaid code」標籤</span>，將代碼貼上即可完成邏輯視覺化！
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                
+                <!-- 按鈕 1: 連結到 Google Gem -->
+                <a href="https://gemini.google.com/gem/1tm84wCKOMKwdEvS_zDoOQAus9jeBY4YI" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all shadow-md hover:shadow-lg hover:-translate-y-1">
+                    <i data-lucide="bot" class="w-5 h-5"></i>
+                    體驗演算法設計 Gem
+                </a>
+
+                <!-- 按鈕 2: 連結到 Mermaid AI -->
+                <a href="https://mermaid.ai/web/" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-semibold rounded-xl transition-all shadow-sm hover:shadow-md hover:-translate-y-1">
+                    <i data-lucide="workflow" class="w-5 h-5 text-pink-500"></i>
+                    繪製 Mermaid 流程圖
+                </a>
+
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- JavaScript 邏輯區 -->
+    <script>
+        // 測驗題庫資料 (5個特徵，每個特徵5題)
+        const quizBanks = [
+            [ // 1. 輸入 (Input) 題庫
+                { question: "食譜需要準備麵粉、雞蛋等食材，這相當於演算法可以接受外界提供的資料。這符合哪一項特徵？", options: ["輸入 (Input)", "輸出 (Output)", "有限性 (Finiteness)"], answer: 0 },
+                { question: "某個計算機程式需要使用者鍵入兩個數字才能進行加法運算。這兩個數字代表了演算法的哪一個特徵？", options: ["明確性 (Definiteness)", "輸入 (Input)", "有效性 (Effectiveness)"], answer: 1 },
+                { question: "演算法可以沒有任何從外界取得的資料，或者有多個資料來源。這是指哪項特徵？", options: ["有限性 (Finiteness)", "明確性 (Definiteness)", "輸入 (Input)"], answer: 2 },
+                { question: "在自動販賣機的運作邏輯中，投入的硬幣和選擇的飲料按鈕，屬於演算法的哪個部分？", options: ["輸入 (Input)", "輸出 (Output)", "有效性 (Effectiveness)"], answer: 0 },
+                { question: "為了讓程式開始運作，我們提供給它的初始數據稱為什麼？", options: ["有限性 (Finiteness)", "輸入 (Input)", "輸出 (Output)"], answer: 1 }
+            ],
+            [ // 2. 輸出 (Output) 題庫
+                { question: "演算法最終必須解決問題，並產生至少一個結果給我們。這是哪一項特徵？", options: ["有效性 (Effectiveness)", "明確性 (Definiteness)", "輸出 (Output)"], answer: 2 },
+                { question: "程式計算完學生成績後，在螢幕上顯示出「及格」或「不及格」。這是演算法的哪個特徵？", options: ["輸出 (Output)", "輸入 (Input)", "有限性 (Finiteness)"], answer: 0 },
+                { question: "如果一個演算法執行完畢卻沒有給出任何答案，那它就失去了意義。這強調了哪個特徵的必要性？", options: ["明確性 (Definiteness)", "輸出 (Output)", "有效性 (Effectiveness)"], answer: 1 },
+                { question: "烤箱烤出來的美味蛋糕，在「做蛋糕演算法」中代表什麼？", options: ["有限性 (Finiteness)", "輸入 (Input)", "輸出 (Output)"], answer: 2 },
+                { question: "演算法規定至少必須產生一個或多個什麼，以表示任務完成？", options: ["輸出 (Output)", "有效性 (Effectiveness)", "明確性 (Definiteness)"], answer: 0 }
+            ],
+            [ // 3. 明確性 (Definiteness) 題庫
+                { question: "指令不能寫「加一點點鹽」，必須寫「加 5 克鹽」，讓電腦完全清楚該做什麼。這是哪一項特徵？", options: ["明確性 (Definiteness)", "有限性 (Finiteness)", "輸入 (Input)"], answer: 0 },
+                { question: "程式碼中的每一個指令都不能有模稜兩可的情況，必須讓電腦唯一確切地執行。這是指？", options: ["有效性 (Effectiveness)", "明確性 (Definiteness)", "輸出 (Output)"], answer: 1 },
+                { question: "「將水加熱到適當溫度」這句指令缺乏了哪個演算法特徵？", options: ["明確性 (Definiteness)", "輸入 (Input)", "有限性 (Finiteness)"], answer: 0 },
+                { question: "如果兩台電腦根據同一份演算法執行，每一步的解讀都必須完全相同，這體現了什麼？", options: ["有限性 (Finiteness)", "有效性 (Effectiveness)", "明確性 (Definiteness)"], answer: 2 },
+                { question: "避免使用「或許」、「大概」、「幾次」等模糊字眼，是為了符合演算法的哪項特徵？", options: ["輸入 (Input)", "明確性 (Definiteness)", "輸出 (Output)"], answer: 1 }
+            ],
+            [ // 4. 有限性 (Finiteness) 題庫
+                { question: "演算法不能陷入永無止境的「無限迴圈」，必須在執行一定步驟後結束。這是什麼特徵？", options: ["有效性 (Effectiveness)", "有限性 (Finiteness)", "輸出 (Output)"], answer: 1 },
+                { question: "無論處理的資料量有多大，演算法最終都必須在有限的時間內停止運作。這符合哪一項特徵？", options: ["有限性 (Finiteness)", "明確性 (Definiteness)", "輸入 (Input)"], answer: 0 },
+                { question: "如果一個程式卡住了，永遠無法結束，它就違反了演算法的哪個特徵？", options: ["輸出 (Output)", "有效性 (Effectiveness)", "有限性 (Finiteness)"], answer: 2 },
+                { question: "為了確保我們能得到結果，演算法的執行步數不能是無限的。這被稱為？", options: ["有限性 (Finiteness)", "輸入 (Input)", "明確性 (Definiteness)"], answer: 0 },
+                { question: "雖然某個演算法可能需要跑好幾年才會結束，但只要它「終究會結束」，它就符合哪個特徵？", options: ["有效性 (Effectiveness)", "有限性 (Finiteness)", "輸出 (Output)"], answer: 1 }
+            ],
+            [ // 5. 有效性 (Effectiveness) 題庫
+                { question: "每一個步驟都必須是基本的、可行的，只要手上有紙筆，原則上都能算出來。這是哪一項特徵？", options: ["輸入 (Input)", "明確性 (Definiteness)", "有效性 (Effectiveness)"], answer: 2 },
+                { question: "演算法中的指令不能是「計算出圓周率的最後一位數」這種無法實現的操作。這說明了哪個特徵？", options: ["有效性 (Effectiveness)", "有限性 (Finiteness)", "輸出 (Output)"], answer: 0 },
+                { question: "電腦的處理器必須能夠實際執行演算法中的每一個基本運算，不能超出其能力範圍。這符合？", options: ["明確性 (Definiteness)", "有效性 (Effectiveness)", "輸入 (Input)"], answer: 1 },
+                { question: "如果一個演算法要求電腦「預知未來的樂透號碼」，它就缺乏了哪個重要特徵？", options: ["有效性 (Effectiveness)", "有限性 (Finiteness)", "明確性 (Definiteness)"], answer: 0 },
+                { question: "每一個操作都必須簡單到可以在有限的時間內確實完成。這是演算法的哪個特徵？", options: ["輸出 (Output)", "輸入 (Input)", "有效性 (Effectiveness)"], answer: 2 }
+            ]
+        ];
+
+        let currentQuiz = []; // 存放當次抽出的 5 題
+        let currentQuestion = 0;
+        let score = 0;
+        let hasAnswered = false;
+
+        // DOM 元素
+        const questionTitle = document.getElementById('question-title');
+        const optionsContainer = document.getElementById('options-container');
+        const progressText = document.getElementById('progress-text');
+        const scoreText = document.getElementById('score-text');
+        const progressBar = document.getElementById('progress-bar');
+        const nextBtn = document.getElementById('next-btn');
+        const quizContent = document.getElementById('quiz-content');
+        const quizResult = document.getElementById('quiz-result');
+        const toolsSection = document.getElementById('tools-section');
+
+        // 初始化/重新開始測驗
+        function startQuiz() {
+            currentQuestion = 0;
+            score = 0;
+            
+            // 每次重新開始時，從5個特徵題庫中各隨機抽一題
+            currentQuiz = quizBanks.map(bank => {
+                const randomIndex = Math.floor(Math.random() * bank.length);
+                return bank[randomIndex];
+            });
+            
+            // 將抽出來的 5 題打亂順序，增加變化性
+            currentQuiz.sort(() => Math.random() - 0.5);
+
+            quizContent.classList.remove('hidden');
+            quizResult.classList.add('hidden');
+            document.getElementById('retry-btn').classList.add('hidden');
+            loadQuestion();
+        }
+
+        // 載入題目
+        function loadQuestion() {
+            hasAnswered = false;
+            nextBtn.classList.add('hidden');
+            const q = currentQuiz[currentQuestion];
+            
+            // 更新狀態列
+            progressText.innerText = `第 ${currentQuestion + 1} / ${currentQuiz.length} 題`;
+            scoreText.innerText = `目前得分：${score}`;
+            progressBar.style.width = `${((currentQuestion + 1) / currentQuiz.length) * 100}%`;
+            
+            // 填入題目
+            questionTitle.innerText = q.question;
+            
+            // 將選項與是否為正確答案綁定，並進行隨機洗牌
+            let optionsWithStatus = q.options.map((opt, index) => ({
+                text: opt,
+                isCorrect: index === q.answer
+            }));
+            optionsWithStatus.sort(() => Math.random() - 0.5); // 選項隨機排序
+
+            // 找出洗牌後，正確答案的新索引位置 (答錯時要標示用)
+            let correctOptionIndex = optionsWithStatus.findIndex(o => o.isCorrect);
+            
+            // 產生選項按鈕
+            optionsContainer.innerHTML = '';
+            optionsWithStatus.forEach((optObj, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'quiz-option w-full text-left px-6 py-4 rounded-xl border-2 border-slate-200 text-slate-700 font-medium bg-white outline-none';
+                btn.innerText = optObj.text;
+                // 改為傳遞 是否正確 及 正確答案的新索引
+                btn.onclick = () => selectOption(optObj.isCorrect, btn, correctOptionIndex);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        // 選擇答案
+        function selectOption(isCorrect, btnElement, correctOptionIndex) {
+            if (hasAnswered) return;
+            hasAnswered = true;
+            
+            const allButtons = optionsContainer.querySelectorAll('button');
+            
+            // 禁用所有按鈕
+            allButtons.forEach(b => {
+                b.disabled = true;
+                b.classList.add('opacity-80', 'cursor-not-allowed');
+            });
+
+            if (isCorrect) {
+                score++;
+                scoreText.innerText = `目前得分：${score}`;
+                btnElement.classList.replace('border-slate-200', 'border-green-500');
+                btnElement.classList.replace('bg-white', 'bg-green-50');
+                btnElement.classList.replace('text-slate-700', 'text-green-800');
+                btnElement.innerHTML += ' <span class="float-right text-green-600">✓ 答對了</span>';
+            } else {
+                btnElement.classList.replace('border-slate-200', 'border-red-500');
+                btnElement.classList.replace('bg-white', 'bg-red-50');
+                btnElement.classList.replace('text-slate-700', 'text-red-800');
+                btnElement.innerHTML += ' <span class="float-right text-red-600">✗ 答錯了</span>';
+                
+                // 標示正確答案
+                const correctBtn = allButtons[correctOptionIndex];
+                correctBtn.classList.replace('border-slate-200', 'border-green-500');
+                correctBtn.classList.replace('bg-white', 'bg-green-50');
+            }
+
+            nextBtn.classList.remove('hidden');
+        }
+
+        // 下一題
+        function nextQuestion() {
+            currentQuestion++;
+            if (currentQuestion < currentQuiz.length) {
+                loadQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        // 顯示結果與解鎖邏輯
+        function showResults() {
+            quizContent.classList.add('hidden');
+            quizResult.classList.remove('hidden');
+            
+            const resultIcon = document.getElementById('result-icon');
+            const resultTitle = document.getElementById('result-title');
+            const resultMessage = document.getElementById('result-message');
+            const retryBtn = document.getElementById('retry-btn');
+            
+            if (score >= 3) {
+                // 通過測驗
+                resultIcon.className = 'w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center bg-green-100 text-green-600';
+                resultIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+                resultTitle.innerText = '🎉 恭喜過關！';
+                resultTitle.className = 'text-3xl font-bold mb-3 text-green-600';
+                resultMessage.innerHTML = `您答對了 <strong>${score} / 5</strong> 題。<br>您已經掌握了演算法的重要特徵，下方工具已成功解鎖！`;
+                
+                // 顯示下方工具區塊並滾動
+                toolsSection.classList.remove('hidden');
+                setTimeout(() => {
+                    toolsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 500);
+                
+            } else {
+                // 未通過測驗
+                resultIcon.className = 'w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center bg-amber-100 text-amber-600';
+                resultIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+                resultTitle.innerText = '再接再厲！';
+                resultTitle.className = 'text-3xl font-bold mb-3 text-slate-800';
+                resultMessage.innerHTML = `您只答對了 <strong>${score} / 5</strong> 題。<br>請重新複習上方的特徵，答對 3 題以上才能解鎖工具喔！`;
+                retryBtn.classList.remove('hidden');
+            }
+        }
+
+        // 初始化圖標並啟動測驗
+        lucide.createIcons();
+        startQuiz();
+    </script>
+    <script>
+        (function () {
+            const unit = new URLSearchParams(location.search).get('unit');
+            if (!unit) return;
+            const documentCard = document.getElementById('flowchart-reference-document');
+            const end = document.getElementById('reference-reading-end');
+            if (!documentCard || !end) return;
+            end.insertAdjacentHTML('afterend', '<div class="mb-10 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-5 text-center"><p id="reference-reading-message" class="text-sm font-bold text-emerald-800">請先捲動並閱讀完本份參考文件。</p><button id="reference-reading-complete" type="button" disabled class="mt-3 rounded-xl bg-slate-300 px-5 py-3 font-bold text-white">閱讀中…</button></div>');
+            const button = document.getElementById('reference-reading-complete');
+            const message = document.getElementById('reference-reading-message');
+            const unlock = () => { button.disabled = false; button.className = 'mt-3 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700'; button.textContent = '我已閱讀，返回流程圖任務'; message.textContent = '已閱讀到文件結尾，現在可以返回此單元的流程圖任務。'; };
+            new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) unlock(); }, { threshold: 0.8 }).observe(end);
+            button.addEventListener('click', () => {
+                sessionStorage.setItem(`flowchart-reference-read.${SCHOOL_APP.currentTermId}.${unit}`, 'true');
+                if (window.parent !== window) {
+                    window.parent.postMessage({ type: 'flowchart-reference-complete', unit }, window.location.origin);
+                    return;
+                }
+                location.replace(`scratch.html?unit=${encodeURIComponent(unit)}`);
+            });
+        })();
+    </script>
+    <script type="module">
+        import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        const { SCHOOL_APP, LearnerProfile } = window;
+        const storageKey = SCHOOL_APP.storageKeys.flowchartProgress;
+        const fields = ['title', 'input', 'steps', 'decision', 'output'];
+        let firebaseUser = null;
+        let db = null;
+
+        const element = id => document.getElementById(id);
+        const clean = value => String(value || '').replace(/[\[\]{}()"'`]/g, '').replace(/\s+/g, ' ').trim();
+        const message = (value, error = false) => {
+            const target = element('flowchart-message');
+            target.textContent = value;
+            target.className = `text-sm font-medium ${error ? 'text-rose-600' : 'text-emerald-700'}`;
+        };
+        const status = completed => {
+            const target = element('flowchart-status');
+            target.textContent = completed ? '✓ 流程圖已完成・Scratch 已開放' : '尚未完成流程圖';
+            target.className = completed ? 'w-fit rounded-full bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-800' : 'w-fit rounded-full bg-amber-100 px-3 py-2 text-sm font-bold text-amber-800';
+        };
+        const formData = () => Object.fromEntries(fields.map(key => [key, element(`flowchart-${key}`).value.trim()]));
+        const fillForm = data => fields.forEach(key => { element(`flowchart-${key}`).value = data?.[key] || ''; });
+        function source(data) {
+            const steps = data.steps.split(/\r?\n/).map(clean).filter(Boolean);
+            const lines = ['flowchart TD', 'start([開始])'];
+            let previous = 'start';
+            if (data.input) { lines.push(`input[/輸入：${clean(data.input)}/]`, `${previous} --> input`); previous = 'input'; }
+            steps.forEach((step, index) => { const id = `step${index + 1}`; lines.push(`${id}[${step}]`, `${previous} --> ${id}`); previous = id; });
+            if (data.decision) { lines.push(`decision{${clean(data.decision)}}`, `${previous} --> decision`, 'decision -->|是| output', 'decision -->|否| retry[調整後再判斷]', 'retry --> decision'); }
+            else lines.push(`${previous} --> output`);
+            lines.push(`output[/輸出：${clean(data.output)}/]`, 'output --> end([結束])');
+            return lines.join('\n');
+        }
+        async function render(data) {
+            const code = source(data);
+            const target = element('mermaid-preview');
+            target.innerHTML = '';
+            const output = await window.mermaid.render(`flowchart-${Date.now()}`, code);
+            target.innerHTML = output.svg;
+            element('flowchart-preview-title').textContent = data.title;
+            return code;
+        }
+        async function save(data, code) {
+            const record = { ...data, mermaid: code, completedAt: new Date().toISOString() };
+            LearnerProfile.writeTermStorage(storageKey, record);
+            if (firebaseUser && db) await setDoc(doc(db, 'users', firebaseUser.uid), { terms: { [SCHOOL_APP.currentTermId]: { workflow: { flowchart: record }, updatedAt: new Date().toISOString() } } }, { merge: true });
+            status(true);
+            window.dispatchEvent(new CustomEvent('flowchart:completed', { detail: record }));
+        }
+        async function generate() {
+            const data = formData();
+            if (!data.title || data.steps.split(/\r?\n/).map(clean).filter(Boolean).length < 2 || !data.output) { message('請填寫作品名稱、至少兩個處理步驟與輸出結果。', true); return; }
+            try { const code = await render(data); await save(data, code); message('流程圖已儲存，Scratch 程式設計現在已開放。'); }
+            catch (error) { console.error(error); message('流程圖預覽或儲存失敗，請稍後再試。', true); }
+        }
+        async function loadRemote() {
+            if (!firebaseUser || !db) return;
+            const snapshot = await getDoc(doc(db, 'users', firebaseUser.uid));
+            const record = snapshot.data()?.terms?.[SCHOOL_APP.currentTermId]?.workflow?.flowchart;
+            if (record?.completedAt) { fillForm(record); await render(record); status(true); message('已載入你完成的流程圖。'); }
+        }
+
+        element('generate-flowchart').addEventListener('click', generate);
+        element('clear-flowchart').addEventListener('click', () => { fillForm({}); element('mermaid-preview').innerHTML = '<p class="pt-20 text-sm text-slate-400">填寫左側內容後，這裡會顯示你的流程圖。</p>'; element('flowchart-preview-title').textContent = '尚未建立流程圖'; message('已清除編輯內容。'); });
+        window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'neutral' });
+        const local = LearnerProfile.readTermStorage(storageKey, null);
+        if (local?.completedAt) { fillForm(local); render(local).then(() => { status(true); message('已載入此裝置的流程圖。'); }); }
+        if (SCHOOL_APP.isFirebaseConfigured()) {
+            const app = getApps().length ? getApp() : initializeApp(SCHOOL_APP.firebaseConfig);
+            db = getFirestore(app);
+            onAuthStateChanged(getAuth(app), async user => { firebaseUser = user; if (user) try { await loadRemote(); } catch (error) { console.error(error); } });
+        }
+    </script>
+</body>
+</html>

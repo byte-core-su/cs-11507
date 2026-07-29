@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5016B 大樓電梯升降控制 微課程</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0ea5e9', // Sky 500
+                        secondary: '#3b82f6', // Blue 500
+                        accent: '#f59e0b', // Amber 500
+                        darkbg: '#0f172a', // Slate 900
+                        cardbg: '#1e293b'  // Slate 800
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            scroll-behavior: smooth;
+            background-color: #f8fafc;
+        }
+        .unit-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        /* 自訂滾動條樣式 */
+        pre::-webkit-scrollbar, textarea::-webkit-scrollbar, body::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        pre::-webkit-scrollbar-track, textarea::-webkit-scrollbar-track, body::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        pre::-webkit-scrollbar-thumb, textarea::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        pre::-webkit-scrollbar-thumb:hover, textarea::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* 動畫 */
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 拼圖積木進場動畫 */
+        .puzzle-block-enter {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* 燈條模擬動畫：模擬上下樓並中途停靠樓層 */
+        @keyframes ledScan {
+            0%, 5% { transform: translateX(-50%) translateY(196px); } /* 1F */
+            15%, 25% { transform: translateX(-50%) translateY(112px); } /* 上升停靠 4F */
+            35%, 45% { transform: translateX(-50%) translateY(56px); } /* 上升停靠 6F */
+            55%, 60% { transform: translateX(-50%) translateY(0px); } /* 抵達頂樓 8F */
+            70%, 80% { transform: translateX(-50%) translateY(84px); } /* 下降停靠 5F */
+            90%, 95% { transform: translateX(-50%) translateY(168px); } /* 下降停靠 2F */
+            100% { transform: translateX(-50%) translateY(196px); } /* 回到 1F */
+        }
+    </style>
+    <script src="../../firebase-config.js"></script>
+    <script src="../../shared/learner-profile.js"></script>
+    <script src="../../shared/site-shell.js" defer></script>
+</head>
+<body class="text-gray-800">
+
+    <!-- 導覽列 -->
+    <nav class="bg-white/90 backdrop-blur-md shadow-sm fixed w-full z-50 top-0 border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-primary p-2 rounded-lg">
+                        <i data-lucide="building" class="text-white w-6 h-6"></i>
+                    </div>
+                    <span class="font-bold text-xl text-slate-800 tracking-wider">5016B 電梯控制專題</span>
+                </div>
+                <!-- 新增右上角圖示連結 -->
+                <div class="flex items-center">
+                    <button onclick="openSetupGuide()" class="flex items-center gap-2 text-slate-500 hover:text-primary font-bold transition-colors bg-slate-100 hover:bg-sky-50 px-3 py-2 sm:px-4 rounded-lg shadow-sm border border-slate-200">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                        <span class="hidden sm:inline text-sm">環境建置指南</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 橫幅區域 (Hero Section) -->
+    <section id="about" class="pt-24 pb-12 md:pt-32 md:pb-24 bg-darkbg text-white relative overflow-hidden">
+        <!-- 背景裝飾 -->
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+            <div class="absolute -top-24 -right-24 w-96 h-96 bg-primary/20 rounded-full blur-3xl"></div>
+            <div class="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-slate-900 to-transparent"></div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center gap-10 relative z-10">
+            <div class="md:w-1/2 space-y-6">
+                <div class="inline-block bg-primary/20 text-sky-400 border border-primary/30 px-3 py-1 rounded-full text-sm font-bold mb-2">
+                    Arduino 系統整合專題
+                </div>
+                <h1 class="text-4xl md:text-5xl font-black leading-tight">
+                    大樓電梯升降控制 <br>
+                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-500">五節課微型課程</span>
+                </h1>
+                <p class="text-lg text-slate-400 leading-relaxed">
+                    本課程將帶領學生從零開始，將蜂鳴器、馬達、燈條與LED矩陣等基礎模組，逐步整合成一個具備聲光提示與動力控制的「智慧大樓電梯系統」。
+                </p>
+                <div class="flex gap-4 pt-4">
+                    <button onclick="scrollToCurriculum()" class="bg-primary text-white px-6 py-3 rounded-lg font-bold shadow-lg hover:bg-sky-600 hover:shadow-xl transition flex items-center gap-2">
+                        <i data-lucide="arrow-down-circle" class="w-5 h-5"></i> 展開五節課綱
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Hero 右側視覺圖 (電梯意象) -->
+            <div class="md:w-1/2 flex justify-center w-full">
+                <div class="relative w-full max-w-sm bg-cardbg p-8 rounded-2xl shadow-2xl border border-slate-700">
+                    <div class="flex justify-between items-center mb-6 border-b border-slate-600 pb-4">
+                        <span class="text-slate-300 font-mono">Elevator_System</span>
+                        <div class="flex gap-2">
+                            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-center gap-6 mb-6">
+                        <div class="flex flex-col items-center gap-2">
+                            <div class="w-16 h-16 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                                <i data-lucide="grid-3x3" class="w-8 h-8"></i>
+                            </div>
+                            <span class="text-xs text-slate-400">樓層顯示</span>
+                        </div>
+                        <div class="flex flex-col items-center gap-2">
+                            <div class="w-16 h-16 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+                                <i data-lucide="arrow-up-down" class="w-8 h-8"></i>
+                            </div>
+                            <span class="text-xs text-slate-400">動力馬達</span>
+                        </div>
+                    </div>
+                    <div class="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div class="w-1/3 h-full bg-primary relative animate-[pulse_2s_infinite]"></div>
+                    </div>
+                    <p class="text-center text-sm text-slate-500 mt-4 font-mono">System Ready...</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 課程單元規劃 (Curriculum) -->
+    <section id="curriculum" class="py-20 bg-slate-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-900 mb-4">微課程單元規劃</h2>
+                <p class="text-slate-500 max-w-2xl mx-auto text-lg">化繁為簡，五節課完成機電整合專題開發。每節包含基礎與進階挑戰！</p>
+            </div>
+
+            <!-- 時間軸/卡片網格設計 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                
+                <!-- Unit 1 -->
+                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-red-300" onclick="openCourseDetail(1)">
+                    <div class="w-14 h-14 bg-red-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-red-500 transition-colors">
+                        <i data-lucide="grid-3x3" class="w-7 h-7 text-red-500 group-hover:text-white transition-colors"></i>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-sm font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">第一節課</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-3">8x8 LED：電梯樓層顯示</h3>
+                    <p class="text-slate-600 mb-4 h-16">模擬電梯門上方的樓層顯示器。運用變數「現在樓層」，在矩陣上精準繪製對應的數字 (1-8樓)。</p>
+                    <div class="border-t border-slate-100 pt-4 mt-auto">
+                        <p class="text-sm font-bold text-slate-700 mb-2">🎯 實作重點：</p>
+                        <ul class="text-sm text-slate-500 space-y-1 list-disc list-inside">
+                            <li>基礎：判斷對應樓層數字</li>
+                            <li>進階：動態方向指示箭頭</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Unit 2 -->
+                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-purple-300" onclick="openCourseDetail(2)">
+                    <div class="w-14 h-14 bg-purple-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-purple-500 transition-colors">
+                        <i data-lucide="ellipsis-vertical" class="w-7 h-7 text-purple-500 group-hover:text-white transition-colors"></i>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-sm font-bold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">第二節課</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-3">燈條：大樓樓層模擬</h3>
+                    <p class="text-slate-600 mb-4 h-16">將垂直安裝的燈條視為大樓。當電梯移動時，光點隨之上下移動，直觀呈現實體位置。</p>
+                    <div class="border-t border-slate-100 pt-4 mt-auto">
+                        <p class="text-sm font-bold text-slate-700 mb-2">🎯 實作重點：</p>
+                        <ul class="text-sm text-slate-500 space-y-1 list-disc list-inside">
+                            <li>基礎：樓層變數與燈號映射</li>
+                            <li>進階：電梯移動閃爍特效</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Unit 3 -->
+                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-cyan-300" onclick="openCourseDetail(3)">
+                    <div class="w-14 h-14 bg-cyan-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-cyan-500 transition-colors">
+                        <i data-lucide="fan" class="w-7 h-7 text-cyan-500 group-hover:text-white transition-colors"></i>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-sm font-bold text-cyan-600 bg-cyan-100 px-3 py-1 rounded-full">第三節課</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-3">直流馬達：電梯升降動力</h3>
+                    <p class="text-slate-600 mb-4 h-16">控制電梯的「捲揚機」。學習比較目前樓層與目標樓層，決定馬達正反轉（上升與下降）。</p>
+                    <div class="border-t border-slate-100 pt-4 mt-auto">
+                        <p class="text-sm font-bold text-slate-700 mb-2">🎯 實作重點：</p>
+                        <ul class="text-sm text-slate-500 space-y-1 list-disc list-inside">
+                            <li>基礎：正反轉升降邏輯</li>
+                            <li>進階：安全樓層防呆機制</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Unit 4 -->
+                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group cursor-pointer hover:shadow-xl hover:border-amber-300" onclick="openCourseDetail(4)">
+                    <div class="w-14 h-14 bg-amber-50 rounded-xl flex items-center justify-center mb-6 group-hover:bg-amber-500 transition-colors">
+                        <i data-lucide="speaker" class="w-7 h-7 text-amber-500 group-hover:text-white transition-colors"></i>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-sm font-bold text-amber-600 bg-amber-100 px-3 py-1 rounded-full">第四節課</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-3">蜂鳴器：抵達提示音效</h3>
+                    <p class="text-slate-600 mb-4 h-16">學習頻率控制與聲音輸出，為電梯設計「叮咚」的抵達確認與按鈕回饋音效。</p>
+                    <div class="border-t border-slate-100 pt-4 mt-auto">
+                        <p class="text-sm font-bold text-slate-700 mb-2">🎯 實作重點：</p>
+                        <ul class="text-sm text-slate-500 space-y-1 list-disc list-inside">
+                            <li>基礎：抵達「叮咚」音效</li>
+                            <li>進階：急促故障警報音</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Unit 5 -->
+                <div class="unit-card bg-white rounded-2xl p-8 border border-slate-200 shadow-sm transition-all duration-300 group lg:col-span-2 cursor-pointer hover:shadow-xl hover:border-primary" onclick="openCourseDetail(5)">
+                    <div class="flex flex-col md:flex-row gap-6 items-start md:items-center h-full">
+                        <div class="w-14 h-14 bg-sky-50 rounded-xl flex shrink-0 items-center justify-center group-hover:bg-primary transition-colors">
+                            <i data-lucide="cpu" class="w-7 h-7 text-primary group-hover:text-white transition-colors"></i>
+                        </div>
+                        <div class="flex-1 flex flex-col h-full">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-bold text-primary bg-sky-100 px-3 py-1 rounded-full">第五節課 (總結)</span>
+                            </div>
+                            <h3 class="text-xl md:text-2xl font-bold text-slate-800 mb-2">完美升降機：系統邏輯整合</h3>
+                            <p class="text-slate-600 mb-4">將前四堂課的技術，透過「狀態機」概念完美結合。從接收電腦按鍵指令開始，驅動馬達、更新燈條與螢幕，並在抵達後播放提示音。</p>
+                            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mt-auto">
+                                <p class="text-sm font-bold text-slate-700 mb-2">🎯 專題整合流程：</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-600">
+                                    <div class="flex items-start gap-2">
+                                        <i data-lucide="refresh-cw" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
+                                        <span><strong>基礎：</strong>多模組並行作動與狀態同步。</span>
+                                    </div>
+                                    <div class="flex items-start gap-2">
+                                        <i data-lucide="star" class="w-4 h-4 text-accent shrink-0 mt-0.5"></i>
+                                        <span><strong>進階：</strong>參考完整積木截圖，完成專題開發。</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- 課程詳細介紹頁面 (預設隱藏) -->
+    <section id="detail-view" class="hidden pt-24 pb-20 bg-slate-900 min-h-screen text-slate-100 animate-fade-in">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <button onclick="closeCourseDetail()" class="flex items-center gap-2 text-slate-400 hover:text-white transition mb-8 font-medium">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i> 返回課程總覽
+            </button>
+            
+            <div class="bg-cardbg rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
+                <!-- 標題區塊 -->
+                <div id="detail-header-bg" class="bg-gradient-to-r from-slate-800 to-slate-900 p-8 border-b border-slate-700 relative overflow-hidden">
+                    <!-- 裝飾 Icon -->
+                    <i id="detail-bg-icon" class="absolute -right-10 -top-10 w-48 h-48 text-slate-700/30"></i>
+                    
+                    <div class="relative z-10">
+                        <div class="flex items-center gap-3 mb-4">
+                            <span id="detail-badge" class="text-sm font-bold bg-slate-700 text-white px-3 py-1 rounded-full border border-slate-600">單元 X</span>
+                        </div>
+                        <h2 id="detail-title" class="text-3xl md:text-4xl font-bold text-white mb-4">單元標題</h2>
+                        <p id="detail-desc" class="text-lg text-slate-300 leading-relaxed">單元描述內容...</p>
+                    </div>
+                </div>
+                
+                <!-- 內容區塊 -->
+                <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div class="space-y-8">
+                        <div class="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50">
+                            <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                                <i data-lucide="target" class="w-6 h-6 text-primary"></i> 學習目標
+                            </h3>
+                            <ul id="detail-objectives" class="space-y-3 text-slate-300">
+                                <!-- JS 動態載入 -->
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-8">
+                        <div class="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50">
+                            <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                                <i data-lucide="package" class="w-6 h-6 text-accent"></i> 使用硬體
+                            </h3>
+                            <ul id="detail-materials" class="space-y-3 text-slate-300">
+                                <!-- JS 動態載入 -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 動態載入特製虛擬碼預覽區塊 -->
+                <div id="detail-demo-container" class="border-t border-slate-700 bg-slate-950 p-6 md:p-8 space-y-12">
+                    <!-- JS 動態載入 (包含拼圖區塊與程式碼) -->
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-slate-950 text-slate-500 py-12 text-center border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-center items-center gap-2 mb-4">
+                <i data-lucide="building" class="w-6 h-6 text-primary"></i>
+                <span class="text-xl font-bold text-slate-400 tracking-wider">5016B 電梯專題課程</span>
+            </div>
+            <p class="mb-2">Arduino 機電整合微課程教材</p>
+            <p class="text-sm">© 2026 科技領域版權所有</p>
+        </div>
+    </footer>
+
+    <!-- 環境建置指南 Modal -->
+    <div id="setup-modal" class="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-sm hidden overflow-y-auto transition-opacity duration-300 opacity-0">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-20 pb-12 sm:p-12 relative">
+            <!-- 關閉按鈕 -->
+            <button onclick="closeSetupGuide()" class="fixed top-6 right-6 sm:top-8 sm:right-8 bg-slate-800/50 hover:bg-red-500 text-white p-3 rounded-full shadow-lg transition-all z-[110] backdrop-blur-md border border-white/20">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+            
+            <!-- 載入使用者提供的指南內容 -->
+            <div id="setup-modal-content" class="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300 opacity-0">
+                <!-- 頁面標題區塊 -->
+                <div class="bg-slate-50 pt-10 pb-8 text-center border-b border-gray-200">
+                    <h1 class="text-3xl font-black text-gray-900 flex items-center justify-center gap-3 mb-4">
+                        <i data-lucide="cpu" class="w-8 h-8 text-primary"></i>
+                        NKNUBLOCK 教學平台
+                    </h1>
+                    <p class="text-gray-500 text-lg">硬體模擬環境建置與連線操作指南</p>
+                </div>
+
+                <!-- 卡片頭部 -->
+                <div class="bg-gradient-to-r from-sky-50 to-blue-50 p-8 border-b border-gray-100">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="text-sm font-bold bg-secondary text-white px-3 py-1 rounded-full">環境建置</span>
+                    </div>
+                    <h2 class="text-3xl font-bold text-gray-900 mb-4 flex items-center gap-3">
+                        <i data-lucide="settings" class="w-8 h-8 text-primary"></i>
+                        環境設定與連線方式
+                    </h2>
+                    <p class="text-lg text-gray-600 leading-relaxed">
+                        在上課前，請確保您已熟悉 NKNUBLOCK 的硬體模擬功能，這樣即使沒有實體開發板，也能順利進行程式碼的測試與執行。
+                    </p>
+                </div>
+                
+                <!-- 步驟清單 -->
+                <div class="p-8 space-y-12">
+                    <!-- 步驟 1 -->
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="md:w-1/3">
+                            <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                                <span class="bg-primary text-white w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-md">1</span>
+                                開啟軟體
+                            </h3>
+                            <p class="text-gray-600 mb-4">請在您的電腦桌面上，找到並開啟「NKNUBLOCK 圖像化程式」軟體。</p>
+                        </div>
+                        <div class="md:w-2/3">
+                            <div class="bg-gray-50 rounded-xl overflow-hidden shadow-sm border border-gray-200 p-2 hover:shadow-md transition-shadow">
+                                <img src="https://raw.githubusercontent.com/byte-core-su/5016b-11402/refs/heads/main/501601.png" alt="NKNUBLOCK 軟體首頁" class="w-full h-auto rounded-lg" onerror="this.onerror=null; this.src='https://placehold.co/800x400/f3f4f6/a1a1aa?text=Image+Loading+Failed';">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 步驟 2 -->
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="md:w-1/3">
+                            <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                                <span class="bg-primary text-white w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-md">2</span>
+                                打開硬體模擬介面
+                            </h3>
+                            <p class="text-gray-600 mb-4">在軟體主選單介面中，點擊並點選「顯示硬體模擬」，載入虛擬教具。</p>
+                        </div>
+                        <div class="md:w-2/3">
+                            <div class="bg-gray-50 rounded-xl overflow-hidden shadow-sm border border-gray-200 p-2 hover:shadow-md transition-shadow">
+                                <img src="https://raw.githubusercontent.com/byte-core-su/5016b-11402/refs/heads/main/501602.png" alt="打開硬體模擬介面" class="w-full h-auto rounded-lg" onerror="this.onerror=null; this.src='https://placehold.co/800x400/f3f4f6/a1a1aa?text=Image+Loading+Failed';">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 步驟 3 -->
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="md:w-1/3">
+                            <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                                <span class="bg-primary text-white w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-md">3</span>
+                                選擇教具
+                            </h3>
+                            <p class="text-gray-600 mb-4">在模擬介面的教具清單中，找到並選擇「5016B 智慧數控教具平台」作為本課程的開發硬體。</p>
+                        </div>
+                        <div class="md:w-2/3">
+                            <div class="bg-gray-50 rounded-xl overflow-hidden shadow-sm border border-gray-200 p-2 hover:shadow-md transition-shadow">
+                                <img src="https://raw.githubusercontent.com/byte-core-su/5016b-11402/refs/heads/main/501603.png" alt="選擇 5016B 教具畫面" class="w-full h-auto rounded-lg" onerror="this.onerror=null; this.src='https://placehold.co/800x400/f3f4f6/a1a1aa?text=Image+Loading+Failed';">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 步驟 4 -->
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="md:w-1/3">
+                            <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                                <span class="bg-primary text-white w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-md">4</span>
+                                連接模擬教具
+                            </h3>
+                            <p class="text-gray-600 mb-4">點選模擬教具上的 <strong>USB 線路圖示</strong>。</p>
+                        </div>
+                        <div class="md:w-2/3">
+                            <div class="bg-gray-50 rounded-xl overflow-hidden shadow-sm border border-gray-200 p-2 hover:shadow-md transition-shadow">
+                                <img src="https://raw.githubusercontent.com/byte-core-su/5016b-11402/refs/heads/main/501604.png" alt="點選 USB 虛擬連線畫面" class="w-full h-auto rounded-lg" onerror="this.onerror=null; this.src='https://placehold.co/800x400/f3f4f6/a1a1aa?text=Image+Loading+Failed';">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 步驟 5 -->
+                    <div class="flex flex-col md:flex-row gap-6">
+                        <div class="md:w-1/3">
+                            <h3 class="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                                <span class="bg-primary text-white w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-md">5</span>
+                                連線與測試
+                            </h3>
+                            <p class="text-gray-600 mb-4">將連線模式設置為<strong>「模擬」</strong>，連線後確認狀態是否更改為<strong>「已連接(模擬)」</strong>。</p>
+                        </div>
+                        <div class="md:w-2/3">
+                            <div class="bg-gray-50 rounded-xl overflow-hidden shadow-sm border border-gray-200 p-2 hover:shadow-md transition-shadow">
+                                <img src="https://raw.githubusercontent.com/byte-core-su/5016b-11402/refs/heads/main/501605.png" alt="連線模式與已連接狀態畫面" class="w-full h-auto rounded-lg" onerror="this.onerror=null; this.src='https://placehold.co/800x400/f3f4f6/a1a1aa?text=Image+Loading+Failed';">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 頁尾 -->
+                <div class="bg-gray-50 py-4 text-center border-t border-gray-200">
+                    <p class="text-gray-400 text-sm">本指南可獨立作為 NKNUBLOCK 軟體操作之參考教材使用</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 程式碼截圖浮動視窗 Modal -->
+    <div id="image-modal" class="fixed inset-0 z-[120] bg-slate-900/95 backdrop-blur-md hidden flex items-center justify-center p-4 sm:p-8 transition-opacity duration-300 opacity-0" onclick="closeImageModal(event)">
+        <!-- 關閉按鈕 -->
+        <button onclick="closeImageModal(event, true)" class="absolute top-6 right-6 sm:top-8 sm:right-8 bg-slate-800/80 hover:bg-red-500 text-white p-3 rounded-full shadow-lg transition-all z-[130] backdrop-blur-md border border-white/20">
+            <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+        
+        <!-- 圖片容器 -->
+        <div class="relative max-w-full max-h-full flex items-center justify-center transform scale-95 transition-transform duration-300" id="image-modal-content">
+            <img id="modal-image" src="" alt="程式碼截圖" class="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain border border-slate-700/50">
+        </div>
+    </div>
+
+    <!-- 初始化 Icons 與互動腳本 -->
+    <script>
+        // 初始化 Lucide Icons
+        lucide.createIcons();
+
+        function scrollToCurriculum() {
+            const curriculumSection = document.getElementById('curriculum');
+            window.scrollTo({
+                top: curriculumSection.offsetTop - 64,
+                behavior: 'smooth'
+            });
+        }
+
+        // --- 電梯課程資料 (包含拼圖與實作) ---
+        const courseData = {
+            1: {
+                title: "8x8 LED：電梯樓層顯示",
+                badge: "第一節課",
+                colorText: "text-red-400",
+                colorBg: "bg-red-500",
+                icon: "grid-3x3",
+                requireUnlock: false, // 新增：必須驗證拼圖正確才能解鎖實作
+                desc: "LED 矩陣模擬安裝於電梯內的顯示器。不僅能以數字形式即時顯示電梯目前所在的樓層，還能透過動畫顯示電梯運行方向。",
+                objectives: [
+                    "從紅燈倒數計時擷取數字 1~8 的陣列圖形編碼",
+                    "基礎：利用鍵盤事件設定目標樓層，並顯示對應數字圖案",
+                    "進階：設計上升與下降的逐格動畫指標"
+                ],
+                materials: ["5016B 主控制板", "8x8 LED 矩陣模組 (MAX7219)", "傳輸線"],
+                puzzle: {
+                    blocks: [
+                        { id: "b1_1", text: "當鍵盤 1 鍵被按下", color: "slate", icon: "keyboard" },
+                        { id: "b1_2", text: "更新矩陣為數字 1 圖案", color: "red", icon: "grid" },
+                        { id: "b1_3", text: "變數 目標樓層 設為 1", color: "blue", icon: "variable" },
+                        { id: "b1_4", text: "執行 電梯移動 函式", color: "cyan", icon: "play" }
+                    ],
+                    correct: ["b1_1", "b1_3", "b1_4", "b1_2"]
+                },
+                demoHTML: function() {
+                    const frames = [
+                        [ "00011000", "00111000", "01011000", "00011000", "00011000", "00011000", "01111110", "00000000" ], // 1
+                        [ "00111100", "01000010", "00000010", "00001100", "00110000", "01000000", "01111110", "00000000" ], // 2
+                        [ "00111100", "01000010", "00000010", "00011100", "00000010", "01000010", "00111100", "00000000" ], // 3
+                        [ "00001100", "00011100", "00101100", "01001100", "01111110", "00001100", "00001100", "00000000" ], // 4
+                        [ "01111110", "01000000", "01111100", "00000010", "00000010", "01000010", "00111100", "00000000" ], // 5
+                        [ "00111100", "01000000", "01111100", "01000010", "01000010", "01000010", "00111100", "00000000" ], // 6
+                        [ "01111110", "00000010", "00000100", "00001000", "00010000", "00100000", "00100000", "00000000" ], // 7
+                        [ "00111100", "01000010", "01000010", "00111100", "01000010", "01000010", "00111100", "00000000" ]  // 8
+                    ];
+                    
+                    let gridsHTML = '<div class="grid grid-cols-4 lg:grid-cols-8 gap-4 justify-items-center mb-8">';
+                    frames.forEach((frame, idx) => {
+                        let grid = `<div class="flex flex-col items-center">
+                            <div class="bg-gray-800 p-1.5 rounded-lg border border-gray-600">
+                                <div class="flex flex-col gap-[2px]">`;
+                        
+                        frame.forEach(row => {
+                            grid += `<div class="flex gap-[2px]">`;
+                            for(let char of row) {
+                                if(char === '1') {
+                                    grid += `<div class="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-500 shadow-[0_0_5px_#ef4444]"></div>`;
+                                } else {
+                                    grid += `<div class="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-slate-900"></div>`;
+                                }
+                            }
+                            grid += `</div>`;
+                        });
+                        
+                        grid += `</div></div><span class="text-xs text-slate-400 mt-2 font-mono">${idx + 1} 樓</span></div>`;
+                        gridsHTML += grid;
+                    });
+                    gridsHTML += '</div>';
+
+                    // 箭頭展示 HTML (改為8格動畫分解，跑馬燈消失效果)
+                    const baseUpArrow = [ "00011000", "00111100", "01111110", "11011011", "00011000", "00011000", "00011000", "00011000" ];
+                    const upArrowFrames = [];
+                    for(let i = 0; i < 8; i++) {
+                        let frame = baseUpArrow.slice(i);
+                        while(frame.length < 8) frame.push("00000000"); // 底部補0呈現消失效果
+                        upArrowFrames.push(frame);
+                    }
+
+                    const baseDownArrow = [ "00011000", "00011000", "00011000", "00011000", "11011011", "01111110", "00111100", "00011000" ];
+                    const downArrowFrames = [];
+                    for(let i = 0; i < 8; i++) {
+                        let frame = baseDownArrow.slice(0, 8 - i);
+                        let padding = [];
+                        while(padding.length < i) padding.push("00000000"); // 頂部補0呈現消失效果
+                        downArrowFrames.push([...padding, ...frame]);
+                    }
+                    
+                    let arrowHTML = '<div class="mb-8"><h4 class="text-sm font-bold text-slate-400 mb-3 text-center lg:text-left">向上動畫分解 (逐格消失)</h4><div class="grid grid-cols-4 lg:grid-cols-8 gap-3 justify-items-center mb-6">';
+                    upArrowFrames.forEach((frame, idx) => {
+                        let grid = `<div class="flex flex-col items-center">
+                            <div class="bg-gray-800 p-1 rounded border border-gray-600">
+                                <div class="flex flex-col gap-[1px]">`;
+                        frame.forEach(row => {
+                            grid += `<div class="flex gap-[1px]">`;
+                            for(let char of row) {
+                                if(char === '1') grid += `<div class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-400 shadow-[0_0_3px_#4ade80]"></div>`;
+                                else grid += `<div class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-slate-900"></div>`;
+                            }
+                            grid += `</div>`;
+                        });
+                        grid += `</div></div><span class="text-[10px] text-slate-500 mt-1 font-mono">向上F${idx + 1}</span></div>`;
+                        arrowHTML += grid;
+                    });
+                    arrowHTML += '</div>';
+
+                    arrowHTML += '<h4 class="text-sm font-bold text-slate-400 mb-3 text-center lg:text-left">向下動畫分解 (逐格消失)</h4><div class="grid grid-cols-4 lg:grid-cols-8 gap-3 justify-items-center">';
+                    downArrowFrames.forEach((frame, idx) => {
+                        let grid = `<div class="flex flex-col items-center">
+                            <div class="bg-gray-800 p-1 rounded border border-gray-600">
+                                <div class="flex flex-col gap-[1px]">`;
+                        frame.forEach(row => {
+                            grid += `<div class="flex gap-[1px]">`;
+                            for(let char of row) {
+                                if(char === '1') grid += `<div class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-400 shadow-[0_0_3px_#4ade80]"></div>`;
+                                else grid += `<div class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-slate-900"></div>`;
+                            }
+                            grid += `</div>`;
+                        });
+                        grid += `</div></div><span class="text-[10px] text-slate-500 mt-1 font-mono">向下F${idx + 1}</span></div>`;
+                        arrowHTML += grid;
+                    });
+                    arrowHTML += '</div></div>';
+
+                    return `
+                        <!-- 基礎實作 -->
+                        <div>
+                            <div class="flex items-center gap-3 mb-6">
+                                <span class="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider">基礎實作</span>
+                                <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                    <i data-lucide="grid-3x3" class="w-6 h-6 text-red-400"></i> 按鍵觸發樓層更新顯示
+                                </h3>
+                            </div>
+                            <p class="text-slate-400 mb-6 text-sm md:text-base">
+                                在積木軟體中，我們使用「當鍵盤被按下」事件來觸發動作。按下按鍵後，設定目標樓層、呼叫電梯移動函式，並更新矩陣為對應的數字圖案。這裡列出 1 樓與 8 樓的示範：
+                            </p>
+                            ${gridsHTML}
+                            
+                            <div class="bg-[#1e1e1e] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                                <div class="bg-[#2d2d2d] px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+                                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <span class="ml-4 text-xs text-slate-400 font-mono">floor_display_logic.block</span>
+                                </div>
+                                <div class="p-4 sm:p-6 overflow-x-auto text-sm sm:text-base font-mono leading-relaxed text-slate-300">
+<pre><code class="grid grid-cols-[max-content_1fr] gap-x-4 sm:gap-x-6 gap-y-2">
+<span class="col-span-2 text-green-500">// 當按下 1 鍵時的執行流程</span>
+<span class="col-span-2"><span class="text-pink-500">當</span> <span class="text-orange-300">1 鍵</span> <span class="text-pink-500">被按下</span></span>
+<span class="col-span-2">  <span class="text-blue-400">變數</span> 目標樓層 <span class="text-pink-500">設為</span> <span class="text-purple-400">1</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">執行</span> <span class="text-blue-400">電梯移動(目標樓層, 現在樓層)</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 MAX7219 8*8LED矩陣 (數字1圖案), DIN 12 CS 10 CLK 11, 第1個, 共1個</span></span>
+<span class="col-span-2"></span>
+<span class="col-span-2 text-green-500">// 當按下 8 鍵時的執行流程</span>
+<span class="col-span-2"><span class="text-pink-500">當</span> <span class="text-orange-300">8 鍵</span> <span class="text-pink-500">被按下</span></span>
+<span class="col-span-2">  <span class="text-blue-400">變數</span> 目標樓層 <span class="text-pink-500">設為</span> <span class="text-purple-400">8</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">執行</span> <span class="text-blue-400">電梯移動(目標樓層, 現在樓層)</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 MAX7219 8*8LED矩陣 (數字8圖案), DIN 12 CS 10 CLK 11, 第1個, 共1個</span></span>
+</code></pre>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-800"></div>
+
+                        <!-- 進階挑戰 -->
+                        <div>
+                            <div class="flex items-center gap-3 mb-6">
+                                <span class="bg-gradient-to-r from-red-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider flex items-center gap-1"><i data-lucide="star" class="w-3 h-3"></i>進階挑戰</span>
+                                <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                    <i data-lucide="arrow-up-down" class="w-6 h-6 text-orange-400"></i> 動態方向箭頭動畫
+                                </h3>
+                            </div>
+                            <p class="text-slate-400 mb-6 text-sm md:text-base">
+                                透過逐格寫出顯示指令並搭配等待時間，製作出箭頭逐漸消失的跑馬燈動畫效果。
+                            </p>
+                            ${arrowHTML}
+                            
+                            <div class="bg-[#1e1e1e] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                                <div class="bg-[#2d2d2d] px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+                                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <span class="ml-4 text-xs text-slate-400 font-mono">arrow_animation.block</span>
+                                </div>
+                                <div class="p-4 sm:p-6 overflow-x-auto text-sm sm:text-base font-mono leading-relaxed text-slate-300">
+<pre><code class="grid grid-cols-[max-content_1fr] gap-x-4 sm:gap-x-6 gap-y-2">
+<span class="col-span-2"><span class="text-pink-500">定義函式</span> <span class="text-blue-400">電梯向上</span></span>
+<span class="col-span-2 text-green-500">  // 需逐格寫出 9 個步驟</span>
+<span class="col-span-2">  <span class="text-yellow-200">設 MAX7219 8*8LED矩陣 (向上F1), DIN 12 CS 10 CLK 11, 第1個, 共1個</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.1</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 MAX7219 8*8LED矩陣 (向上F2), DIN 12 CS 10 CLK 11, 第1個, 共1個</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.1</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2 text-slate-500">  ... (依序寫出 F3 到 F7) ...</span>
+<span class="col-span-2">  <span class="text-yellow-200">設 MAX7219 8*8LED矩陣 (向上F8), DIN 12 CS 10 CLK 11, 第1個, 共1個</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.1</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 MAX7219 8*8LED矩陣 (空白), DIN 12 CS 10 CLK 11, 第1個, 共1個</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.1</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2 my-2 border-b border-slate-700/50"></span>
+<span class="col-span-2"><span class="text-pink-500">定義函式</span> <span class="text-blue-400">電梯向下</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 MAX7219 8*8LED矩陣 (向下F1), DIN 12 CS 10 CLK 11, 第1個, 共1個</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.1</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2 text-slate-500">  ... (依此類推往下) ...</span>
+</code></pre>
+                                </div>
+                            </div>
+
+                            <p class="text-slate-400 mt-8 mb-4 text-sm md:text-base">
+                                建立好向上與向下的動畫後，我們新增「電梯移動」函式。根據目標與現在樓層的差距，計算出箭頭動畫需要重複播放的次數，並在移動結束後更新現在的樓層變數：
+                            </p>
+                            
+                            <div class="bg-[#1e1e1e] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                                <div class="bg-[#2d2d2d] px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+                                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <span class="ml-4 text-xs text-slate-400 font-mono">elevator_move.block</span>
+                                </div>
+                                <div class="p-4 sm:p-6 overflow-x-auto text-sm sm:text-base font-mono leading-relaxed text-slate-300">
+<pre><code class="grid grid-cols-[max-content_1fr] gap-x-4 sm:gap-x-6 gap-y-2">
+<span class="col-span-2"><span class="text-pink-500">定義函式</span> <span class="text-blue-400">電梯移動(目標樓層, 現在樓層)</span></span>
+<span class="col-span-2">  <span class="text-pink-500">如果</span> <span class="text-blue-400">(變數 目標樓層)</span> > <span class="text-blue-400">(變數 現在樓層)</span> <span class="text-pink-500">那麼</span></span>
+<span class="col-span-2">    <span class="text-pink-500">重複</span> <span class="text-blue-400">(變數 目標樓層)</span> - <span class="text-blue-400">(變數 現在樓層)</span> <span class="text-pink-500">次</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">執行</span> <span class="text-blue-400">電梯向上</span></span>
+<span class="col-span-2">  <span class="text-pink-500">否則</span></span>
+<span class="col-span-2">    <span class="text-pink-500">重複</span> <span class="text-blue-400">(變數 現在樓層)</span> - <span class="text-blue-400">(變數 目標樓層)</span> <span class="text-pink-500">次</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">執行</span> <span class="text-blue-400">電梯向下</span></span>
+<span class="col-span-2">  <span class="text-blue-400">變數</span> 現在樓層 <span class="text-pink-500">設為</span> <span class="text-blue-400">(變數 目標樓層)</span></span>
+</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            },
+            2: {
+                title: "燈條：大樓樓層模擬",
+                badge: "第二節課",
+                colorText: "text-purple-400",
+                colorBg: "bg-purple-500",
+                icon: "ellipsis-vertical",
+                requireUnlock: false, // 新增：鎖定實作內容，須完成動動腦拼圖
+                desc: "全彩燈條垂直安裝，用來模擬大樓的高度與電梯的位置。將燈條上的 LED 對應到樓層，電梯移動時光點也隨之移動，並在抵達時提供視覺回饋。",
+                objectives: [
+                    "學習 WS2812B 燈條個別燈珠控制",
+                    "基礎：將變數「現在樓層」映射至燈條點亮位置",
+                    "進階：設計電梯移動時的閃爍動畫特效"
+                ],
+                materials: ["5016B 主控制板", "WS2812 全彩 LED 燈條 (8顆)", "傳輸線"],
+                puzzle: {
+                    blocks: [
+                        { id: "b2_1", text: "如果 目標樓層 > 現在樓層", color: "blue", icon: "help-circle" },
+                        { id: "b2_2", text: "電梯向上 (燈號向上移動)", color: "purple", icon: "arrow-up" },
+                        { id: "b2_3", text: "否則", color: "blue", icon: "git-branch" },
+                        { id: "b2_4", text: "電梯向下 (燈號向下移動)", color: "purple", icon: "arrow-down" }
+                    ],
+                    correct: ["b2_1", "b2_2", "b2_3", "b2_4"]
+                },
+                demoHTML: `
+                    <!-- 基礎實作 -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider">基礎實作</span>
+                            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                <i data-lucide="map-pin" class="w-6 h-6 text-purple-400"></i> 顯示目前電梯位置
+                            </h3>
+                        </div>
+                        <p class="text-slate-400 mb-6 text-sm md:text-base">
+                            我們將前一單元的數字顯示保留在按鍵事件中！接著因為在第五單元的主程式中，變數「現在樓層」會隨著電梯升降，一樓一樓地慢慢變化（例如 1→2→3）。所以只要在這個副程式中，將燈條的亮燈位置綁定該變數，光點就會呈現出跟隨電梯逐漸滑動的動態效果！
+                        </p>
+                        
+                        <!-- 動態光點展示區 -->
+                        <div class="flex flex-col md:flex-row items-center gap-8 mb-8 bg-slate-800/30 p-6 rounded-2xl border border-slate-700/50">
+                            <div class="relative w-12 bg-slate-900 rounded-xl border border-slate-700 flex flex-col items-center py-3 gap-2 shadow-inner">
+                                <!-- 8顆背景燈珠 -->
+                                <div class="w-5 h-5 rounded-full bg-slate-800 border border-slate-600"></div>
+                                <div class="w-5 h-5 rounded-full bg-slate-800 border border-slate-600"></div>
+                                <div class="w-5 h-5 rounded-full bg-slate-800 border border-slate-600"></div>
+                                <div class="w-5 h-5 rounded-full bg-slate-800 border border-slate-600"></div>
+                                <div class="w-5 h-5 rounded-full bg-slate-800 border border-slate-600"></div>
+                                <div class="w-5 h-5 rounded-full bg-slate-800 border border-slate-600"></div>
+                                <div class="w-5 h-5 rounded-full bg-slate-800 border border-slate-600"></div>
+                                <div class="w-5 h-5 rounded-full bg-slate-800 border border-slate-600"></div>
+                                
+                                <!-- 移動中的發光點 -->
+                                <div class="absolute top-3 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-cyan-400 shadow-[0_0_15px_#22d3ee] animate-[ledScan_12s_ease-in-out_infinite]"></div>
+                            </div>
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-center gap-2 text-cyan-400 text-sm font-bold bg-cyan-900/30 px-3 py-1.5 rounded-lg border border-cyan-500/20">
+                                    <i data-lucide="arrow-up-down" class="w-4 h-4"></i> 動態燈條模擬
+                                </div>
+                                <p class="text-slate-400 text-sm leading-relaxed max-w-xs">
+                                    當主程式的「現在樓層」數值改變時，發光的藍點會自動移動到對應位置。此動畫模擬了電梯上下移動，並在運轉中途停靠樓層的效果。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="bg-[#1e1e1e] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                            <div class="bg-[#2d2d2d] px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+                                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                <span class="ml-4 text-xs text-slate-400 font-mono">strip_elevator_sim.block</span>
+                            </div>
+                            <div class="p-4 sm:p-6 overflow-x-auto text-sm sm:text-base font-mono leading-relaxed text-slate-300">
+<pre><code class="grid grid-cols-[max-content_1fr] gap-x-4 sm:gap-x-6 gap-y-2">
+<span class="col-span-2 text-green-500">// 保留前一單元的數字顯示，並加入新的電梯移動邏輯</span>
+<span class="col-span-2"><span class="text-pink-500">當</span> <span class="text-orange-300">1 鍵</span> <span class="text-pink-500">被按下</span></span>
+<span class="col-span-2">  <span class="text-blue-400">變數</span> 目標樓層 <span class="text-pink-500">設為</span> <span class="text-purple-400">1</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">執行</span> <span class="text-blue-400">電梯移動(目標樓層, 現在樓層)</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 MAX7219 8*8LED矩陣 (數字1圖案), DIN 12 CS 10 CLK 11, 第1個, 共1個</span></span>
+<span class="col-span-2"></span>
+<span class="col-span-2 text-green-500">// 定義動態更新燈條的副程式</span>
+<span class="col-span-2"><span class="text-pink-500">定義函式</span> <span class="text-blue-400">更新樓層顯示</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 WS2812燈條 全部燈珠為 黑色(關閉)</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 WS2812燈條 8 顆中的第</span> <span class="text-blue-400">(變數 現在樓層)</span> <span class="text-yellow-200">顆 紅</span> <span class="text-purple-400">0</span> <span class="text-yellow-200">綠</span> <span class="text-purple-400">255</span> <span class="text-yellow-200">藍</span> <span class="text-purple-400">255</span></span>
+</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-800"></div>
+
+                    <!-- 進階挑戰 -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider flex items-center gap-1"><i data-lucide="star" class="w-3 h-3"></i>進階挑戰</span>
+                            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                <i data-lucide="sparkles" class="w-6 h-6 text-fuchsia-400"></i> 電梯移動閃爍特效
+                            </h3>
+                        </div>
+                        <p class="text-slate-400 mb-4 text-sm md:text-base">
+                            我們來實作第一單元中所呼叫的「電梯移動」函式！透過「重複直到」迴圈，我們能讓燈條在移動的過程中產生明暗交替的動態閃爍軌跡，並在最後準確停留在目標樓層。
+                        </p>
+                        <div class="bg-[#1e1e1e] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                            <div class="bg-[#2d2d2d] px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+                                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                <span class="ml-4 text-xs text-slate-400 font-mono">moving_effect.block</span>
+                            </div>
+                            <div class="p-4 sm:p-6 overflow-x-auto text-sm sm:text-base font-mono leading-relaxed text-slate-300">
+<pre><code class="grid grid-cols-[max-content_1fr] gap-x-4 sm:gap-x-6 gap-y-2">
+<span class="col-span-2"><span class="text-pink-500">定義函式</span> <span class="text-blue-400">電梯移動(目標樓層, 現在樓層)</span></span>
+<span class="col-span-2">  <span class="text-blue-400">變數</span> 燈號顯示 <span class="text-pink-500">設為</span> <span class="text-blue-400">(變數 現在樓層)</span></span>
+<span class="col-span-2">  <span class="text-pink-500">如果</span> <span class="text-blue-400">(變數 目標樓層)</span> > <span class="text-blue-400">(變數 現在樓層)</span> <span class="text-pink-500">那麼</span></span>
+<span class="col-span-2">    <span class="text-pink-500">重複直到</span> <span class="text-blue-400">(變數 燈號顯示)</span> > <span class="text-blue-400">(變數 目標樓層)</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">設 WS2812燈條 8 顆中的第</span> <span class="text-blue-400">(變數 燈號顯示)</span> <span class="text-yellow-200">顆 紅 50 綠 50 藍 50 腳位 4</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.1</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">設 WS2812燈條 8 顆中的第</span> <span class="text-blue-400">(變數 燈號顯示)</span> <span class="text-yellow-200">顆 紅 0 綠 0 藍 0 腳位 4</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.1</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2">      <span class="text-blue-400">變數</span> 燈號顯示 <span class="text-pink-500">改變</span> <span class="text-purple-400">1</span></span>
+<span class="col-span-2">  <span class="text-pink-500">否則</span></span>
+<span class="col-span-2">    <span class="text-pink-500">重複直到</span> <span class="text-blue-400">(變數 目標樓層)</span> > <span class="text-blue-400">(變數 燈號顯示)</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">設 WS2812燈條 8 顆中的第</span> <span class="text-blue-400">(變數 燈號顯示)</span> <span class="text-yellow-200">顆 紅 50 綠 50 藍 50 腳位 4</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.1</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">設 WS2812燈條 8 顆中的第</span> <span class="text-blue-400">(變數 燈號顯示)</span> <span class="text-yellow-200">顆 紅 0 綠 0 藍 0 腳位 4</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.1</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2">      <span class="text-blue-400">變數</span> 燈號顯示 <span class="text-pink-500">改變</span> <span class="text-purple-400">-1</span></span>
+<span class="col-span-2">  <span class="text-blue-400">變數</span> 現在樓層 <span class="text-pink-500">設為</span> <span class="text-blue-400">(變數 目標樓層)</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 WS2812燈條 8 顆中的第</span> <span class="text-blue-400">(變數 現在樓層)</span> <span class="text-yellow-200">顆 紅 50 綠 50 藍 50 腳位 4</span></span>
+</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            3: {
+                title: "直流馬達：電梯升降動力",
+                badge: "第三節課",
+                colorText: "text-cyan-400",
+                colorBg: "bg-cyan-500",
+                icon: "fan",
+                requireUnlock: false, // 新增：鎖定實作內容，須完成動動腦拼圖
+                desc: "直流減速馬達模擬電梯的「捲揚機」。透過驅動模組，控制馬達正反轉讓電梯升降。我們必須建立邏輯判斷，讓系統自動決定移動方向與安全邊界。",
+                objectives: [
+                    "學習直流減速馬達驅動模組原理",
+                    "基礎：利用獨立條件判斷 (如果) 決定升降方向",
+                    "進階：結合方向動畫或燈號移動，同步視覺與動力"
+                ],
+                materials: ["5016B 主控制板", "直流減速馬達", "傳輸線"],
+                puzzle: {
+                    blocks: [
+                        { id: "b3_1", text: "讀取目標與現在樓層", color: "slate", icon: "eye" },
+                        { id: "b3_2", text: "如果: 目標 > 現在", color: "blue", icon: "help-circle" },
+                        { id: "b3_3", text: "廣播訊息: 馬達正轉", color: "cyan", icon: "arrow-up" },
+                        { id: "b3_4", text: "否則 (目標 < 現在)", color: "blue", icon: "git-branch" },
+                        { id: "b3_5", text: "廣播訊息: 馬達反轉", color: "cyan", icon: "arrow-down" },
+                        { id: "b3_6", text: "馬達轉速為 0 (停止)", color: "red", icon: "square" }
+                    ],
+                    correct: ["b3_1", "b3_2", "b3_3", "b3_4", "b3_5", "b3_6"],
+                    layoutTemplate: `
+                        <div class="flex flex-col items-center min-w-[500px] w-full pb-4 pt-2">
+                            <div class="slot-wrapper w-[200px]" data-idx="0"></div>
+                            
+                            <div class="w-full relative flex justify-center mt-8 mb-8 max-w-[500px]">
+                                <!-- Top & Bottom Connection Borders -->
+                                <div class="absolute top-0 left-[25%] right-[25%] border-t-2 border-slate-500"></div>
+                                <div class="absolute bottom-0 left-[25%] right-[25%] border-b-2 border-slate-500"></div>
+                                <!-- Center Vertical Connections -->
+                                <div class="absolute -top-8 left-1/2 w-px h-8 bg-slate-500 -translate-x-1/2"></div>
+                                <div class="absolute -bottom-8 left-1/2 w-px h-8 bg-slate-500 -translate-x-1/2"></div>
+                                
+                                <div class="flex w-full">
+                                    <!-- 分支 1: 上升 -->
+                                    <div class="flex flex-col items-center w-1/2 px-4 z-10">
+                                        <div class="w-px h-8 bg-slate-500 -mt-8 relative"><div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-slate-500"></div></div>
+                                        <div class="slot-wrapper w-full" data-idx="1"></div>
+                                        <div class="w-px h-8 bg-slate-500 relative flex items-center justify-center">
+                                            <span class="absolute left-2 text-[11px] text-green-400 font-bold bg-slate-800 px-1.5 py-0.5 rounded shadow-sm border border-green-500/30 whitespace-nowrap">是 (成立)</span>
+                                        </div>
+                                        <div class="slot-wrapper w-full" data-idx="2"></div>
+                                        <div class="w-px h-8 bg-slate-500 -mb-8 relative"><div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-slate-500"></div></div>
+                                    </div>
+                                    <!-- 分支 2: 下降 -->
+                                    <div class="flex flex-col items-center w-1/2 px-4 z-10">
+                                        <div class="w-px h-8 bg-slate-500 -mt-8 relative"><div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-slate-500"></div></div>
+                                        <div class="slot-wrapper w-full" data-idx="3"></div>
+                                        <div class="w-px h-8 bg-slate-500 relative flex items-center justify-center">
+                                            <span class="absolute left-2 text-[11px] text-slate-400 font-bold bg-slate-800 px-1.5 py-0.5 rounded shadow-sm border border-slate-500/30 whitespace-nowrap">否則</span>
+                                        </div>
+                                        <div class="slot-wrapper w-full" data-idx="4"></div>
+                                        <div class="w-px h-8 bg-slate-500 -mb-8 relative"><div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-slate-500"></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 步驟 6: 馬達停止 -->
+                            <div class="slot-wrapper w-[200px]" data-idx="5"></div>
+                        </div>
+                    `
+                },
+                demoHTML: `
+                    <!-- 基礎實作 -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="bg-cyan-600 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider">基礎實作</span>
+                            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                <i data-lucide="arrow-up-down" class="w-6 h-6 text-cyan-400"></i> 升降方向判斷與廣播
+                            </h3>
+                        </div>
+                        <p class="text-slate-400 mb-4 text-sm md:text-base">
+                            電梯的核心動力控制：我們使用「廣播訊息」來驅動馬達。在「電梯移動」函式中比較目標與現在樓層，若大於則廣播正轉，否則廣播反轉。並分別設定接收到訊息時的馬達轉速，最後在移動結束時將轉速設為 0 以停止馬達。
+                        </p>
+                            <div class="bg-[#1e1e1e] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                                <div class="bg-[#2d2d2d] px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+                                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <span class="ml-4 text-xs text-slate-400 font-mono">motor_broadcast.block</span>
+                                </div>
+                                <div class="p-4 sm:p-6 overflow-x-auto text-sm sm:text-base font-mono leading-relaxed text-slate-300">
+<pre><code class="grid grid-cols-[max-content_1fr] gap-x-4 sm:gap-x-6 gap-y-2">
+<span class="col-span-2"><span class="text-pink-500">定義函式</span> <span class="text-blue-400">電梯移動(目標樓層, 現在樓層)</span></span>
+<span class="col-span-2">  <span class="text-pink-500">如果</span> <span class="text-blue-400">(變數 目標樓層)</span> > <span class="text-blue-400">(變數 現在樓層)</span> <span class="text-pink-500">那麼</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">廣播訊息</span> <span class="text-orange-300">馬達正轉</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">等待</span> <span class="text-blue-400">(變數 目標樓層)</span> - <span class="text-blue-400">(變數 現在樓層)</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2">  <span class="text-pink-500">否則</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">廣播訊息</span> <span class="text-orange-300">馬達反轉</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">等待</span> <span class="text-blue-400">(變數 現在樓層)</span> - <span class="text-blue-400">(變數 目標樓層)</span> <span class="text-yellow-200">秒</span></span>
+<span class="col-span-2">  <span class="text-blue-400">變數</span> 現在樓層 <span class="text-pink-500">設為</span> <span class="text-blue-400">(變數 目標樓層)</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">直流減速馬達 腳位(2,3) 轉速為</span> <span class="text-purple-400">0</span> <span class="text-slate-500">註 (停止)</span></span>
+<span class="col-span-2 my-2 border-b border-slate-700/50"></span>
+<span class="col-span-2 text-green-500">// 以下為獨立的接收訊息事件積木</span>
+<span class="col-span-2"><span class="text-pink-500">當收到訊息</span> <span class="text-orange-300">馬達正轉</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">直流減速馬達 腳位(2,3) 轉速為</span> <span class="text-purple-400">200</span> <span class="text-slate-500">註 (上升)</span></span>
+<span class="col-span-2 my-2 border-b border-slate-700/50"></span>
+<span class="col-span-2"><span class="text-pink-500">當收到訊息</span> <span class="text-orange-300">馬達反轉</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">直流減速馬達 腳位(2,3) 轉速為</span> <span class="text-purple-400">-200</span> <span class="text-slate-500">註 (下降)</span></span>
+</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-800"></div>
+
+                    <!-- 進階挑戰 -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider flex items-center gap-1"><i data-lucide="star" class="w-3 h-3"></i>進階挑戰</span>
+                            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                <i data-lucide="layers" class="w-6 h-6 text-blue-400"></i> 結合視覺動畫特效
+                            </h3>
+                        </div>
+                        <p class="text-slate-400 mb-6 text-sm md:text-base leading-relaxed">
+                            單純的馬達轉動可能不夠直覺，我們可以將前兩個單元學到的「視覺特效」加入動力系統中！<br><br>
+                            <strong class="text-cyan-400">💡 原理說明：</strong><br>
+                            當系統判斷需要上樓，並「廣播馬達正轉」開始移動的同時，我們可以在流程中同步呼叫單元一的「播放方向動畫」函式，或者是單元二的「更新燈條顯示」邏輯。這樣一來，在馬達運轉的期間，LED 矩陣就會顯示對應的動態箭頭，或是燈條光點會隨之攀升，讓硬體的動力與視覺回饋完美且流暢地結合在一起！
+                        </p>
+                        <div class="bg-slate-800/30 rounded-xl border-2 border-dashed border-slate-700 p-8 flex flex-col items-center justify-center transition-colors hover:border-cyan-500/50">
+                            <i data-lucide="image" class="w-12 h-12 text-slate-500 mb-4"></i>
+                            <p class="text-slate-400 text-sm mb-6">請參考下方對應的積木程式碼截圖進行實作：</p>
+                            <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto justify-center">
+                                <button onclick="openImageModal('https://raw.githubusercontent.com/su-yung-sheng/googlesites/refs/heads/main/2026060201.png')" class="w-full sm:w-auto px-6 py-2.5 bg-slate-700 hover:bg-red-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg">
+                                    <i data-lucide="zoom-in" class="w-4 h-4 text-red-300"></i> 1. 播放方向動畫
+                                </button>
+                                <button onclick="openImageModal('https://raw.githubusercontent.com/su-yung-sheng/googlesites/refs/heads/main/2026060202.png')" class="w-full sm:w-auto px-6 py-2.5 bg-slate-700 hover:bg-purple-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg">
+                                    <i data-lucide="zoom-in" class="w-4 h-4 text-purple-300"></i> 2. 更新燈條顯示
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            4: {
+                title: "蜂鳴器：抵達提示音效",
+                badge: "第四節課",
+                colorText: "text-amber-400",
+                colorBg: "bg-amber-500",
+                icon: "speaker",
+                requireUnlock: false, // 新增：鎖定實作內容，須完成動動腦拼圖
+                desc: "蜂鳴器在電梯系統中扮演「聲音提示」的角色。當使用者選定樓層，或電梯到達指定樓層時，蜂鳴器會發出不同頻率的聲音，提供操作回饋。",
+                objectives: [
+                    "理解蜂鳴器發聲原理與 tone() 函數應用",
+                    "學習控制聲音頻率與持續時間",
+                    "基礎：設計抵達提示音 (Do-So-Do-So 旋律)",
+                    "進階：設計故障警報急促音"
+                ],
+                materials: ["5016B 主控制板", "無源蜂鳴器模組", "傳輸線"],
+                puzzle: {
+                    blocks: [
+                        { id: "b4_1", text: "按下樓層 (設定目標)", color: "slate", icon: "keyboard" },
+                        { id: "b4_2", text: "執行 電梯移動", color: "cyan", icon: "arrow-up-down" },
+                        { id: "b4_3", text: "如果電梯抵達", color: "blue", icon: "help-circle" },
+                        { id: "b4_4", text: "播放音效", color: "amber", icon: "bell-ring" }
+                    ],
+                    correct: ["b4_1", "b4_2", "b4_3", "b4_4"]
+                },
+                demoHTML: `
+                    <!-- 基礎實作 -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="bg-amber-600 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider">基礎實作</span>
+                            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                <i data-lucide="bell-ring" class="w-6 h-6 text-amber-400"></i> 抵達旋律音效設計
+                            </h3>
+                        </div>
+                        <p class="text-slate-400 mb-4 text-sm md:text-base">
+                            如同剛才的流程拼圖，當電梯判斷抵達目標後，我們需要呼叫一個「播放抵達音效」的函式。我們可以利用積木的「播放音調...直到播完」功能，連續播放兩次 Do 與 So 的交替旋律，組合出輕快、明確的到達提示音。
+                        </p>
+                        <div class="bg-[#1e1e1e] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                            <div class="bg-[#2d2d2d] px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+                                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                <span class="ml-4 text-xs text-slate-400 font-mono">buzzer_arrival.block</span>
+                            </div>
+                            <div class="p-4 sm:p-6 overflow-x-auto text-sm sm:text-base font-mono leading-relaxed text-slate-300">
+<pre><code class="grid grid-cols-[max-content_1fr] gap-x-4 sm:gap-x-6 gap-y-2">
+<span class="col-span-2 text-green-500">// 當電梯抵達目標樓層時觸發</span>
+<span class="col-span-2"><span class="text-pink-500">定義函式</span> <span class="text-blue-400">播放抵達音效</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">蜂鳴器在腳位 8 播放音調,頻率為</span> <span class="text-purple-400">(Do,131)</span> <span class="text-yellow-200">時間為</span> <span class="text-purple-400">(150)</span> <span class="text-yellow-200">ms 直到播完</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">蜂鳴器在腳位 8 播放音調,頻率為</span> <span class="text-purple-400">(So,196)</span> <span class="text-yellow-200">時間為</span> <span class="text-purple-400">(150)</span> <span class="text-yellow-200">ms 直到播完</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">蜂鳴器在腳位 8 播放音調,頻率為</span> <span class="text-purple-400">(Do,131)</span> <span class="text-yellow-200">時間為</span> <span class="text-purple-400">(150)</span> <span class="text-yellow-200">ms 直到播完</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">蜂鳴器在腳位 8 播放音調,頻率為</span> <span class="text-purple-400">(So,196)</span> <span class="text-yellow-200">時間為</span> <span class="text-purple-400">(150)</span> <span class="text-yellow-200">ms 直到播完</span></span>
+</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="border-t border-slate-800"></div>
+
+                    <!-- 進階挑戰 -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="bg-gradient-to-r from-amber-500 to-red-500 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider flex items-center gap-1"><i data-lucide="star" class="w-3 h-3"></i>進階挑戰</span>
+                            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                <i data-lucide="triangle-alert" class="w-6 h-6 text-red-400"></i> 故障警報急促音
+                            </h3>
+                        </div>
+                        <p class="text-slate-400 mb-4 text-sm md:text-base">
+                            如果電梯發生異常（例如超載），我們可以使用「迴圈」來快速開關高頻率的聲音，製造出急促的警報感。
+                        </p>
+                        <div class="bg-[#1e1e1e] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                            <div class="bg-[#2d2d2d] px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+                                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                <span class="ml-4 text-xs text-slate-400 font-mono">buzzer_alert.block</span>
+                            </div>
+                            <div class="p-4 sm:p-6 overflow-x-auto text-sm sm:text-base font-mono leading-relaxed text-slate-300">
+<pre><code class="grid grid-cols-[max-content_1fr] gap-x-4 sm:gap-x-6 gap-y-2">
+<span class="col-span-2"><span class="text-pink-500">定義函式</span> <span class="text-blue-400">播放警報音效</span></span>
+<span class="col-span-2">  <span class="text-pink-500">重複</span> <span class="text-purple-400">5</span> <span class="text-pink-500">次</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">蜂鳴器在腳位 8 播放音調,頻率為</span> <span class="text-purple-400">(2000)</span> <span class="text-yellow-200">時間為</span> <span class="text-purple-400">(150)</span> <span class="text-yellow-200">ms 直到播完</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">等待</span> <span class="text-purple-400">0.15</span> <span class="text-yellow-200">秒</span></span>
+</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            5: {
+                title: "完美升降機：系統邏輯整合",
+                badge: "第五節課",
+                colorText: "text-primary",
+                colorBg: "bg-primary",
+                icon: "cpu",
+                requireUnlock: false, // 新增：鎖定實作內容，須完成動動腦拼圖才能解鎖
+                desc: "整合所有硬體模組。透過電腦鍵盤輸入指令，控制馬達升降、同步燈條位置與矩陣顯示，並在抵達目標後觸發蜂鳴器。",
+                objectives: [
+                    "建立「系統狀態機」概念 (待機、上升、下降)",
+                    "基礎：撰寫主迴圈，完成多模組並行作動與狀態同步",
+                    "進階：參考完整積木截圖，組合主程式與副程式"
+                ],
+                materials: ["前面四節課所有模組", "電腦鍵盤 (作為輸入端)"],
+                puzzle: {
+                    blocks: [
+                        { id: "b5_1", text: "接收鍵盤呼叫 (設定目標)", color: "slate", icon: "keyboard" },
+                        { id: "b5_2", text: "判斷: 現在樓層 ≠ 目標樓層", color: "blue", icon: "help-circle" },
+                        { id: "b5_3", text: "呼叫 U3: 執行馬達升降", color: "cyan", icon: "fan" },
+                        { id: "b5_4", text: "呼叫 U1&U2: 更新螢幕與燈條", color: "primary", icon: "refresh-cw" },
+                        { id: "b5_5", text: "判斷: 現在樓層 = 目標樓層", color: "blue", icon: "help-circle" },
+                        { id: "b5_6", text: "煞車停止與等候乘客", color: "red", icon: "square" },
+                        { id: "b5_7", text: "呼叫 U4: 播放抵達音效", color: "amber", icon: "bell-ring" }
+                    ],
+                    correct: ["b5_1", "b5_2", "b5_3", "b5_4", "b5_5", "b5_6", "b5_7"],
+                    layoutTemplate: `
+                        <div class="flex flex-col items-center min-w-[600px] w-full pb-4 pt-2">
+                            <div class="slot-wrapper w-[200px]" data-idx="0"></div>
+                            <div class="w-px h-8 bg-slate-500"></div>
+                            <div class="w-full border-t-2 border-slate-500 relative flex justify-between px-8 pt-8">
+                                <!-- 分支 1: 移動中 -->
+                                <div class="flex flex-col items-center relative w-1/2 px-4">
+                                    <div class="absolute -top-8 left-1/2 w-px h-8 bg-slate-500 -translate-x-1/2"></div>
+                                    <div class="slot-wrapper w-full" data-idx="1"></div>
+                                    <div class="w-px h-8 bg-slate-500 relative flex items-center justify-center">
+                                        <span class="absolute left-2 text-[11px] text-green-400 font-bold bg-slate-800 px-1.5 py-0.5 rounded shadow-sm border border-green-500/30 whitespace-nowrap">是 (移動中)</span>
+                                    </div>
+                                    <div class="slot-wrapper w-full" data-idx="2"></div>
+                                    <div class="w-px h-8 bg-slate-500"></div>
+                                    <div class="slot-wrapper w-full" data-idx="3"></div>
+                                </div>
+                                <!-- 分支 2: 已抵達 -->
+                                <div class="flex flex-col items-center relative w-1/2 px-4">
+                                    <div class="absolute -top-8 left-1/2 w-px h-8 bg-slate-500 -translate-x-1/2"></div>
+                                    <div class="slot-wrapper w-full" data-idx="4"></div>
+                                    <div class="w-px h-8 bg-slate-500 relative flex items-center justify-center">
+                                        <span class="absolute left-2 text-[11px] text-green-400 font-bold bg-slate-800 px-1.5 py-0.5 rounded shadow-sm border border-green-500/30 whitespace-nowrap">是 (已抵達)</span>
+                                    </div>
+                                    <div class="slot-wrapper w-full" data-idx="5"></div>
+                                    <div class="w-px h-8 bg-slate-500"></div>
+                                    <div class="slot-wrapper w-full" data-idx="6"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `
+                },
+                demoHTML: `
+                    <!-- 基礎實作 -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="bg-primary text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider">基礎實作</span>
+                            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                <i data-lucide="git-merge" class="w-6 h-6 text-sky-400"></i> 主程式架構同步作動
+                            </h3>
+                        </div>
+                        <p class="text-slate-400 mb-4 text-sm md:text-base">
+                            整合的核心在於將前面學過的各模組動作，打包進同一個判斷邏輯中。當判斷升降方向後，同時觸發馬達動力、螢幕箭頭動畫，並利用迴圈逐格更新燈條光點位移！最後廣播「電梯抵達」完成這趟旅程：
+                        </p>
+                        <div class="bg-[#1e1e1e] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                            <div class="bg-[#2d2d2d] px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+                                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                <span class="ml-4 text-xs text-slate-400 font-mono">elevator_main.block</span>
+                            </div>
+                            <div class="p-4 sm:p-6 overflow-x-auto text-sm sm:text-base font-mono leading-relaxed text-slate-300">
+<pre><code class="grid grid-cols-[max-content_1fr] gap-x-4 sm:gap-x-6 gap-y-2">
+<span class="col-span-2"><span class="text-pink-500">定義函式</span> <span class="text-blue-400">電梯移動(目標樓層, 現在樓層)</span></span>
+<span class="col-span-2">  <span class="text-blue-400">變數</span> 燈號顯示 <span class="text-pink-500">設為</span> <span class="text-blue-400">(變數 現在樓層)</span></span>
+<span class="col-span-2">  <span class="text-pink-500">如果</span> <span class="text-blue-400">(變數 目標樓層)</span> > <span class="text-blue-400">(變數 現在樓層)</span> <span class="text-pink-500">那麼</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">廣播訊息</span> <span class="text-orange-300">[馬達正轉]</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">廣播訊息</span> <span class="text-orange-300">[箭頭向上]</span></span>
+<span class="col-span-2">    <span class="text-pink-500">重複直到</span> <span class="text-blue-400">(變數 燈號顯示)</span> > <span class="text-blue-400">(變數 目標樓層)</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">執行 燈號變化</span> <span class="text-blue-400">(變數 燈號顯示)</span></span>
+<span class="col-span-2">      <span class="text-blue-400">變數</span> 燈號顯示 <span class="text-pink-500">改變</span> <span class="text-purple-400">1</span></span>
+<span class="col-span-2">  <span class="text-pink-500">否則</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">廣播訊息</span> <span class="text-orange-300">[馬達反轉]</span></span>
+<span class="col-span-2">    <span class="text-yellow-200">廣播訊息</span> <span class="text-orange-300">[箭頭向下]</span></span>
+<span class="col-span-2">    <span class="text-pink-500">重複直到</span> <span class="text-blue-400">(變數 目標樓層)</span> > <span class="text-blue-400">(變數 燈號顯示)</span></span>
+<span class="col-span-2">      <span class="text-yellow-200">執行 燈號變化</span> <span class="text-blue-400">(變數 燈號顯示)</span></span>
+<span class="col-span-2">      <span class="text-blue-400">變數</span> 燈號顯示 <span class="text-pink-500">改變</span> <span class="text-purple-400">-1</span></span>
+<span class="col-span-2">  <span class="text-blue-400">變數</span> 現在樓層 <span class="text-pink-500">設為</span> <span class="text-blue-400">(變數 目標樓層)</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">設 WS2812燈條 8 顆中的第</span> <span class="text-blue-400">(變數 現在樓層)</span> <span class="text-yellow-200">顆 紅 50 綠 50 藍 50 腳位 4</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">直流減速馬達 腳位(2,3) 轉速為</span> <span class="text-purple-400">0</span> <span class="text-slate-500">註 (停止)</span></span>
+<span class="col-span-2">  <span class="text-yellow-200">廣播訊息</span> <span class="text-orange-300">[電梯抵達]</span></span>
+</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-800"></div>
+
+                    <!-- 進階實作 (改為截圖連結) -->
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="bg-gradient-to-r from-sky-500 to-indigo-500 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider flex items-center gap-1"><i data-lucide="star" class="w-3 h-3"></i>進階實作</span>
+                            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+                                <i data-lucide="image" class="w-6 h-6 text-indigo-400"></i> 主程式與副程式積木截圖
+                            </h3>
+                        </div>
+                        <p class="text-slate-400 mb-6 text-sm md:text-base leading-relaxed">
+                            恭喜你完成了所有的核心邏輯！現在，請參考下方完整的積木程式碼截圖，將「主程式迴圈」與「電梯移動副程式」完美組合，完成你的 5016B 大樓電梯專題吧！
+                        </p>
+                        <div class="bg-slate-800/30 rounded-xl border-2 border-dashed border-slate-700 p-8 flex flex-col items-center justify-center transition-colors hover:border-primary/50">
+                            <i data-lucide="code-2" class="w-12 h-12 text-slate-500 mb-4"></i>
+                            <p class="text-slate-400 text-sm mb-6">請點擊下方按鈕開啟完整程式碼截圖參考：</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+                                <button onclick="openImageModal('https://raw.githubusercontent.com/su-yung-sheng/googlesites/refs/heads/main/2026061601.png')" class="px-4 py-2.5 bg-slate-700 hover:bg-sky-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg">
+                                    <i data-lucide="zoom-in" class="w-4 h-4 text-sky-300"></i> 1. 主程式
+                                </button>
+                                <button onclick="openImageModal('https://raw.githubusercontent.com/su-yung-sheng/googlesites/refs/heads/main/2026061602.png')" class="px-4 py-2.5 bg-slate-700 hover:bg-slate-500 text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg">
+                                    <i data-lucide="zoom-in" class="w-4 h-4 text-slate-300"></i> 2. 按鍵程式
+                                </button>
+                                <button onclick="openImageModal('https://raw.githubusercontent.com/su-yung-sheng/googlesites/refs/heads/main/2026061603.png')" class="px-4 py-2.5 bg-slate-700 hover:bg-amber-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg">
+                                    <i data-lucide="zoom-in" class="w-4 h-4 text-amber-300"></i> 3. 電梯抵達
+                                </button>
+                                <button onclick="openImageModal('https://raw.githubusercontent.com/su-yung-sheng/googlesites/refs/heads/main/2026061604.png')" class="px-4 py-2.5 bg-slate-700 hover:bg-purple-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg">
+                                    <i data-lucide="zoom-in" class="w-4 h-4 text-purple-300"></i> 4. 燈號變化
+                                </button>
+                                <button onclick="openImageModal('https://raw.githubusercontent.com/su-yung-sheng/googlesites/refs/heads/main/2026061605.png')" class="px-4 py-2.5 bg-slate-700 hover:bg-cyan-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg">
+                                    <i data-lucide="zoom-in" class="w-4 h-4 text-cyan-300"></i> 5. 馬達正反轉
+                                </button>
+                                <button onclick="openImageModal('https://raw.githubusercontent.com/su-yung-sheng/googlesites/refs/heads/main/2026061606.png')" class="px-4 py-2.5 bg-slate-700 hover:bg-red-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg">
+                                    <i data-lucide="zoom-in" class="w-4 h-4 text-red-300"></i> 6. 箭頭上下
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `
+            }
+        };
+
+        // --- 拼圖邏輯與狀態管理 ---
+        let currentPuzzle = null;
+        let availableBlocks = [];
+        let placedBlocks = [];
+        
+        // 為了避免 Tailwind CDN purge 未靜態使用的顏色，預先定義完整的 class 名稱
+        const blockStyles = {
+            'blue': 'bg-blue-600/20 border-blue-500/50 hover:bg-blue-600/40 text-blue-400',
+            'amber': 'bg-amber-600/20 border-amber-500/50 hover:bg-amber-600/40 text-amber-400',
+            'slate': 'bg-slate-600/20 border-slate-500/50 hover:bg-slate-600/40 text-slate-400',
+            'cyan': 'bg-cyan-600/20 border-cyan-500/50 hover:bg-cyan-600/40 text-cyan-400',
+            'purple': 'bg-purple-600/20 border-purple-500/50 hover:bg-purple-600/40 text-purple-400',
+            'red': 'bg-red-600/20 border-red-500/50 hover:bg-red-600/40 text-red-400',
+            'primary': 'bg-sky-600/20 border-sky-500/50 hover:bg-sky-600/40 text-sky-400'
+        };
+        const placedStyles = {
+            'blue': 'bg-blue-600 hover:bg-blue-500',
+            'amber': 'bg-amber-600 hover:bg-amber-500',
+            'slate': 'bg-slate-600 hover:bg-slate-500',
+            'cyan': 'bg-cyan-600 hover:bg-cyan-500',
+            'purple': 'bg-purple-600 hover:bg-purple-500',
+            'red': 'bg-red-600 hover:bg-red-500',
+            'primary': 'bg-sky-600 hover:bg-sky-500'
+        };
+
+        function initPuzzle(unitId) {
+            currentPuzzle = courseData[unitId].puzzle;
+            if(!currentPuzzle) return "";
+            
+            // 複製並打亂可用積木
+            availableBlocks = [...currentPuzzle.blocks].sort(() => Math.random() - 0.5);
+            placedBlocks = new Array(currentPuzzle.correct.length).fill(null);
+            
+            // 判斷是否為樹狀分支排版，若是則改為「上下垂直排版」取得最大寬度，且不顯示捲軸方便截圖
+            const isWideLayout = !!currentPuzzle.layoutTemplate;
+            const containerClass = isWideLayout ? "flex flex-col gap-6" : "flex flex-col lg:flex-row gap-8";
+            const panelClass = isWideLayout ? "w-full" : "lg:w-1/2";
+            
+            const puzzleHTML = `
+                <div class="bg-slate-900/80 rounded-2xl border border-slate-700 shadow-xl overflow-hidden mb-8 puzzle-block-enter">
+                    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 flex items-center gap-3">
+                        <i data-lucide="puzzle" class="w-6 h-6 text-white"></i>
+                        <h3 class="text-xl font-bold text-white tracking-wide">🧠 課前動動腦：流程邏輯拼圖</h3>
+                    </div>
+                    <div class="p-6">
+                        <p class="text-slate-400 mb-6 text-sm md:text-base">實作寫程式前，請先點擊下方「可用邏輯積木」，依序將它們放入右側的「執行流程」中，思考正確的程式執行步驟！</p>
+                        
+                        <div class="${containerClass}">
+                            <!-- 可用積木區 -->
+                            <div class="${panelClass}">
+                                <h4 class="text-sm font-bold text-slate-500 mb-4 tracking-wider uppercase">可用邏輯積木 (點擊加入)</h4>
+                                <div id="puzzle-available-container" class="flex flex-wrap gap-3 min-h-[120px] p-4 bg-slate-800/50 rounded-xl border border-slate-700 ${isWideLayout ? 'justify-center sm:justify-start' : ''}">
+                                    <!-- JS Render -->
+                                </div>
+                            </div>
+                            
+                            <!-- 流程排序區 -->
+                            <div class="${panelClass} flex flex-col">
+                                <div class="flex justify-between items-end mb-4">
+                                    <h4 class="text-sm font-bold text-slate-500 tracking-wider uppercase">程式執行流程 (點擊移出)</h4>
+                                    <button onclick="checkPuzzle()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1 shadow-lg shrink-0">
+                                        <i data-lucide="check-circle-2" class="w-4 h-4"></i> 驗證邏輯
+                                    </button>
+                                </div>
+                                <div id="puzzle-flow-container" class="flex flex-col gap-2 p-4 bg-slate-800/50 rounded-xl border border-slate-700 flex-1 relative ${isWideLayout ? 'overflow-visible items-center justify-center' : 'overflow-x-auto'}">
+                                    <!-- JS Render -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 驗證結果提示 -->
+                        <div id="puzzle-result" class="hidden"></div>
+                    </div>
+                </div>
+            `;
+            
+            // 延遲渲染內部積木，確保 DOM 已載入
+            setTimeout(() => renderPuzzleState(), 50);
+            return puzzleHTML;
+        }
+
+        function renderPuzzleState() {
+            const availContainer = document.getElementById('puzzle-available-container');
+            const flowContainer = document.getElementById('puzzle-flow-container');
+            if (!availContainer || !flowContainer) return;
+
+            // 渲染可用積木
+            availContainer.innerHTML = availableBlocks.map((block, index) => {
+                if (!block) return '';
+                return `
+                    <div onclick="clickAvailableBlock(${index})" class="puzzle-block-enter cursor-pointer px-4 py-2 ${blockStyles[block.color]} border rounded-lg text-sm font-medium transition-all shadow-sm flex items-center gap-2 select-none hover:-translate-y-0.5 whitespace-nowrap">
+                        <i data-lucide="${block.icon || 'box'}" class="w-4 h-4"></i> ${block.text}
+                    </div>
+                `;
+            }).join('');
+
+            // 產生所有槽位的 HTML
+            const slotHTMLs = placedBlocks.map((block, index) => {
+                if (!block) {
+                    return `
+                        <div class="h-10 w-full min-w-[140px] px-2 border-2 border-dashed border-slate-600/50 rounded-lg bg-slate-800/30 flex items-center justify-center text-slate-500 text-xs font-mono transition-colors">
+                            放入步驟 ${index + 1}
+                        </div>
+                    `;
+                } else {
+                    return `
+                        <div onclick="clickPlacedBlock(${index})" class="puzzle-block-enter cursor-pointer px-3 py-2 w-full min-w-[140px] ${placedStyles[block.color]} text-white rounded-lg text-sm font-medium shadow-md transition-all flex items-center justify-between select-none whitespace-nowrap">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-black/20 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">${index + 1}</span>
+                                <span class="truncate">${block.text}</span>
+                            </div>
+                            <i data-lucide="x" class="w-4 h-4 text-white/50 hover:text-white shrink-0 ml-2"></i>
+                        </div>
+                    `;
+                }
+            });
+
+            // 判斷是否使用特殊排版範本 (如：樹狀分支)
+            if (currentPuzzle.layoutTemplate) {
+                let html = currentPuzzle.layoutTemplate;
+                slotHTMLs.forEach((slotHtml, i) => {
+                    html = html.replace(`<div class="slot-wrapper w-[200px]" data-idx="${i}"></div>`, slotHtml);
+                    html = html.replace(`<div class="slot-wrapper w-full" data-idx="${i}"></div>`, slotHtml);
+                    html = html.replace(`<div class="slot-wrapper" data-idx="${i}"></div>`, slotHtml);
+                });
+                flowContainer.innerHTML = html;
+                flowContainer.classList.remove('flex-col', 'gap-2'); // 移除預設的垂直排列
+            } else {
+                // 預設的直線排列
+                flowContainer.classList.add('flex-col', 'gap-2');
+                flowContainer.innerHTML = slotHTMLs.map((html, i) => {
+                    const isLast = i === slotHTMLs.length - 1;
+                    const arrowHTML = isLast ? '' : `<div class="flex justify-center my-0.5"><i data-lucide="arrow-down" class="text-slate-600 w-4 h-4"></i></div>`;
+                    return `<div>${html}</div>${arrowHTML}`;
+                }).join('');
+            }
+            
+            lucide.createIcons();
+        }
+
+        function clickAvailableBlock(index) {
+            const block = availableBlocks[index];
+            if (!block) return;
+            
+            // 找到第一個空槽位
+            const emptyIndex = placedBlocks.indexOf(null);
+            if (emptyIndex !== -1) {
+                placedBlocks[emptyIndex] = block;
+                availableBlocks.splice(index, 1);
+                hidePuzzleResult();
+                renderPuzzleState();
+            } else {
+                // 如果滿了，提示使用者
+                const resultEl = document.getElementById('puzzle-result');
+                resultEl.innerHTML = `<i data-lucide="info" class="w-5 h-5"></i> 流程槽位已滿，請先點擊移除錯誤的步驟。`;
+                resultEl.className = "mt-6 p-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-300 bg-slate-800 text-slate-300 border border-slate-700 block puzzle-block-enter";
+                lucide.createIcons();
+            }
+        }
+
+        function clickPlacedBlock(index) {
+            const block = placedBlocks[index];
+            if (!block) return;
+            
+            availableBlocks.push(block);
+            placedBlocks[index] = null;
+            hidePuzzleResult();
+            renderPuzzleState();
+        }
+
+        function hidePuzzleResult() {
+            const resultEl = document.getElementById('puzzle-result');
+            if(resultEl) resultEl.className = "hidden";
+        }
+
+        function checkPuzzle() {
+            const resultEl = document.getElementById('puzzle-result');
+            
+            // 檢查是否全放滿
+            if (placedBlocks.includes(null)) {
+                resultEl.innerHTML = `<i data-lucide="alert-circle" class="w-5 h-5"></i> 請先將所有的積木放入流程槽位中！`;
+                resultEl.className = "mt-6 p-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-300 bg-amber-500/20 text-amber-400 border border-amber-500/30 block puzzle-block-enter";
+                lucide.createIcons();
+                return;
+            }
+
+            // 檢查順序是否正確
+            let isCorrect = true;
+            for (let i = 0; i < currentPuzzle.correct.length; i++) {
+                if (placedBlocks[i].id !== currentPuzzle.correct[i]) {
+                    isCorrect = false;
+                    break;
+                }
+            }
+
+            if (isCorrect) {
+                resultEl.innerHTML = `<i data-lucide="check-circle-2" class="w-5 h-5"></i> 太棒了！邏輯順序完全正確，可以開始往下參考實作囉！`;
+                resultEl.className = "mt-6 p-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-300 bg-green-500/20 text-green-400 border border-green-500/30 block puzzle-block-enter";
+                
+                // 解鎖實作區域
+                const lockScreen = document.getElementById('demo-lock-screen');
+                const lockedContent = document.getElementById('locked-demo-content');
+                if (lockScreen && lockedContent) {
+                    lockScreen.classList.add('hidden');
+                    lockedContent.classList.remove('hidden');
+                    // 觸發漸顯動畫
+                    setTimeout(() => {
+                        lockedContent.classList.remove('opacity-0');
+                        lockedContent.classList.add('opacity-100');
+                    }, 50);
+                }
+            } else {
+                resultEl.innerHTML = `<i data-lucide="x-circle" class="w-5 h-5"></i> 邏輯順序似乎有點不對哦，請點擊移除積木再重試一次！`;
+                resultEl.className = "mt-6 p-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-300 bg-red-500/20 text-red-400 border border-red-500/30 block puzzle-block-enter";
+            }
+            lucide.createIcons();
+        }
+
+        // --- 頁面開啟與關閉邏輯 ---
+        function openCourseDetail(unitId) {
+            if (window.LearnerProfile && window.SCHOOL_APP) {
+                const storageKey = window.SCHOOL_APP.storageKeys.elevatorUnits;
+                const opened = window.LearnerProfile.readTermStorage(storageKey, {});
+                opened[unitId] = true;
+                window.LearnerProfile.writeTermStorage(storageKey, opened);
+            }
+            const data = courseData[unitId];
+            if (!data) return;
+
+            // 隱藏首頁區塊
+            document.getElementById('about').classList.add('hidden');
+            document.getElementById('curriculum').classList.add('hidden');
+            
+            // 顯示詳細頁面
+            const detailView = document.getElementById('detail-view');
+            detailView.classList.remove('hidden');
+            
+            // 設定標題與顏色
+            document.getElementById('detail-badge').textContent = data.badge;
+            document.getElementById('detail-title').textContent = data.title;
+            document.getElementById('detail-desc').textContent = data.desc;
+            
+            const bgIcon = document.getElementById('detail-bg-icon');
+            bgIcon.setAttribute('data-lucide', data.icon);
+            
+            // 學習目標
+            const objList = document.getElementById('detail-objectives');
+            objList.innerHTML = data.objectives.map(obj => 
+                `<li class="flex items-start gap-2"><i data-lucide="check-circle" class="w-5 h-5 ${data.colorText} shrink-0 mt-0.5"></i><span>${obj}</span></li>`
+            ).join('');
+            
+            // 硬體清單
+            const matList = document.getElementById('detail-materials');
+            matList.innerHTML = data.materials.map(mat => 
+                `<li class="flex items-start gap-2"><i data-lucide="cpu" class="w-5 h-5 text-slate-400 shrink-0 mt-0.5"></i><span>${mat}</span></li>`
+            ).join('');
+            
+            // 載入特製內容 (先載入拼圖，再載入原有實作內容)
+            const demoContainer = document.getElementById('detail-demo-container');
+            const puzzleCode = initPuzzle(unitId);
+            const actualDemoHTML = typeof data.demoHTML === 'function' ? data.demoHTML() : data.demoHTML;
+            
+            // 判斷是否需要鎖定實作區塊
+            let finalDemoHTML = actualDemoHTML;
+            if (data.requireUnlock) {
+                finalDemoHTML = `
+                    <div id="demo-lock-screen" class="flex flex-col items-center justify-center p-12 bg-slate-900/80 rounded-2xl border-2 border-dashed border-slate-700 text-slate-400 mt-4 shadow-inner animate-fade-in">
+                        <div class="bg-slate-800 p-4 rounded-full mb-4 shadow-lg flex items-center justify-center">
+                            <i data-lucide="lock" class="w-10 h-10 text-slate-500"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-300 mb-2">實作內容已鎖定</h3>
+                        <p class="text-sm text-center max-w-md">請先動動腦，完成上方的「流程邏輯拼圖」並驗證正確，即可解鎖下方的基礎與進階實作內容！</p>
+                    </div>
+                    <div id="locked-demo-content" class="hidden opacity-0 transition-opacity duration-700 ease-in-out">
+                        ${actualDemoHTML}
+                    </div>
+                `;
+            } else {
+                finalDemoHTML = `<div id="locked-demo-content" class="opacity-100">${actualDemoHTML}</div>`;
+            }
+            
+            demoContainer.innerHTML = puzzleCode + finalDemoHTML;
+            
+            // 重新載入 Icons
+            lucide.createIcons();
+            
+            // 捲動到頂部
+            window.scrollTo(0, 0);
+        }
+
+        function closeCourseDetail() {
+            document.getElementById('detail-view').classList.add('hidden');
+            document.getElementById('about').classList.remove('hidden');
+            document.getElementById('curriculum').classList.remove('hidden');
+            
+            document.getElementById('detail-demo-container').innerHTML = '';
+            
+            scrollToCurriculum();
+        }
+
+        // --- 環境建置指南 Modal 邏輯 ---
+        function openSetupGuide() {
+            const modal = document.getElementById('setup-modal');
+            const content = document.getElementById('setup-modal-content');
+            modal.classList.remove('hidden');
+            // 強制重繪以觸發動畫
+            void modal.offsetWidth;
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95', 'opacity-0');
+            content.classList.add('scale-100', 'opacity-100');
+            document.body.style.overflow = 'hidden'; // 防止背景滾動
+        }
+
+        function closeSetupGuide() {
+            const modal = document.getElementById('setup-modal');
+            const content = document.getElementById('setup-modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            // 等待動畫結束後隱藏
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }, 300);
+        }
+
+        // --- 圖片浮動視窗 Modal 邏輯 ---
+        function openImageModal(imgSrc) {
+            const modal = document.getElementById('image-modal');
+            const modalImg = document.getElementById('modal-image');
+            const content = document.getElementById('image-modal-content');
+            
+            modalImg.src = imgSrc;
+            
+            modal.classList.remove('hidden');
+            // 強制重繪以觸發動畫
+            void modal.offsetWidth;
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+            content.classList.add('scale-100');
+            document.body.style.overflow = 'hidden'; // 防止背景滾動
+        }
+
+        function closeImageModal(event, force = false) {
+            // 只有點擊背景(遮罩)或點擊關閉按鈕時才觸發
+            if (force || event.target.id === 'image-modal') {
+                const modal = document.getElementById('image-modal');
+                const content = document.getElementById('image-modal-content');
+                
+                modal.classList.add('opacity-0');
+                content.classList.remove('scale-100');
+                content.classList.add('scale-95');
+                
+                // 等待動畫結束後隱藏
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.body.style.overflow = '';
+                    document.getElementById('modal-image').src = ''; // 清除圖片網址
+                }, 300);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Keep the existing 11501 teacher identity so both terms use one policy.
+    function isTeacher() {
+      return signedIn() && request.auth.token.email == 'jimwang@mail.qfm.kh.edu.tw';
+    }
+
+    // `terms.115-1` and `terms.115-2` are fields in the same private user
+    // document. A learner may update their own learning data, but may never
+    // alter teacher-owned progress fields.
+    match /users/{userId} {
+      allow get: if signedIn() && request.auth.uid == userId;
+      allow list: if isTeacher();
+      allow create: if (signedIn() && request.auth.uid == userId
+          && !request.resource.data.keys().hasAny(['computationalThinking', 'teacherProgress']))
+        || isTeacher();
+      allow update: if (signedIn() && request.auth.uid == userId
+          && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['computationalThinking', 'teacherProgress']))
+        || (isTeacher()
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['teacherProgress', 'updatedAt']));
+      allow delete: if false;
+    }
+
+    // Existing roster and verification-code flow, retained for both terms.
+    match /rosters/{studentId} {
+      allow get: if signedIn();
+      allow list, create, delete: if isTeacher();
+      allow update: if isTeacher()
+        || (signedIn()
+          && !resource.data.keys().hasAll(['verificationCode'])
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['verificationCode', 'verificationCodeUpdatedAt'])
+          && request.resource.data.verificationCode is string
+          && request.resource.data.verificationCode.matches('^[0-9]{6}$'));
+    }
+
+    // A term ID is part of the document path, so 11501 and 11502 leaderboard
+    // records remain separate while keeping the same validation policy.
+    match /leaderboards/{termId}/difficulties/{difficulty}/scores/{scoreId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && termId.matches('^[0-9]{3}-[0-9]$')
+        && difficulty in ['easy', 'normal', 'hard']
+        && request.resource.data.keys().hasOnly(['studentId', 'score', 'timestamp'])
+        && request.resource.data.studentId is string
+        && request.resource.data.studentId.matches('^15[0-9]{5}$')
+        && request.resource.data.score is int
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= 200000;
+      allow update, delete: if false;
+    }
+  }
+}

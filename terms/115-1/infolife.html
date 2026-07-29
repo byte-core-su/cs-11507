@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一一五學年度上學期 資訊科技學習系統</title>
+    <script src="../../firebase-config.js"></script>
+    <script src="../../shared/learner-profile.js"></script>
+    <script defer src="../../shared/site-shell.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, FieldPath } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const app = initializeApp(window.LEARNING_FIREBASE_CONFIG);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const currentTermId = '115-1';
+        const authReady = new Promise((resolve) => onAuthStateChanged(auth, resolve));
+
+        const formatCompletedAt = () => {
+            const now = new Date();
+            return `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        };
+
+        const getProgressUser = async () => {
+            // 通關資料只使用入口網完成驗證後的固定學生身分，避免匿名身分產生另一份進度。
+            let user = auth.currentUser || await authReady;
+            if (!user || user.isAnonymous) throw new Error('請先由入口網完成學生登入');
+            return user;
+        };
+
+        window.recordInfoLifeCompletion = async ({ taskId, chapterKey, chapterTitle, score, totalAttempted, accuracy, durationSeconds }) => {
+            const profile = window.LearningProfile.get();
+            if (!taskId || !window.LearningProfile.isComplete(profile)) throw new Error('學生資料尚未完成');
+
+            const user = await getProgressUser();
+            const progressRef = doc(db, 'users', user.uid);
+            const completedAt = formatCompletedAt();
+            const certificateId = `infolife-${chapterKey}`;
+            const certificate = {
+                course: '資訊生活', chapterKey, chapterTitle,
+                score, totalAttempted, accuracy, durationSeconds,
+                awardedAt: new Date()
+            };
+
+            const snapshot = await getDoc(progressRef);
+            if (snapshot.exists()) {
+                const existingCertificate = snapshot.data().terms?.[currentTermId]?.certificates?.[certificateId];
+                const existingAccuracy = Number(existingCertificate?.accuracy) || 0;
+                const existingDuration = Number(existingCertificate?.durationSeconds);
+                const isBetter = !existingCertificate
+                    || accuracy > existingAccuracy
+                    || (accuracy === existingAccuracy && durationSeconds < (Number.isFinite(existingDuration) ? existingDuration : Infinity));
+                const updates = [
+                    new FieldPath('terms', currentTermId, 'tasks', taskId), completedAt,
+                    new FieldPath('terms', currentTermId, 'updatedAt'), new Date(),
+                    'updatedAt', new Date()
+                ];
+                if (isBetter) updates.splice(2, 0, new FieldPath('terms', currentTermId, 'certificates', certificateId), certificate);
+                await updateDoc(progressRef,
+                    ...updates
+                );
+                return { certificate: isBetter ? certificate : existingCertificate, replaced: isBetter };
+            } else {
+                await setDoc(progressRef, {
+                    studentId: profile.studentId,
+                    profile,
+                    identity: { provider: 'student-email', studentId: profile.studentId },
+                    terms: { [currentTermId]: {
+                        tasks: { [taskId]: completedAt },
+                        certificates: { [certificateId]: certificate },
+                        updatedAt: new Date()
+                    } },
+                    updatedAt: new Date()
+                }, { merge: true });
+                return { certificate, replaced: true };
+            }
+        };
+
+        window.getInfoLifeCertificates = async () => {
+            const profile = window.LearningProfile.get();
+            if (!window.LearningProfile.isComplete(profile)) throw new Error('學生資料尚未完成');
+            const user = await getProgressUser();
+            const snapshot = await getDoc(doc(db, 'users', user.uid));
+            const certificates = snapshot.exists() ? Object.values(snapshot.data().terms?.[currentTermId]?.certificates || {}) : [];
+            return certificates
+                .filter((certificate) => certificate && certificate.course === '資訊生活')
+                .sort((a, b) => {
+                    const time = (value) => typeof value?.awardedAt?.toMillis === 'function' ? value.awardedAt.toMillis() : 0;
+                    return time(b) - time(a);
+                });
+        };
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 1.5rem;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        .pass-card {
+            background: white;
+            border: 4px solid #3b82f6;
+            position: relative;
+            overflow: hidden;
+        }
+        .pass-card::before {
+            content: "PASSED";
+            position: absolute;
+            top: 30px;
+            right: -40px;
+            transform: rotate(45deg);
+            background: #10b981;
+            color: white;
+            padding: 8px 50px;
+            font-weight: 900;
+            font-size: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+        .study-note-box {
+            background: #fffdf5;
+            border-left: 6px solid #f59e0b;
+        }
+        /* 重點整理內的標題樣式 */
+        .study-note-box h4 {
+            color: #b45309;
+            font-weight: 900;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        .study-note-box ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .study-note-box p {
+            margin-bottom: 0.5rem;
+        }
+        
+        @keyframes pop {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
+        .pdf-link {
+            display: inline-flex;
+            align-items: center;
+            background-color: #ef4444; 
+            color: white;
+            font-size: 0.75rem;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            margin-left: 12px;
+            font-weight: 700;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+        }
+        .pdf-link:hover {
+            background-color: #b91c1c;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(185, 28, 28, 0.3);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 text-slate-800">
+
+    <div id="app" class="max-w-2xl mx-auto">
+        <!-- 1. 登入畫面 -->
+        <div id="login-screen" class="glass-card p-10">
+            <div class="text-center mb-10">
+                <span class="text-blue-500 font-bold tracking-widest uppercase text-sm">前峰國中七年級</span>
+                <h1 class="text-3xl font-black text-gray-800 mt-2 leading-tight">一一五學年度上學期<br><span class="text-blue-600">資訊科技學習系統</span></h1>
+            </div>
+            
+            <div class="space-y-6">
+                <div class="rounded-xl bg-blue-50 border border-blue-100 p-5 text-center text-blue-800 font-medium">正在讀取入口網的共用學生資料…</div>
+            </div>
+        </div>
+
+        <!-- 2. 章節選擇畫面 -->
+        <div id="chapter-screen" class="glass-card p-8 hidden">
+            <header class="mb-7 flex flex-col gap-4 border-b border-gray-100 pb-6 sm:flex-row sm:items-end sm:justify-between">
+                <div><p class="text-xs font-black tracking-[0.18em] text-blue-600">INFO LIFE PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊生活・測驗集章</h2><p class="mt-2 text-sm font-medium text-slate-500">完成每個小節與章節總測驗，收集 8 枚資訊生活證書。</p></div>
+                <button onclick="showCertificateRecords()" class="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl">🏆 我的證書・集章牆</button>
+            </header>
+
+            <div class="space-y-7">
+                <section class="overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-sm">
+                    <div class="flex flex-col gap-5 bg-gradient-to-r from-blue-600 to-cyan-600 p-6 text-white sm:flex-row sm:items-center sm:justify-between">
+                        <div><p class="text-xs font-black tracking-[0.18em] text-blue-100">CHAPTER 01・可收集 3 枚證書</p><h3 class="mt-2 text-2xl font-black">第一章 資訊科技導論</h3><p class="mt-2 text-sm text-blue-100">從生活中的資訊科技，到科技帶來的影響與議題。</p></div>
+                        <button onclick="showStudyNotes('CH1')" class="rounded-2xl bg-white px-5 py-4 text-left text-blue-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"><span class="block text-xs font-black text-blue-500">🏅 章節總測驗・可集章</span><span class="mt-1 block text-base font-black">挑戰第一章總測驗 →</span></button>
+                    </div>
+                    <div class="p-5"><div class="mb-3 flex items-center justify-between"><h4 class="font-black text-slate-700">小節測驗</h4><a href="https://drive.google.com/file/d/1r1javQeDMTNoVWZd9UM6YRpuEXulv2vl/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a></div><div class="grid gap-3 sm:grid-cols-2"><button onclick="showStudyNotes('1-1')" class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-left font-bold text-blue-800 transition hover:-translate-y-0.5 hover:bg-blue-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 1 / 2</span><span class="mt-1 block">1-1 資訊科技與人類生活</span></button><button onclick="showStudyNotes('1-2')" class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-left font-bold text-blue-800 transition hover:-translate-y-0.5 hover:bg-blue-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 2 / 2</span><span class="mt-1 block">1-2 資訊科技及其相關議題</span></button></div></div>
+                    <footer class="border-t border-blue-100 bg-blue-50 px-5 py-4 text-sm leading-relaxed text-blue-900"><span class="font-black">章節底框提示：</span>兩個小節測驗與「第一章總測驗」都會收集證書；完成三枚章印，即完成第一章集章。</footer>
+                </section>
+
+                <section class="overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
+                    <div class="flex flex-col gap-5 bg-gradient-to-r from-emerald-600 to-teal-600 p-6 text-white sm:flex-row sm:items-center sm:justify-between">
+                        <div><p class="text-xs font-black tracking-[0.18em] text-emerald-100">CHAPTER 02・可收集 5 枚證書</p><h3 class="mt-2 text-2xl font-black">第二章 基礎程式設計(1)</h3><p class="mt-2 text-sm text-emerald-100">從演算法概念開始，認識 Scratch 的基礎程式設計。</p></div>
+                        <button onclick="showStudyNotes('CH2')" class="rounded-2xl bg-white px-5 py-4 text-left text-emerald-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"><span class="block text-xs font-black text-emerald-500">🏅 章節總測驗・可集章</span><span class="mt-1 block text-base font-black">挑戰第二章總測驗 →</span></button>
+                    </div>
+                    <div class="p-5"><div class="mb-3 flex items-center justify-between"><h4 class="font-black text-slate-700">小節測驗</h4><a href="https://drive.google.com/file/d/1PIC37uCwC45kfMQp74ssoCJh_v0jqFI_/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a></div><div class="grid gap-3 sm:grid-cols-2"><button onclick="showStudyNotes('2-1')" class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left font-bold text-emerald-800 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 1 / 4</span><span class="mt-1 block">2-1 認識演算法與程式語言</span></button><button onclick="showStudyNotes('2-2')" class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left font-bold text-emerald-800 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 2 / 4</span><span class="mt-1 block">2-2 Scratch 程式設計-基礎篇</span></button><button onclick="showStudyNotes('2-3')" class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left font-bold text-emerald-800 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 3 / 4</span><span class="mt-1 block">2-3 Scratch 程式設計-計算篇</span></button><button onclick="showStudyNotes('2-4')" class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left font-bold text-emerald-800 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 4 / 4</span><span class="mt-1 block">2-4 Scratch 程式設計-繪圖篇</span></button></div></div>
+                    <footer class="border-t border-emerald-100 bg-emerald-50 px-5 py-4 text-sm leading-relaxed text-emerald-900"><span class="font-black">章節底框提示：</span>四個小節測驗與「第二章總測驗」都會收集證書；完成五枚章印，即完成第二章集章。</footer>
+                </section>
+
+                <section id="knowledge-arena-unlock" class="overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-sm">
+                    <div class="bg-gradient-to-r from-violet-700 to-indigo-700 p-6 text-white"><p class="text-xs font-black tracking-[0.18em] text-violet-200">ADVANCED REVIEW</p><h3 class="mt-2 text-2xl font-black">🏆 知識大擂台</h3><p class="mt-2 text-sm text-violet-100">集滿八枚資訊生活印章後，開放 120 題進階複習與英雄榜排行。</p></div>
+                    <div id="knowledge-arena-content" class="p-5"><div class="rounded-2xl bg-violet-50 p-5 text-center font-bold text-violet-700">正在確認八章集章進度…</div></div>
+                </section>
+            </div>
+        </div>
+
+        <!-- 3. 章節重點閱讀頁面 -->
+        <div id="study-screen" class="glass-card p-8 hidden">
+            <h2 id="study-title" class="text-2xl font-black text-gray-800 mb-6 border-b-4 border-blue-500 pb-2 inline-block">章節重點</h2>
+            <div id="study-content" class="study-note-box p-6 mb-8 text-gray-700 leading-relaxed space-y-4 text-lg max-h-[60vh] overflow-y-auto"></div>
+            <div class="flex space-x-4">
+                <button onclick="backToChapters()" class="flex-1 py-4 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition">返回目錄</button>
+                <button onclick="startQuiz()" class="flex-2 px-10 py-4 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition transform active:scale-95">開始測驗挑戰</button>
+            </div>
+        </div>
+
+        <!-- 4. 測驗介面 -->
+        <div id="quiz-screen" class="glass-card p-8 hidden">
+            <div class="flex justify-between items-center mb-8 border-b pb-6">
+                <div class="max-w-[70%]">
+                    <div id="current-chapter-title" class="text-blue-600 font-black text-xl leading-tight"></div>
+                    <div class="flex items-center space-x-3 mt-2">
+                        <span id="score-counter" class="bg-orange-500 text-white text-xs px-3 py-1 rounded-full font-black shadow-sm">連對: 0</span>
+                        <span id="target-counter" class="bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full font-bold">目標: 連對 10</span>
+                        <span id="wrong-counter" class="bg-red-100 text-red-600 text-xs px-3 py-1 rounded-full font-bold shadow-sm">容錯: 20</span>
+                    </div>
+                </div>
+                <div id="timer" class="text-red-500 font-mono font-black text-2xl bg-red-50 px-4 py-1 rounded-lg border border-red-100">00:00</div>
+            </div>
+            <div id="question-container" class="min-h-[300px]"></div>
+            <div class="mt-10 flex justify-end">
+                <button id="next-btn" onclick="checkAnswer()" class="px-10 py-4 bg-blue-600 text-white font-black rounded-xl shadow-xl hover:bg-blue-700 transition transform active:scale-95">送出答案</button>
+            </div>
+        </div>
+
+        <!-- 5. 通關卡畫面 -->
+        <div id="result-screen" class="glass-card p-8 hidden">
+            <div class="pass-card rounded-[2rem] p-8 shadow-2xl">
+                <div class="text-center mb-6">
+                    <h2 id="pass-status-title" class="text-4xl font-black text-blue-600 italic underline tracking-tighter uppercase">QUIZ PASS CARD</h2>
+                    <p class="text-[10px] text-gray-400 font-bold tracking-[0.3em] mt-1">INFORMATION TECHNOLOGY LEARNING SYSTEM</p>
+                </div>
+                
+                <div class="bg-blue-50/30 border-y-4 border-double border-blue-50 rounded-xl p-6 mb-6">
+                    <div class="flex justify-around items-center mb-4">
+                        <div class="text-center">
+                            <span class="block text-[10px] text-blue-400 font-black uppercase mb-1">Class</span>
+                            <span id="res-class" class="text-2xl font-black text-gray-800"></span>
+                        </div>
+                        <div class="h-8 w-[2px] bg-blue-100"></div>
+                        <div class="text-center">
+                            <span class="block text-[10px] text-blue-400 font-black uppercase mb-1">No.</span>
+                            <span id="res-no" class="text-2xl font-black text-gray-800"></span>
+                        </div>
+                        <div class="h-8 w-[2px] bg-blue-100"></div>
+                        <div class="text-center">
+                            <span class="block text-[10px] text-blue-400 font-black uppercase mb-1">Name</span>
+                            <span id="res-name" class="text-2xl font-black text-gray-800"></span>
+                        </div>
+                    </div>
+                    <div class="text-center pt-2 border-t border-blue-100/50">
+                        <span class="text-[10px] text-blue-400 font-black uppercase mr-2">Challenge Date:</span>
+                        <span id="res-date" class="text-sm font-bold text-gray-600 tracking-widest"></span>
+                    </div>
+                </div>
+
+                <div class="space-y-4 mb-8">
+                    <div class="bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                        <span class="text-[10px] text-gray-400 font-black uppercase block mb-1">Completed Chapter</span>
+                        <span id="res-chapter" class="font-black text-blue-800 text-lg leading-tight"></span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                            <span class="text-[10px] text-gray-400 font-black block mb-1">DURATION</span>
+                            <span id="res-duration" class="font-black text-orange-600 text-lg"></span>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                            <span class="text-[10px] text-gray-400 font-black block mb-1">ACCURACY</span>
+                            <span id="res-rate" class="font-black text-green-600 text-lg">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 text-center mb-8">
+                    <div>
+                        <div class="text-[10px] text-gray-400 font-bold">CORRECT</div>
+                        <div id="res-correct" class="text-2xl font-black text-green-500">0</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-gray-400 font-bold">TOTAL Q.</div>
+                        <div id="res-total" class="text-2xl font-black text-gray-800">0</div>
+                    </div>
+                </div>
+
+                <p id="pass-msg" class="text-center text-sm text-gray-400 mb-8 italic font-bold"></p>
+                
+                <button onclick="backToChapters()" class="w-full bg-gray-900 text-white py-5 rounded-2xl font-black text-xl shadow-xl hover:bg-black transition transform active:scale-95">
+                    完成挑戰，返回選單
+                </button>
+            </div>
+        </div>
+
+        <!-- 6. 學習狀態警示單畫面 -->
+        <div id="warning-screen" class="glass-card p-8 hidden">
+            <div class="bg-white border-4 border-red-500 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-4 bg-red-500"></div>
+                <div class="text-center mb-6 mt-4">
+                    <h2 class="text-4xl font-black text-red-600 italic tracking-tighter uppercase">LEARNING WARNING</h2>
+                    <p class="text-xs text-red-400 font-bold tracking-[0.2em] mt-2">學習狀態警示單</p>
+                </div>
+                
+                <div class="bg-red-50 p-6 rounded-xl border border-red-100 text-center mb-8">
+                    <div class="text-6xl mb-4">⚠️</div>
+                    <h3 class="text-2xl font-black text-gray-800 mb-3">累積答錯已達 20 題！</h3>
+                    <p class="text-gray-600 font-bold leading-relaxed text-lg">
+                        看來學習遇到了一點小瓶頸呢。<br>
+                        請先暫停測驗，<span class="text-red-600 underline">重新閱讀課本</span>或<span class="text-red-600 underline">仔細查看重點整理</span>後，準備好再來挑戰吧！
+                    </p>
+                </div>
+
+                <button onclick="backToStudyFromWarning()" class="w-full bg-red-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl hover:bg-red-700 transition transform active:scale-95">
+                    返回閱讀重點
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示框 -->
+    <div id="modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl border-4 border-blue-600">
+            <h3 id="modal-title" class="text-2xl font-black mb-4 text-blue-600">提示</h3>
+            <p id="modal-msg" class="text-gray-600 font-bold mb-8 text-lg"></p>
+            <div class="flex justify-end">
+                <button id="modal-confirm" class="w-full py-3 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-700 transition">我知道了</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="certificate-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                <div><p class="text-xs font-black tracking-widest text-blue-600">MY CERTIFICATES</p><h3 class="mt-1 text-2xl font-black text-slate-800">我的資訊生活證書</h3><p id="certificate-student" class="mt-1 text-sm font-bold text-slate-500"></p></div>
+                <button onclick="closeCertificateRecords()" class="rounded-lg px-3 py-2 font-bold text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="關閉">✕</button>
+            </div>
+            <div id="certificate-list" class="space-y-3"></div>
+            <button onclick="closeCertificateRecords()" class="mt-6 w-full rounded-xl bg-slate-800 py-3 font-bold text-white hover:bg-slate-950">關閉</button>
+        </div>
+    </div>
+
+    <div id="certificate-detail-modal" class="fixed inset-0 z-[60] hidden flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm">
+        <div class="max-h-[90vh] w-full max-w-xl overflow-y-auto">
+            <div id="certificate-detail-content"></div>
+            <button onclick="closeCertificateDetail()" class="mt-4 w-full rounded-xl bg-white py-3 font-bold text-slate-700 shadow-lg hover:bg-slate-100">返回集章牆</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 重點整理資料 (Study Notes) ---
+        const studyNotes = {
+            "1-1": { 
+                title: "1-1 資訊科技與人類生活", 
+                content: `
+                    <h4>一、資訊科技深切影響日常生活的六大面向</h4>
+                    <p>資訊科技（IT）與人類生活息息相關，本章分別從<strong>「食、衣、住、行、育、樂」</strong>六個層面探討科技的影響。科技的進步不僅是通往便利的途徑，更將曾經只存在於電影中的想像轉變為現實。</p>
+                    
+                    <h4>二、關鍵技術帶來的現代便利性與變革</h4>
+                    <p>透過不同的核心技術，現代生活解決了許多過去的不便：</p>
+                    <ul>
+                        <li><strong>食與衣：</strong>利用行動 App 點餐與 QR Code 掃描提升效率，並透過<strong>擴增實境（AR）</strong>與智慧鏡子實現虛擬穿搭，節省試衣時間。</li>
+                        <li><strong>住與行：</strong>藉由<strong>物聯網（IoT）</strong>輔助駕駛，提升行車安全。</li>
+                        <li><strong>育與樂：</strong>線上學習平臺打破了時空限制，而<strong>虛擬實境（VR）</strong>則提供高度沉浸式的遊戲體驗，讓玩家身歷其境。</li>
+                    </ul>
+
+                    <h4>三、人工智慧（AI）引領的未來智慧化趨勢</h4>
+                    <p><strong>人工智慧（AI）</strong>帶來自動駕駛技術、能批改問答題並提供個人化解答建議的教育系統，以及更輕便且具備挑戰等級調整功能的虛擬實境體驗。</p>
+                ` 
+            },
+            "1-2": { 
+                title: "1-2 資訊科技及其相關議題", 
+                content: `
+                    <h4>一、資訊安全、法律與倫理的重視</h4>
+                    <p>資訊科技雖然帶來便利，但也伴隨著系統安全與個資外洩的風險，因此維護資訊安全與資料保護至關重要。在使用數位作品時，應遵守合理使用原則與著作權法，避免侵權行為。此外，數位公民應展現良好的資訊倫理，包含尊重隱私權、遵守網路禮儀，並關注資訊近用權（accessibility）所導致的數位落差議題。</p>
+
+                    <h4>二、媒體演進與現代媒體素養</h4>
+                    <p>數位匯流改變了傳統媒體的運作，讓資訊取得從被動轉為主動，並催生了社群媒體、串流媒體與自媒體的興起，使得人人都能發布資訊。在數位時代，媒體素養變得更加複雜，使用者不僅需要具備基本的媒體識讀能力，更要學習如何辨識由 AI 介入或人為操作所創造的假訊息。</p>
+
+                    <h4>三、資訊產業（IT 產業）的發展與特性</h4>
+                    <p>資訊產業是技術、智慧與知識密集型的產業，涵蓋了硬體製造、軟體設計、網路通訊、系統整合、支援服務及電子商務等類別。IT 產業具有產品生命週期短、競爭劇烈、從業人員素質要求高及高度國際化等特徵，且其發展往往能帶動其他產業的數位化與升級，創造出全新的商業模式。</p>
+                ` 
+            },
+            "2-1": { 
+                title: "2-1 認識演算法與程式語言", 
+                content: `
+                    <h4>一、運算思維與演算法的實踐</h4>
+                    <p>運算思維是一種解決問題的思考模式，核心在於將解決問題的方法步驟化。演算法即是這種具備邏輯性的解決方法，而流程圖（Flow Chart）則是呈現演算法的標準化工具。流程圖透過 ANSI 訂定的統一符號，清楚展現程式設計的三種基本結構：循序結構（依序執行）、選擇結構（條件分支）以及重複結構（迴圈執行）。</p>
+
+                    <h4>二、程式語言的歷史與演進</h4>
+                    <p>程式語言的發展早於電腦，從 1801 年雅卡爾（Jacquard）的提花織布機利用穿孔卡片實現自動化，到 1843 年愛達．勒芙蕾絲（Ada Lovelace）編寫第一個計算伯努利數的方法，開啟了程式設計的先河。程式語言隨後從最原始的機器語言（0 與 1），演進到需透過組譯的高效率低階語言（如組合語言），最後發展出語法接近人類語言、易於編寫與閱讀的高階語言（如 Python 和 Scratch）。</p>
+
+                    <h4>三、程式的主要功能與應用環境</h4>
+                    <p>程式是由一連串依邏輯順序排列的指令所組成，其主要功能包含：啟動電腦並分配資源（如作業系統）、產生人機互動介面，以及在網路與雲端時代將硬體連結以進行線上溝通。現代常見的程式語言因用途而異，例如 Scratch 適合入門教學，Python 以簡潔易學著稱，而 C/C++ 則常用於系統撰寫，開發者可依專業需求選擇合適的語言工具。</p>
+                ` 
+            },
+            "2-2": { 
+                title: "2-2 Scratch 程式設計-基礎篇", 
+                content: `
+                    <h4>一、Scratch 的視覺化設計與環境建立</h4>
+                    <p>Scratch 是由 MIT 開發的視覺化圖形操作介面軟體，適合做為程式設計的入門工具，學習者只需透過滑鼠拖曳積木即可撰寫程式。它提供線上版與離線版（Scratch 3.0），其操作介面主要劃分為三個核心區域：腳本區（積木組裝處）、舞臺區（呈現執行結果）以及角色區（管理角色與背景圖示）。</p>
+
+                    <h4>二、積木功能分類與基本程式結構</h4>
+                    <p>Scratch 提供 9 類共 100 多個積木，透過顏色區分不同功能，例如：<strong>「動作」用於設定位置與移動、「外觀」用於切換造型或顯示文字、「控制」用於設定判斷與重複流程，以及「事件」用於設定程式的啟動條件。在實作中，常利用「重複」積木（迴圈）</strong>來執行一系列動作（如走路），並透過座標設定角色的起始與滑行位置。</p>
+
+                    <h4>三、角色間的溝通與同步機制</h4>
+                    <p>為了實現角色間的互動（如對話），Scratch 使用了<strong>「廣播」與「接收」</strong>的概念。透過發送特定的訊息（訊號），一個角色可以觸發另一個角色的腳本執行，這使得不同角色間的積木能夠串接，達成如「小貓問話後，小狗接著回答」的同步化動畫效果。</p>
+                ` 
+            },
+            "2-3": { 
+                title: "2-3 Scratch 程式設計-計算篇", 
+                content: `
+                    <h4>一、變數的定義與循序執行基礎</h4>
+                    <p>在程式設計中，「變數」與「循序結構」搭配，即指令由上而下依序執行。在處理計算問題時（如求平均數），通常會遵循<strong>輸入（取得資料）、處理（進行算術運算）與輸出（呈現結果）</strong>三個階段。</p>
+
+                    <h4>二、選擇結構的邏輯判斷</h4>
+                    <p>「選擇結構」包含單向選擇（僅定義條件成立時的動作）與雙向選擇（透過「如果...否則...」定義成立與不成立時各自的動作）。這種結構常用於生活中的邏輯判斷，例如將平時表現、測驗與作業成績按權重加權後，判斷學期成績是否達到 60 分的及格門檻。</p>
+
+                    <h4>三、重複結構與迴圈的高效運算</h4>
+                    <p>在運用「重複結構（迴圈）」時，「設定初始值」（如將累加的和設為 0 或連乘的積設為 1）是確保計算正確的關鍵步驟。</p>
+                ` 
+            },
+            "2-4": { 
+                title: "2-4 Scratch 程式設計-繪圖篇", 
+                content: `
+                    <h4>一、舞臺坐標系統與畫筆功能基礎</h4>
+                    <p>Scratch 的舞臺畫面寬為 480 點、高 360 點，坐標系統的原點 (0, 0) 位於畫面正中央，往右與往上為正數，往左與往下則為負數。在使用繪圖功能前，必須從擴展功能中新增<strong>「畫筆」積木</strong>，其包含下筆（開始畫線）、停筆（停止畫線）、筆跡全部清除以及設定筆跡顏色與寬度等核心功能。</p>
+
+                    <h4>二、利用迴圈結構精簡繪圖程式</h4>
+                    <p>繪製幾何圖案時（如正方形的四條邊），若使用方向積木會產生重複的指令，此時可利用<strong>「計次式迴圈」</strong>來取代重複出現的程式碼，達到精簡效果。透過實際操作畫正方形，學習者能觀察事物特徵，並學會以重複執行積木來優化程式邏輯。</p>
+
+                    <h4>三、變數應用與巢狀結構的進階繪圖</h4>
+                    <p>當圖案具有規律變化（如邊長逐漸增加的擴散方形）時，需配合<strong>「變數」概念來儲存並動態改變數值（如長度），再將變數帶入移動積木中。此外，「巢狀結構」</strong>（即結構中包含結構）可處理更複雜的圖案，例如在外層迴圈控制旋轉次數、內層迴圈畫正方形，藉此繪製出由 12 個旋轉正方形組成的幾何圖形。</p>
+                ` 
+            },
+            "CH1": { 
+                title: "第一章 資訊科技導論 重點回顧", 
+                content: `
+                    <h3 class="text-xl font-black text-blue-700 mb-2 border-b-2 border-blue-200 pb-1">1-1 資訊科技與人類生活</h3>
+                    <h4>一、資訊科技深切影響日常生活的六大面向</h4>
+                    <p>從<strong>「食、衣、住、行、育、樂」</strong>六個層面探討科技影響，將電影中的想像轉變為現實。</p>
+                    <h4>二、關鍵技術帶來的現代便利性與變革</h4>
+                    <ul>
+                        <li><strong>食與衣：</strong>行動 App 點餐、QR Code 掃描，與<strong>擴增實境（AR）</strong>虛擬穿搭。</li>
+                        <li><strong>住與行：</strong>藉由<strong>物聯網（IoT）</strong>輔助駕駛，提升行車安全。</li>
+                        <li><strong>育與樂：</strong>線上學習平臺打破時空限制，<strong>虛擬實境（VR）</strong>提供沉浸式體驗。</li>
+                    </ul>
+                    <h4>三、人工智慧（AI）引領的未來智慧化趨勢</h4>
+                    <p><strong>人工智慧（AI）</strong>帶來自動駕駛、提供個人化解答建議的教育系統，及進階的虛擬實境體驗。</p>
+
+                    <h3 class="text-xl font-black text-blue-700 mt-8 mb-2 border-b-2 border-blue-200 pb-1">1-2 資訊科技及其相關議題</h3>
+                    <h4>一、資訊安全、法律與倫理的重視</h4>
+                    <p>維護資訊安全與個資保護。遵守合理使用原則與著作權法，並展現良好資訊倫理，包含尊重隱私、網路禮儀及關注資訊近用權（accessibility）。</p>
+                    <h4>二、媒體演進與現代媒體素養</h4>
+                    <p>數位匯流催生社群媒體與自媒體。使用者需具備媒體識讀能力，學習辨識由 AI 或人為操作創造的假訊息。</p>
+                    <h4>三、資訊產業（IT 產業）的發展與特性</h4>
+                    <p>涵蓋軟硬體、網路通訊與電子商務等。具產品生命週期短、競爭劇烈、從業人員素質要求高等特徵，持續帶動產業數位化升級。</p>
+                ` 
+            },
+            "CH2": { 
+                title: "第二章 基礎程式設計(1) 重點回顧", 
+                content: `
+                    <h3 class="text-xl font-black text-emerald-700 mb-2 border-b-2 border-emerald-200 pb-1">2-1 認識演算法與程式語言</h3>
+                    <h4>一、運算思維與演算法</h4>
+                    <p>演算法是將解決問題的方法步驟化。流程圖透過標準化符號展現程式的三大結構：<strong>循序、選擇與重複</strong>。</p>
+                    <h4>二、程式語言的演進與應用</h4>
+                    <p>從機器語言（0與1）演進到低階語言，再到接近人類語言的高階語言（如 Python、Scratch），各具不同專業用途。</p>
+
+                    <h3 class="text-xl font-black text-emerald-700 mt-8 mb-2 border-b-2 border-emerald-200 pb-1">2-2 Scratch 程式設計-基礎篇</h3>
+                    <h4>一、視覺化環境與積木分類</h4>
+                    <p>Scratch 介面包含腳本區、舞臺區及角色區。積木分為 9 類（如動作、外觀、事件、控制等），透過滑鼠拖曳即可組裝。</p>
+                    <h4>二、角色互動機制</h4>
+                    <p>利用<strong>「廣播」與「接收」</strong>積木傳遞訊號，實現不同角色間的溝通與動畫同步化效果。</p>
+
+                    <h3 class="text-xl font-black text-emerald-700 mt-8 mb-2 border-b-2 border-emerald-200 pb-1">2-3 Scratch 程式設計-計算篇</h3>
+                    <h4>一、變數與三大控制結構</h4>
+                    <ul>
+                        <li><strong>循序結構：</strong>依照「輸入、處理、輸出」依序執行指令。</li>
+                        <li><strong>選擇結構：</strong>利用「如果...否則...」進行單向或雙向的邏輯條件判斷。</li>
+                        <li><strong>重複結構：</strong>利用迴圈執行重複計算，需特別注意變數<strong>「初始值」</strong>的設定。</li>
+                    </ul>
+
+                    <h3 class="text-xl font-black text-emerald-700 mt-8 mb-2 border-b-2 border-emerald-200 pb-1">2-4 Scratch 程式設計-繪圖篇</h3>
+                    <h4>一、坐標系統與畫筆</h4>
+                    <p>舞臺中心坐標為 (0,0)，透過擴展新增「畫筆」積木，以執行下筆、停筆與清除等功能。</p>
+                    <h4>二、迴圈與變數的進階繪圖</h4>
+                    <p>結合計次式迴圈精簡程式碼，並利用<strong>「變數」動態改變長度與「巢狀結構」</strong>（迴圈內含迴圈）繪製旋轉或擴散的複雜幾何圖形。</p>
+                ` 
+            }
+        };
+
+        // --- 2. 題庫生成 ---
+        const q1_1 = [
+            {q: "下列哪一項最能概括「資訊科技」的定義？", options: ["純粹的電腦硬體發展", "只指網路連線技術", "單一應用程式的功能", "資料取得、處理、傳遞與應用的技術與系統"], correct: 3},
+            {q: "AI (人工智慧) 在日常生活中的典型應用是下列何者？", options: ["手動輸入資料的資料庫管理", "只用於工廠的機械臂控制", "純粹的硬體升級", "語音助理或個人化推薦系統"], correct: 3},
+            {q: "下列哪項敘述最能描述「物聯網 (IoT)」？", options: ["只指大型資料中心的運算", "純粹是社群媒體平台", "只有行動應用程式的設計", "透過感測器與網路連結實體物品以交換資料"], correct: 3},
+            {q: "QR Code 最常用來做為下列哪種用途？", options: ["快速連結到網頁或資訊", "替代雲端儲存服務", "作為高解析影像格式", "取代身分證或護照"], correct: 0},
+            {q: "擴增實境 (AR) 與虛擬實境 (VR) 最大的差別是什麼？", options: ["AR 只能用在手機，VR 只能用在頭戴裝置", "兩者在原理上沒有差別", "VR 是 AR 的升級版", "AR 疊加虛擬資訊在真實世界，VR 創造完全虛擬的場景"], correct: 3},
+            {q: "在內容中提到的「衣、住、行、育、樂」用來說明什麼概念？", options: ["生活各面向，顯示科技的影響", "只有傳統文化分類", "指特定的科技公司分類", "政府部門的行政區分"], correct: 0},
+            {q: "App (應用程式) 在現代生活的主要功能為何？", options: ["取代作業系統的核心功能", "僅用於遊戲娛樂", "只在桌機上執行", "提供特定服務或功能以便利日常生活"], correct: 3},
+            {q: "從過去到現在，科技對「住」的改變最可能包含下列哪一項？", options: ["全由人工管理而無自動化", "居家完全不受網路影響", "智慧家電與遠端監控功能", "僅增加居住空間大小"], correct: 2},
+            {q: "教科內容中多次提到「AI 的出現代表什麼趨勢？」", options: ["智能化與自動化滲透生活與產業", "AI 只屬於科幻題材", "AI 完全取代人類所有職能", "AI 僅用於影像處理領域"], correct: 0},
+            {q: "下列哪一項「不是」資訊科技對教育 (育) 可能帶來的改變？", options: ["遠距教學與線上資源普及", "完全消除學習中的人際互動", "個人化學習與即時回饋", "模擬與虛擬實驗的學習機會"], correct: 1},
+            {q: "虛擬實境 (VR) 在娛樂產業的優勢主要是什麼？", options: ["提供高度沉浸式的體驗與互動", "降低內容製作成本為唯一優勢", "取代所有傳統影像媒體", "只能用於教育而非娛樂"], correct: 0},
+            {q: "下列哪一項屬於擴增實境 (AR) 的應用範例？", options: ["手機鏡頭疊加導航路徑與說明", "完全由電腦生成的虛擬世界遊戲", "只有錄影功能的相機", "紙本書籍的靜態內容"], correct: 0},
+            {q: "資訊科技普及後，對於交通 (行) 最可能的正面影響是？", options: ["完全消除所有交通需求", "使道路變得更狹窄", "導致交通資訊完全失真", "優化路況管理與導航，提高效率與安全"], correct: 3},
+            {q: "在健康監測方面，物聯網 (IoT) 裝置最直接的好處為何？", options: ["完全替代醫師診斷", "只用於娛樂用途", "即時收集生理資料以利遠端監控", "使個人資料永遠不需保護"], correct: 2},
+            {q: "在內容中多次以「過去」與「現在」對照科技的變化，這種比較最主要用意是什麼？", options: ["證明過去的技術總是不重要", "表示現在所有技術都是負面", "暗示科技進步沒有規律", "顯示科技演進如何改變生活與服務"], correct: 3},
+            {q: "下列哪項是資訊科技帶來的普遍挑戰之一？", options: ["使所有資料都變得不可用", "減少人與人之間所有交流", "讓硬體不再需要更新", "資訊安全與個人隱私風險增加"], correct: 3},
+            {q: "關於「AI 不是萬能」的常見誤解，下列哪一項是正確的修正？", options: ["AI 能自動具備所有倫理判斷", "AI 不需任何資料就能運作", "AI 在特定任務優秀但仍需人類監督", "AI 能完全替代創造力與直覺"], correct: 2},
+            {q: "教學內容中，把「資訊科技導論」放在課程一章，主要目的為何？", options: ["建立基本概念與學習脈絡", "替代所有進階課程內容", "專門教習電腦硬體組裝", "僅為課程歷史回顧"], correct: 0},
+            {q: "在文中提到的「現在」科技趨勢中，哪一項最常被反覆提及？", options: ["人工智慧 (AI)", "傳統紙本媒體", "手工製作工藝", "無需網路的技術"], correct: 0},
+            {q: "以下關於資訊科技與生活的敘述，哪一項是合理的總結？", options: ["科技只有負面影響，應全面抵制", "科技從未改變日常生活", "科技帶來便利與風險，需平衡管理", "科技已達完美無須改進"], correct: 2}
+        ];
+
+        const q1_2 = [
+            {q: "下列哪一項最能代表資訊安全的重要性？", options: ["讓電腦跑比較快", "保護系統與個人資料免於被入侵或竊取", "增加手機功能", "提升網頁美觀度"], correct: 1},
+            {q: "在搶票情境中，為何常會使用驗證碼 (captcha)？", options: ["避免登錄資料外洩", "阻止自動化程式大量搶票", "提高票價", "確認信用卡有效性"], correct: 1},
+            {q: "下列哪一種行為屬於侵犯資訊安全的例子？", options: ["整理電腦檔案", "非法入侵他人網站", "定期備份資料", "使用防毒軟體"], correct: 1},
+            {q: "何者不是數位著作合理使用原則討論的重點？", options: ["增加載具容量", "著作權法的限制與例外", "數位著作的取得與散布", "使用數位著作是否違法"], correct: 0},
+            {q: "若要在影片頻道介紹古蹟並使用他人資料，首要的正確步驟是？", options: ["直接上傳並標註來源即可", "取得授權再使用", "只使用截圖不需授權", "只分享連結就能使用"], correct: 1},
+            {q: "資訊倫理中提到的「近用權 (accessibility)」主要是指什麼？", options: ["個人資料的加密方式", "公平近用數位產品的權利", "網路速度的快慢", "網站外觀設計"], correct: 1},
+            {q: "當同學在私下分享別人的糗事並在網路傳播，這違反了哪一項資訊倫理？", options: ["尊重隱私權", "著作權保護", "系統整合原則", "硬體製造規範"], correct: 0},
+            {q: "下列哪一項屬於資訊科技與相關法律會規範的範圍？", options: ["手機外殼設計審核", "著作權與個人資料保護", "餐廳衛生檢查", "建築結構法規"], correct: 1},
+            {q: "晴茹將動漫畫面印製鑰匙圈並販售，最可能違反下列哪一項？", options: ["個人資料保護法", "資訊安全政策", "著作權法", "交通規則"], correct: 2},
+            {q: "數位匯流影響傳統媒體的一個明顯現象是：", options: ["所有報紙停刊", "電視無需廣告", "人人都能成為自媒體", "廣播成為唯一媒體"], correct: 2},
+            {q: "資訊產業 (IT 產業) 通常不包括下列哪一項？", options: ["農業生產", "軟體設計", "硬體製造", "電子商務"], correct: 0},
+            {q: "資訊產業的一個共同特徵是：", options: ["完全不需要專業訓練", "產品壽命極長不需更新", "低度國際化", "從業人員素質要求高"], correct: 3},
+            {q: "在生活中，資訊科技如何改變人們的學習方式？", options: ["使學習不再受時間與空間限制", "完全取代教師的角色", "使所有人都停止閱讀書籍", "降低學習內容的多樣性"], correct: 0},
+            {q: "面對 AI 介入網路世界與假訊息，下列何者為正確態度？", options: ["培養媒體素養與謹慎檢核資訊", "完全信任所有 AI 生成內容", "忽略所有網路資訊", "只相信社群媒體貼文"], correct: 0},
+            {q: "當要使用網路上找到的圖片做教學簡報且不改賣，較安全的做法是：", options: ["直接放入簡報不需標註", "截圖並改色就合法", "確認授權或使用可自由授權的圖片", "翻拍他人畫面使用"], correct: 2},
+            {q: "下列哪一項屬於資訊安全的常見威脅？", options: ["電腦病毒", "紙本書損壞", "雨天停電", "交通阻塞"], correct: 0},
+            {q: "若想讓更多不同背景的人能使用線上課程，應優先考量什麼？", options: ["只增加內容長度", "提升廣告收益", "改善無障礙設計以提高近用性", "限制使用者人數"], correct: 2},
+            {q: "何者描述最貼近自媒體的特性？", options: ["由政府統一發布訊息的平台", "個人或團隊在網路上發布內容的管道", "只有大公司能經營的平台", "僅限文字的媒體形式"], correct: 1},
+            {q: "教材中提到的資訊產業類別不包含下列哪一項？", options: ["硬體製造", "軟體設計", "餐飲服務", "網路通訊"], correct: 2},
+            {q: "若發現朋友在網路上散布別人未經同意的私密訊息，最合適的回應是？", options: ["立刻轉發給更多人", "私下提醒並請對方停止散布", "模仿散布以獲得關注", "公開羞辱當事人以示警告"], correct: 1}
+        ];
+
+        const q2_1 = [
+            {q: "流程圖最主要的用途是什麼？", options: ["美化報告版面", "取代程式語言撰寫程式", "記錄使用者帳號密碼", "以圖形表示演算法步驟與決策"], correct: 3},
+            {q: "下列哪一項最能代表低階語言的特性？", options: ["容易跨平台使用", "以自然語言為基礎", "主要用於網頁設計", "接近機器、需組譯轉為機器語言"], correct: 3},
+            {q: "愛達.勒芙蕾絲 (Ada Lovelace) 在程式發展史上主要被視為什麼？", options: ["第一位程式設計師", "發明電腦硬體", "創立程式語言標準化機構", "發明二進位制"], correct: 0},
+            {q: "Jacquard 提花織布機的重要意義為何？", options: ["以穿孔卡片概念啟發自動化控制", "發明電動馬達", "建立第一個程式語言語法", "解決布料染色問題"], correct: 0},
+            {q: "在教材中提到 Scratch 版本為何？", options: ["Scratch 2.0", "Scratch 3.0", "Scratch 4.0", "未指定版本"], correct: 1},
+            {q: "下列哪一個不是程式語言的主要功能 (根據教材)？", options: ["描述運算邏輯", "控制硬體資源分配", "用於塗鴉或藝術創作的美術工具", "處理資料與輸出結果"], correct: 2},
+            {q: "在教材的 Scratch 範例中，計算兩數平均的方法主要用到哪個運算式？", options: ["A - B", "A * B", "(A + B) / 2", "A ^ B"], correct: 2},
+            {q: "教材中顯示高階語言轉換為機器語言的過程通常稱為什麼？", options: ["加密", "壓縮", "模擬", "翻譯/編譯"], correct: 3},
+            {q: "下列哪一項屬於教材提到的程式語言例子？", options: ["HTML5", "SQL Server", "LaTeX", "Python"], correct: 3},
+            {q: "教材中展示的 Python 範例用於做什麼判斷？", options: ["計算平均數", "驗證輸入的密碼是否為特定值", "排序數列", "產生隨機數"], correct: 1},
+            {q: "教材中提到的組譯程式 (assembler) 主要用途是什麼？", options: ["將高階語言轉為自然語言", "將機器語言轉為高階語言", "將組合語言轉為機器語言", "加速網路傳輸"], correct: 2},
+            {q: "教材中以乾冰汽水製作流程為例，主要是用來說明哪個概念？", options: ["食譜配方的營養分析", "化學實驗安全守則", "用流程圖表示演算法步驟", "材料成本估算"], correct: 2},
+            {q: "教材提到的歷史人物 Joseph Marie Jacquard 與哪一項發明有關？", options: ["電動引擎", "印刷機", "蒸汽機", "提花織布機"], correct: 3},
+            {q: "在 Scratch 範例中，若要等待 0.2 秒再移動，哪個敘述最符合教材流程？", options: ["立即移動然後等待 2 秒", "重複移動直到滿足條件", "只等待不移動", "等待 0.2 秒後移動 10 點"], correct: 3},
+            {q: "教材中提到的程式語言發展順序，下列敘述何者較合理？", options: ["高階語言先於低階語言", "現代語言出現在 1800 年代", "由低階與組合語言逐步發展到高階語言", "所有語言同時出現"], correct: 2},
+            {q: "教材中展示 Scratch 的哪種概念屬於事件驅動？", options: ["遞迴呼叫", "同步等待輸入", "靜態排版", "當被點擊觸發動作"], correct: 3},
+            {q: "教材中的問與答方塊 (ask and wait) 在 Scratch 中用途為何？", options: ["用於啟動背景音樂", "向使用者詢問並等待輸入", "重設角色造型", "清除舞台所有角色"], correct: 1},
+            {q: "教材中顯示的二進位圖案 (0 1 0 1) 主要是用來表示什麼？", options: ["二進位資料表示法", "十進位數字系統", "字元語意標記", "顏色編碼"], correct: 0},
+            {q: "教材裡提到的程式語言應用範圍不包含下列哪一項？", options: ["桌面應用程式開發", "替代手寫筆跡以進行書法藝術創作", "網路雲端服務", "教育與互動媒體"], correct: 1},
+            {q: "教材中說明將使用者輸入存入變數的流程，下列哪一項描述正確？", options: ["直接將變數顯示在螢幕上即可完成儲存", "變數只能由系統自動建立", "輸入後無法在程式中再次使用", "使用 ask 並等待，然後把答案設為變數"], correct: 3}
+        ];
+
+        const q2_2 = [
+            {q: "Scratch 的舞台座標原點通常位於哪裡?", options: ["左上角", "右下角", "左下角", "舞台中心"], correct: 3},
+            {q: "哪一類積木用來改變角色的外觀或造型?", options: ["動作積木", "外觀積木", "偵測積木", "控制積木"], correct: 1},
+            {q: "若要讓角色連續反覆執行某動作,應使用哪種控制積木?", options: ["等待秒", "重複次", "如果那麼", "說出持續秒"], correct: 1},
+            {q: "哪一個事件可以在角色被點擊時觸發程式?", options: ["當被點擊", "當鍵被按下", "當背景換成", "廣播訊息"], correct: 0},
+            {q: "要讓角色移動 10 點,應使用下列哪一個動作積木?", options: ["移動點 10", "右轉度 15", "定位到隨機位置", "滑行秒到 x:y"], correct: 0},
+            {q: "哪一種積木可用來在各造型之間切換,以產生動畫效果?", options: ["造型換成下一個", "改變尺寸", "定位到 x:y", "廣播訊息"], correct: 0},
+            {q: "在 Scratch 中,廣播訊息的主要用途是什麼?", options: ["改變背景", "播放音效", "改變造型", "讓其他腳本接收並執行動作"], correct: 3},
+            {q: "要讓角色對話並維持 2 秒鐘,應使用哪個外觀積木?", options: ["造型換成", "想著持續秒", "說出", "說出持續秒"], correct: 3},
+            {q: "下列哪一個不是事件積木的觸發條件?", options: ["當鍵被按下", "當收到訊息", "當角色被點擊", "移動點 10"], correct: 3},
+            {q: "若想讓角色滑行 1 秒到指定座標,應使用何種積木?", options: ["定位到隨機位置", "定位到 x:y", "滑行秒到 x:y", "移動點 10"], correct: 2},
+            {q: "哪一個積木可用來判斷條件並選擇執行路徑?", options: ["等待直到", "重複次", "如果那麼", "造型換成下一個"], correct: 2},
+            {q: "在製作簡易動畫時,常把哪三種動作搭配使用?", options: ["改變尺寸、廣播、停止程式", "音效、變數、運算", "定位到 x:y、右轉、說出", "移動、造型換成下一個、等待秒"], correct: 3},
+            {q: "Scratch 3.0 線上版可以從哪裡存取?", options: ["https://scratch.mit.edu", "https://example.com", "本地檔案總管", "第三方應用市集"], correct: 0},
+            {q: "哪一個積木可以設定角色朝向滑鼠?", options: ["右轉度 15", "定位到 x:y", "面朝向鼠標", "面朝度 90"], correct: 2},
+            {q: "將角色尺寸設為 100% 對應到哪一個外觀設定?", options: ["角色隱藏", "角色翻轉", "角色以原始大小顯示", "角色開始動畫"], correct: 2},
+            {q: "下列何者屬於偵測積木常見用途?", options: ["切換造型", "檢查是否碰到其他角色或顏色", "播放音效", "廣播訊息並等待"], correct: 1},
+            {q: "廣播訊息並等待與一般廣播的差別是什麼?", options: ["沒有差別", "並等待會取消廣播", "並等待只廣播一次", "並等待會等待接收腳本完成"], correct: 3},
+            {q: "若要讓角色說一句話但不立即消失,應選用何積木並設定時間?", options: ["想著", "說出", "說出持續秒", "造型換成下一個"], correct: 2},
+            {q: "在範例動畫中,讓角色先定位到特定座標再開始動作,最常使用哪個積木?", options: ["定位到 x:y", "滑行秒到 x:y", "面朝向鼠標", "右轉度 15"], correct: 0},
+            {q: "在教材示範中,若要讓小貓廣播訊息叫小狗回應,哪個流程較正確?", options: ["小狗直接改變造型後再廣播", "小貓改變背景就能自動觸發小狗", "小狗按鍵觸發後等待小貓廣播", "小貓廣播訊息,並由小狗的當收到訊息腳本回應"], correct: 3}
+        ];
+
+        const q2_3 = [
+            {q: "在 Scratch 中，哪一項屬於「變數」積木可執行的動作？", options: ["切換角色造型", "儲存或改變數值", "播放背景音樂", "偵測碰撞"], correct: 1},
+            {q: "下列哪一個流程最符合「循序結構」的特性？", options: ["使用 if 判斷後選擇不同道路", "重複執行直到達成條件", "並行同時執行兩個腳本", "指令一行接一行依序執行"], correct: 3},
+            {q: "在範例中計算平均數時，應該先做哪個步驟？", options: ["直接顯示平均數", "建立新造型", "播放提示音", "詢問並把答案存入變數"], correct: 3},
+            {q: "在 Scratch 中，要讓角色說出「平均數是 X」並帶入變數，應使用哪種積木？", options: ["播放音效積木", "字串組合並用說出積木顯示變數", "移動到指定座標積木", "改變造型積木"], correct: 1},
+            {q: "以下哪一個公式正確描述教材中學期成績的加權計算？", options: ["學期成績 = 作業 + 測驗 + 平時表現", "學期成績 = (作業 + 測驗 + 平時表現) / 3", "學期成績 = 作業*0.4 + 測驗*0.4 + 平時表現*0.2", "學期成績 = 作業*0.2 + 測驗*0.2 + 平時表現*0.6"], correct: 2},
+            {q: "在判斷及格或不及格的流程中，哪一個條件檢查最常被使用？", options: ["學期成績 < 60", "改變造型", "播放音效", "重複執行"], correct: 0},
+            {q: "在計次式迴圈中，如果要把 1 到 4 相加，應該使用哪種重複方式？", options: ["重複直到碰到邊緣", "無限重複", "只執行一次", "重複次 4 並每次累加數字"], correct: 3},
+            {q: "教材中示範從 1 加到 N 的演算法，開始時通常要先做什麼初始化？", options: ["把 N 設為 1", "把和的變數設為 0", "把數字變為 N 後直接說出", "把累加變數設為 N"], correct: 1},
+            {q: "若要計算 N 的階乘 (N!)，教材建議的初始值為何？", options: ["0", "N", "N+1", "1"], correct: 3},
+            {q: "在 Scratch 範例中，要重複直到角色碰到邊緣應使用哪種積木？", options: ["重複直到 碰到邊緣", "重複次 10", "如果 那麼", "停止所有"], correct: 0},
+            {q: "在輸入密碼示例中，若錯誤三次要做什麼處理？", options: ["顯示帳號已被鎖定", "無限次要求再輸入", "重設密碼為空白", "立即登入"], correct: 0},
+            {q: "在數字累加的程式中，將變數「數字」每次加 1 的積木是下列哪一種？", options: ["把數字設為 數字 * 1", "把數字設為 1", "把數字設為 數字 + 1", "把數字設為 數字 - 1"], correct: 2},
+            {q: "在 Scratch 範例中，若要讓小貓詢問並等待使用者輸入，應使用哪一個積木？", options: ["詢問並等待", "廣播訊息", "播放音效", "重複直到"], correct: 0},
+            {q: "在選擇結構中，哪一種形式同時處理成立與不成立的兩個分支？", options: ["只用 if (如果) 沒有 else", "if-else (如果 那麼 否則)", "重複直到", "重複次"], correct: 1},
+            {q: "在教材示範的累加範例，顯示結果前通常會先做什麼？", options: ["把累加結果存入變數並選擇該變數顯示", "立即停止程式", "改變背景顏色", "播放音效再結束"], correct: 0},
+            {q: "教材中示範用變數「次數」來記錄密碼輸入次數，初始值應設為多少？", options: ["1", "10", "100", "-1"], correct: 0},
+            {q: "在計算平均數的程式中，若有三個數值 A、B、C，平均數的正確公式為何？", options: ["A + B + C", "(A + B + C) / 3", "A * B * C", "A + B - C"], correct: 1},
+            {q: "在示範讓角色移動並換造型的迴圈中，哪個偵測常用來結束迴圈？", options: ["按下鍵盤任意鍵", "計數達到固定數字", "背景改變", "碰到邊緣"], correct: 3},
+            {q: "在教材的重複範例中，若要讓數字從 0 開始增加，數字初始值應為多少？", options: ["1", "N", "0", "10"], correct: 2},
+            {q: "教材中用字串組合顯示成績時，哪個積木能把文字和變數連接起來？", options: ["字串組合", "播放音效", "移動到 x:y", "改變造型"], correct: 0}
+        ];
+
+        const q2_4 = [
+            {q: "在 Scratch 製作繪圖時，哪個積木用來讓角色開始畫線？", options: ["停筆", "筆跡全部清除", "下筆", "定位到 x:y:"], correct: 2},
+            {q: "要把角色移動到舞臺右上角座標 (100,100)，應該使用哪個積木？", options: ["移動點 10", "下筆", "滑行秒到 x:y:", "定位到 x:y:"], correct: 3},
+            {q: "要畫一個邊長為 200 的正方形，哪一個角度旋轉值最常用？", options: ["右轉度 90", "右轉度 30", "右轉度 45", "右轉度 60"], correct: 0},
+            {q: "若要重複畫四條邊並轉向，哪一類控制積木最適合？", options: ["當被點擊", "重複次", "等待秒", "偵測"], correct: 1},
+            {q: "要畫一個邊長逐步增加的擴散方形，哪種程式結構最適合處理邊長變化？", options: ["只用一個固定移動積木", "只用事件積木", "只用偵測積木", "在迴圈或序列中改變移動距離"], correct: 3},
+            {q: "在 Scratch 中，哪個積木用來清除舞臺上所有筆跡？", options: ["停筆", "筆跡全部清除", "下筆", "蓋章"], correct: 1},
+            {q: "要讓角色面朝舞臺中心 (0,0)，應該調整哪個屬性？", options: ["定位到 x:y:", "x 改變", "面朝度", "y 改變"], correct: 2},
+            {q: "要在每次迴圈中讓筆跡寬度增大，應使用哪個積木組合？", options: ["每次都呼叫筆跡全部清除", "用變數記錄並在迴圈中改變後設為筆跡寬度", "只用下筆", "用定位到 x:y: 來改變寬度"], correct: 1},
+            {q: "畫旋轉正方形時，若內層迴圈重複 4 次、外層迴圈重複 12 次，實際繪製了幾個小正方形？", options: ["12 個", "4 個", "48 個", "1 個"], correct: 0},
+            {q: "範例中用變數記錄邊長，若要每次迴圈讓邊長增加 10，應使用哪個積木？", options: ["變數顯示", "變數隱藏", "變數設為 10", "改變 長度 10"], correct: 3},
+            {q: "要讓程式在執行時詢問使用者數字並存入變數，應使用哪組積木？", options: ["說出 + 變數設為", "詢問並等待 + 變數設為詢問的答案", "變數顯示 + 停筆", "筆跡全部清除 + 詢問並等待"], correct: 1},
+            {q: "在範例中計算兩個數字平均值時，哪一個運算順序是正確的？", options: ["先除其中一個再相加", "先相減再除以 2", "直接顯示第一個數", "兩數相加後再除以 2"], correct: 3},
+            {q: "哪個積木可以在執行期間顯示變數在舞臺上的值？", options: ["變數顯示", "變數隱藏", "變數設為", "建立一個變數"], correct: 0},
+            {q: "要讓角色朝向滑鼠指標方向，應使用哪個動作積木？", options: ["面朝向鼠標", "面朝度", "定位到 x:y:", "右轉度 15"], correct: 0},
+            {q: "在範例裡，若想停止畫筆但保留已畫線條，應使用哪個積木？", options: ["停筆", "筆跡全部清除", "下筆", "蓋章"], correct: 0},
+            {q: "在繪製循序增加的邊長方形時，哪項概念最重要以確保邊長會改變？", options: ["只靠等待秒來改變距離", "用變數並在迴圈中改變其值", "用筆跡全部清除來改變邊長", "用蓋章來標記長度"], correct: 1},
+            {q: "巢狀迴圈畫旋轉正方形時，外層控制什麼行為？", options: ["控制整體旋轉次數", "畫單一邊的移動", "設定筆跡寬度", "詢問使用者輸入"], correct: 0},
+            {q: "哪個積木可以改變畫筆顏色或筆跡顏色？", options: ["筆跡顏色設為", "停筆", "筆跡全部清除", "下筆"], correct: 0},
+            {q: "在範例計次式迴圈中，若要等待 0.5 秒再畫下一步，應使用哪個積木？", options: ["重複次", "等待秒", "下筆", "定位到 x:y:"], correct: 1},
+            {q: "下列哪一項最能描述 Scratch 中的函式積木 (自訂積木) 用途？", options: ["用來顯示變數值在舞臺上", "自動清除所有筆跡", "只能處理偵測事件", "將常用程式碼封裝成可重複呼叫的積木"], correct: 3}
+        ];
+
+        const allQuestions = {
+            "1-1": q1_1, "1-2": q1_2,
+            "2-1": q2_1, "2-2": q2_2, "2-3": q2_3, "2-4": q2_4,
+            "CH1": [...q1_1, ...q1_2],
+            "CH2": [...q2_1, ...q2_2, ...q2_3, ...q2_4]
+        };
+
+        // --- 3. 系統狀態與邏輯 ---
+        let student = { class: '', no: '', name: '' };
+        let currentChapter = '';
+        let quizQs = [];
+        let currentQIndex = 0;
+        let consecutiveCorrect = 0;
+        let totalCorrect = 0;
+        let wrongCount = 0;
+        const TARGET_SCORE = 10;
+        const MAX_WRONG = 20;
+        
+        let timerInterval = null;
+        let secondsElapsed = 0;
+
+        window.onload = () => {
+            if (!enterWithPortalProfile()) {
+                document.querySelector('#login-screen .space-y-6').innerHTML = `
+                    <div class="rounded-xl bg-blue-50 border border-blue-100 p-5 text-center text-blue-800 font-medium">請先回到入口網完成學生資料設定，系統會自動帶入班級、座號與姓名。</div>
+                    <a href="index.html" class="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl shadow-lg shadow-blue-200 transition">前往入口網設定資料</a>`;
+            }
+        };
+
+        // 對應入口網的「資訊生活」任務；測驗通過後即自動完成對應項目。
+        const portalTaskByChapter = {
+            '1-1': '1-2', '1-2': '2-2', 'CH1': '3-2',
+            '2-1': '4-2', '2-2': '5-2', '2-3': '6-2', '2-4': '7-2', 'CH2': '8-2'
+        };
+        const certificateSlots = [
+            ['1-1', '1-1 資訊科技與人類生活'], ['1-2', '1-2 資訊科技及其相關議題'], ['CH1', '第一章 資訊科技導論'],
+            ['2-1', '2-1 認識演算法與程式語言'], ['2-2', '2-2 Scratch 程式設計-基礎篇'], ['2-3', '2-3 Scratch 程式設計-計算篇'], ['2-4', '2-4 Scratch 程式設計-繪圖篇'], ['CH2', '第二章 基礎程式設計(1)']
+        ];
+        let certificateRecordsByChapter = new Map();
+
+        async function refreshKnowledgeArenaUnlock() {
+            const container = document.getElementById('knowledge-arena-content');
+            if (!container) return;
+            try {
+                const certificates = await window.getInfoLifeCertificates();
+                const collected = new Set(certificates
+                    .filter((certificate) => certificateSlots.some(([chapterKey]) => chapterKey === certificate.chapterKey))
+                    .map((certificate) => certificate.chapterKey));
+                const complete = collected.size === certificateSlots.length;
+                container.innerHTML = complete ? `
+                    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center"><p class="text-lg font-black text-emerald-800">🎉 八枚印章已集滿！</p><p class="mt-2 text-sm font-medium text-emerald-700">知識大擂台已開放，可挑戰進階複習並登上英雄榜。</p><a href="quiz.html" class="mt-4 inline-flex rounded-xl bg-violet-700 px-5 py-3 font-black text-white shadow-lg shadow-violet-200 transition hover:-translate-y-0.5 hover:bg-violet-800">進入知識大擂台 →</a></div>` : `
+                    <div class="rounded-2xl border border-dashed border-violet-200 bg-violet-50 p-5 text-center"><p class="font-black text-violet-800">🔒 尚未解鎖知識大擂台</p><p class="mt-2 text-sm font-medium text-violet-700">目前已集 ${collected.size} / ${certificateSlots.length} 枚印章；完成所有資訊生活測驗後開放。</p></div>`;
+            } catch (error) {
+                console.error('讀取知識大擂台解鎖狀態失敗:', error);
+                container.innerHTML = '<div class="rounded-2xl bg-red-50 p-5 text-center font-bold text-red-700">暫時無法讀取集章進度，請稍後再試。</div>';
+            }
+        }
+
+        function enterWithPortalProfile() {
+            const profile = window.LearningProfile.get();
+            if (!window.LearningProfile.isComplete(profile)) return false;
+            student = { class: profile.classRoom, no: profile.seatNo, name: profile.name };
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('chapter-screen').classList.remove('hidden');
+            setTimeout(refreshKnowledgeArenaUnlock, 0);
+            return true;
+        }
+
+        function showModal(msg) {
+            document.getElementById('modal-msg').innerText = msg;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+        document.getElementById('modal-confirm').onclick = () => {
+            document.getElementById('modal').classList.add('hidden');
+        };
+
+        const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+        const formatCertificateDate = (value) => {
+            const milliseconds = typeof value?.toMillis === 'function' ? value.toMillis() : 0;
+            return milliseconds ? new Date(milliseconds).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '日期未提供';
+        };
+        const formatCertificateDuration = (seconds) => {
+            const value = Number(seconds) || 0;
+            return `${Math.floor(value / 60)} 分 ${value % 60} 秒`;
+        };
+
+        async function showCertificateRecords() {
+            const modal = document.getElementById('certificate-modal');
+            const list = document.getElementById('certificate-list');
+            const profile = window.LearningProfile.get();
+            document.getElementById('certificate-student').textContent = `${profile.classRoom} 班 ${profile.seatNo} 號・${profile.name}`;
+            modal.classList.remove('hidden');
+            list.innerHTML = '<div class="rounded-2xl bg-blue-50 p-6 text-center font-bold text-blue-700">正在讀取證書紀錄…</div>';
+
+            try {
+                const certificates = await window.getInfoLifeCertificates();
+                const certificateByChapter = new Map(certificates.map((certificate) => [certificate.chapterKey, certificate]));
+                certificateRecordsByChapter = certificateByChapter;
+                document.getElementById('certificate-student').textContent = `${profile.classRoom} 班 ${profile.seatNo} 號・${profile.name}・已集 ${certificates.length} / ${certificateSlots.length} 章`;
+                list.innerHTML = `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">${certificateSlots.map(([chapterKey, chapterTitle]) => {
+                    const certificate = certificateByChapter.get(chapterKey);
+                    return certificate ? `
+                        <button type="button" onclick="showCertificateDetail('${chapterKey}')" class="relative overflow-hidden rounded-2xl border-2 border-blue-500 bg-white p-4 text-left shadow-md transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-200">
+                            <div class="absolute right-[-28px] top-3 rotate-45 bg-emerald-500 px-8 py-1 text-[9px] font-black text-white">PASSED</div>
+                            <p class="text-[10px] font-black tracking-[0.16em] text-blue-600">QUIZ PASS CARD</p><h4 class="mt-2 min-h-10 pr-8 text-sm font-black leading-snug text-slate-800">${escapeHtml(certificate.chapterTitle)}</h4>
+                            <div class="mt-3 grid grid-cols-2 gap-2 border-t border-blue-100 pt-3 text-xs"><div><p class="text-slate-400">正確率</p><p class="font-black text-emerald-700">${escapeHtml(certificate.accuracy)}%</p></div><div><p class="text-slate-400">作答時間</p><p class="font-black text-orange-600">${formatCertificateDuration(certificate.durationSeconds)}</p></div><div class="col-span-2"><p class="text-slate-400">最佳通關時間</p><p class="font-bold text-slate-600">${formatCertificateDate(certificate.awardedAt)}</p></div></div><p class="mt-3 text-center text-xs font-black text-blue-600">點選放大證書</p>
+                        </button>` : `
+                        <article class="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-4 opacity-75"><p class="text-[10px] font-black tracking-[0.16em] text-slate-400">CERTIFICATE SLOT</p><h4 class="mt-2 min-h-10 text-sm font-black leading-snug text-slate-500">${escapeHtml(chapterTitle)}</h4><div class="mt-3 border-t border-slate-200 pt-3 text-xs font-bold text-slate-400">尚未集章</div></article>`;
+                }).join('')}</div>`;
+            } catch (error) {
+                console.error('讀取證書紀錄失敗:', error);
+                list.innerHTML = '<div class="rounded-2xl bg-red-50 p-6 text-center font-bold text-red-700">暫時無法讀取證書紀錄，請稍後再試。</div>';
+            }
+        }
+
+        function closeCertificateRecords() {
+            document.getElementById('certificate-modal').classList.add('hidden');
+        }
+
+        function showCertificateDetail(chapterKey) {
+            const certificate = certificateRecordsByChapter.get(chapterKey);
+            if (!certificate) return;
+            const profile = window.LearningProfile.get();
+            document.getElementById('certificate-detail-content').innerHTML = `
+                <div class="pass-card rounded-[2rem] p-8 shadow-2xl"><div class="text-center mb-6"><h2 class="text-3xl font-black text-blue-600 italic underline tracking-tighter">QUIZ PASS CARD</h2><p class="text-[10px] text-gray-400 font-bold tracking-[0.3em] mt-1">INFORMATION TECHNOLOGY LEARNING SYSTEM</p></div><div class="bg-blue-50/30 border-y-4 border-double border-blue-50 rounded-xl p-5 mb-6"><div class="flex justify-around items-center"><div class="text-center"><span class="block text-[10px] text-blue-400 font-black uppercase mb-1">Class</span><span class="text-xl font-black text-gray-800">${escapeHtml(profile.classRoom)}</span></div><div class="h-8 w-[2px] bg-blue-100"></div><div class="text-center"><span class="block text-[10px] text-blue-400 font-black uppercase mb-1">No.</span><span class="text-xl font-black text-gray-800">${escapeHtml(profile.seatNo)}</span></div><div class="h-8 w-[2px] bg-blue-100"></div><div class="text-center"><span class="block text-[10px] text-blue-400 font-black uppercase mb-1">Name</span><span class="text-xl font-black text-gray-800">${escapeHtml(profile.name)}</span></div></div><p class="mt-4 border-t border-blue-100 pt-3 text-center text-sm font-bold text-gray-600">最佳通關時間：${formatCertificateDate(certificate.awardedAt)}</p></div><div class="space-y-4"><div class="bg-gray-50 p-5 rounded-2xl border border-gray-100"><span class="text-[10px] text-gray-400 font-black uppercase block mb-1">Completed Chapter</span><span class="font-black text-blue-800 text-lg leading-tight">${escapeHtml(certificate.chapterTitle)}</span></div><div class="grid grid-cols-2 gap-4"><div class="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center"><span class="text-[10px] text-gray-400 font-black block mb-1">DURATION</span><span class="font-black text-orange-600 text-lg">${formatCertificateDuration(certificate.durationSeconds)}</span></div><div class="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center"><span class="text-[10px] text-gray-400 font-black block mb-1">ACCURACY</span><span class="font-black text-green-600 text-lg">${escapeHtml(certificate.accuracy)}%</span></div></div><div class="grid grid-cols-2 gap-4 text-center"><div><div class="text-[10px] text-gray-400 font-bold">CORRECT</div><div class="text-2xl font-black text-green-500">${escapeHtml(certificate.score)}</div></div><div><div class="text-[10px] text-gray-400 font-bold">TOTAL Q.</div><div class="text-2xl font-black text-gray-800">${escapeHtml(certificate.totalAttempted)}</div></div></div></div></div>`;
+            document.getElementById('certificate-detail-modal').classList.remove('hidden');
+        }
+
+        function closeCertificateDetail() {
+            document.getElementById('certificate-detail-modal').classList.add('hidden');
+        }
+
+        function shuffleArray(arr) {
+            let array = [...arr];
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function showStudyNotes(chapterKey) {
+            currentChapter = chapterKey;
+            document.getElementById('chapter-screen').classList.add('hidden');
+            document.getElementById('study-screen').classList.remove('hidden');
+            document.getElementById('study-title').innerText = studyNotes[chapterKey].title;
+            document.getElementById('study-content').innerHTML = studyNotes[chapterKey].content;
+        }
+
+        function backToChapters() {
+            // 隱藏所有可能的子畫面
+            document.getElementById('study-screen').classList.add('hidden');
+            document.getElementById('quiz-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.add('hidden');
+            document.getElementById('warning-screen').classList.add('hidden');
+            
+            // 移除動畫 class 避免下次顯示時動畫失效
+            document.getElementById('result-screen').classList.remove('animate-pop');
+            document.getElementById('warning-screen').classList.remove('animate-pop');
+
+            // 顯示章節選單
+            document.getElementById('chapter-screen').classList.remove('hidden');
+        }
+
+        function startQuiz() {
+            document.getElementById('study-screen').classList.add('hidden');
+            document.getElementById('quiz-screen').classList.remove('hidden');
+            
+            quizQs = shuffleArray(allQuestions[currentChapter]);
+            currentQIndex = 0;
+            consecutiveCorrect = 0;
+            totalCorrect = 0;
+            wrongCount = 0;
+            secondsElapsed = 0;
+
+            document.getElementById('current-chapter-title').innerText = studyNotes[currentChapter].title + " 測驗挑戰";
+            document.getElementById('target-counter').innerText = `目標: 連對 ${TARGET_SCORE}`;
+            updateCounters();
+
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                let m = Math.floor(secondsElapsed / 60).toString().padStart(2, '0');
+                let s = (secondsElapsed % 60).toString().padStart(2, '0');
+                document.getElementById('timer').innerText = `${m}:${s}`;
+            }, 1000);
+
+            renderQuestion();
+        }
+
+        function updateCounters() {
+            document.getElementById('score-counter').innerText = `連對: ${consecutiveCorrect}`;
+            document.getElementById('wrong-counter').innerText = `容錯: ${MAX_WRONG - wrongCount}`;
+        }
+
+        function renderQuestion() {
+            // 如果題庫不夠循環出題
+            let qData = quizQs[currentQIndex % quizQs.length];
+            
+            // 紀錄正確答案的文字以便比對
+            let correctText = qData.options[qData.correct];
+            
+            let opts = qData.options.map(o => o);
+            opts = shuffleArray(opts);
+
+            let html = `<h3 class="text-xl font-bold text-gray-800 mb-6">${qData.q}</h3><div class="space-y-4">`;
+            opts.forEach(optText => {
+                // 將 correctText 存在 dataset 供驗證用 (實際應用上可放內存以防被看原始碼，但此為單機前端教學版)
+                let isCorr = (optText === correctText) ? "1" : "0";
+                html += `
+                    <label class="flex items-center p-4 border-2 border-gray-100 rounded-xl cursor-pointer hover:bg-blue-50 transition">
+                        <input type="radio" name="q-opt" value="${isCorr}" class="w-5 h-5 text-blue-600">
+                        <span class="ml-3 text-lg text-gray-700">${optText}</span>
+                    </label>
+                `;
+            });
+            html += `</div>`;
+            document.getElementById('question-container').innerHTML = html;
+        }
+
+        function checkAnswer() {
+            let selected = document.querySelector('input[name="q-opt"]:checked');
+            if(!selected) return showModal("請先選擇一個答案！");
+
+            if(selected.value === "1") {
+                consecutiveCorrect++;
+                totalCorrect++;
+            } else {
+                wrongCount++;
+                consecutiveCorrect = 0;
+            }
+            
+            updateCounters();
+            currentQIndex++;
+
+            if(consecutiveCorrect >= TARGET_SCORE) {
+                endQuiz(true);
+            } else if (wrongCount >= MAX_WRONG) {
+                endQuiz(false);
+            } else {
+                renderQuestion();
+            }
+        }
+
+        function endQuiz(isPass) {
+            clearInterval(timerInterval);
+            document.getElementById('quiz-screen').classList.add('hidden');
+
+            if(isPass) {
+                document.getElementById('result-screen').classList.remove('hidden');
+                document.getElementById('result-screen').classList.add('animate-pop');
+                
+                document.getElementById('res-class').innerText = student.class;
+                document.getElementById('res-no').innerText = student.no;
+                document.getElementById('res-name').innerText = student.name;
+                
+                let today = new Date();
+                document.getElementById('res-date').innerText = `${today.getFullYear()}/${(today.getMonth()+1).toString().padStart(2,'0')}/${today.getDate().toString().padStart(2,'0')}`;
+                
+                document.getElementById('res-chapter').innerText = studyNotes[currentChapter].title;
+                
+                let m = Math.floor(secondsElapsed / 60).toString().padStart(2, '0');
+                let s = (secondsElapsed % 60).toString().padStart(2, '0');
+                document.getElementById('res-duration').innerText = `${m}m ${s}s`;
+                
+                let totalAttempted = totalCorrect + wrongCount;
+                let accuracy = Math.round((totalCorrect / totalAttempted) * 100);
+                document.getElementById('res-rate').innerText = `${accuracy}%`;
+                document.getElementById('res-correct').innerText = totalCorrect;
+                document.getElementById('res-total').innerText = totalAttempted;
+
+                const passMessage = accuracy >= 90 ? "Excellent Job! 完美的學習表現！" : "Good Job! 順利完成挑戰！";
+                const passMessageElement = document.getElementById('pass-msg');
+                passMessageElement.innerText = `${passMessage} 正在建立證書與同步入口網進度…`;
+                const taskId = portalTaskByChapter[currentChapter];
+                window.recordInfoLifeCompletion({
+                    taskId,
+                    chapterKey: currentChapter,
+                    chapterTitle: studyNotes[currentChapter].title,
+                    score: totalCorrect,
+                    totalAttempted,
+                    accuracy,
+                    durationSeconds: secondsElapsed
+                })
+                    .then(({ replaced }) => {
+                        passMessageElement.innerText = replaced
+                            ? `${passMessage} 已更新最佳證書與入口網進度。`
+                            : `${passMessage} 本次未優於既有最佳證書，已保留原有紀錄。`;
+                        refreshKnowledgeArenaUnlock();
+                    })
+                    .catch((error) => {
+                        console.error('建立證書與同步進度失敗:', error);
+                        passMessageElement.innerText = `${passMessage} 證書與進度同步失敗，請稍後再試。`;
+                    });
+
+            } else {
+                document.getElementById('warning-screen').classList.remove('hidden');
+                document.getElementById('warning-screen').classList.add('animate-pop');
+            }
+        }
+
+        function backToStudyFromWarning() {
+            document.getElementById('warning-screen').classList.add('hidden');
+            document.getElementById('study-screen').classList.remove('hidden');
+        }
+
+    </script>
+</body>
+</html>

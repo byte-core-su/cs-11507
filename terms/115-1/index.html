@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>一一五學年度上學期資訊科技</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes bounce-slow {
+      0%, 100% { transform: translateY(-5%); }
+      50% { transform: translateY(0); }
+    }
+    .animate-bounce-slow {
+      animation: bounce-slow 2s infinite ease-in-out;
+    }
+  </style>
+  <script src="../../shared/site-shell.js" defer></script>
+</head>
+<body class="bg-slate-50 font-sans min-h-screen text-slate-800">
+  <div id="app"></div>
+
+  <script src="../../firebase-config.js"></script>
+  <script src="../../shared/learner-profile.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, EmailAuthProvider, linkWithCredential, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = window.LEARNING_FIREBASE_CONFIG;
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const currentTermId = '115-1';
+
+    // 原始課程資料
+    const initialData = [
+      {
+        id: 1, title: "任務一", theme: "bg-yellow-100 border-yellow-300 text-yellow-900", tape: "bg-yellow-500/20",
+        tasks: [
+          { id: '1-2', text: "資訊生活：1-1 資訊科技與人類生活" },
+          { id: '1-1', text: "Scratch 程式設計：2-2-3 動畫實作" },
+          { id: '1-3', text: "運算思維：(1) 重排積木" }
+        ]
+      },
+      {
+        id: 2, title: "任務二", theme: "bg-blue-100 border-blue-300 text-blue-900", tape: "bg-blue-500/20",
+        tasks: [
+          { id: '2-2', text: "資訊生活：1-2 資訊科技及其相關議題" },
+          { id: '2-1', text: "Scratch 程式設計：2-3-1 循序結構" },
+          { id: '2-3', text: "運算思維：(2) 寶箱開鎖" }
+        ]
+      },
+      {
+        id: 3, title: "任務三", theme: "bg-pink-100 border-pink-300 text-pink-900", tape: "bg-pink-500/20",
+        tasks: [
+          { id: '3-2', text: "資訊生活：第一章 資訊科技導論" },
+          { id: '3-1', text: "Scratch 程式設計：2-3-2 選擇結構" },
+          { id: '3-3', text: "運算思維：(3) 畢業手鍊" }
+        ]
+      },
+      {
+        id: 4, title: "任務四", theme: "bg-green-100 border-green-300 text-green-900", tape: "bg-green-500/20",
+        tasks: [
+          { id: '4-2', text: "資訊生活：2-1 認識演算法與程式語言" },
+          { id: '4-1', text: "Scratch 程式設計：2-3-3 重複結構" },
+          { id: '4-3', text: "運算思維：(4) 彙整遊戲卡" }
+        ]
+      },
+      {
+        id: 5, title: "任務五", theme: "bg-purple-100 border-purple-300 text-purple-900", tape: "bg-purple-500/20",
+        tasks: [
+          { id: '5-2', text: "資訊生活：2-2 Scratch 程式設計-基礎篇" },
+          { id: '5-1', text: "Scratch 程式設計：限時猜數字遊戲" },
+          { id: '5-3', text: "運算思維：(5) 班級出遊" }
+        ]
+      },
+      {
+        id: 6, title: "任務六", theme: "bg-orange-100 border-orange-300 text-orange-900", tape: "bg-orange-500/20",
+        tasks: [
+          { id: '6-2', text: "資訊生活：2-3 Scratch 程式設計-計算篇" },
+          { id: '6-1', text: "Scratch 程式設計：第一次程式挑戰賽" },
+          { id: '6-3', text: "運算思維：(6) 夜市射氣球" }
+        ]
+      },
+      {
+        id: 7, title: "任務七", theme: "bg-teal-100 border-teal-300 text-teal-900", tape: "bg-teal-500/20",
+        tasks: [
+          { id: '7-2', text: "資訊生活：2-4 Scratch 程式設計-繪圖篇" },
+          { id: '7-1', text: "Scratch 程式設計：2-4 畫正方形" },
+          { id: '7-3', text: "運算思維：(7) 團隊攀岩" }
+        ]
+      },
+      {
+        id: 8, title: "任務八", theme: "bg-rose-100 border-rose-300 text-rose-900", tape: "bg-rose-500/20",
+        tasks: [
+          { id: '8-2', text: "資訊生活：第二章 基礎程式設計(1)" },
+          { id: '8-1', text: "Scratch 程式設計：小小繪圖家" },
+          { id: '8-3', text: "運算思維：(8) 誰的帽子" }
+        ]
+      }
+    ];
+
+    const courseCatalog = [
+      { title: '資訊生活', description: '生活科技概念、教材閱讀與章節測驗。', href: 'infolife.html', icon: '💡', color: 'from-cyan-500 to-blue-600' },
+      { title: 'Scratch 程式設計', description: '影片引導、作品練習與單元小測驗。', href: 'scratch.html', icon: '🧩', color: 'from-violet-500 to-purple-600' },
+      { title: '運算思維', description: '登入後挑戰循序漸進的解題任務。', href: 'thinking.html', icon: '🧠', color: 'from-amber-400 to-orange-500' },
+      { title: '園遊會數位規劃', description: '從資料蒐集到成果發表的四階段流程。', href: 'project.html', icon: '🎪', color: 'from-emerald-500 to-teal-600' },
+      { title: '5016B 專題實作', description: '月台柵門控制、硬體模擬與系統整合。', href: '5016b.html', icon: '🚇', color: 'from-sky-500 to-indigo-600' }
+    ];
+
+    // 資訊生活任務由各章節測驗通過後自動寫入，學生端不提供手動勾選。
+    const automaticTaskIds = new Set(['1-2', '2-2', '3-2', '4-2', '5-2', '6-2', '7-2', '8-2']);
+
+    // 全局狀態管理
+    let state = {
+      status: 'loading', // loading | login | main
+      studentId: '',
+      profile: window.LearningProfile.get(),
+      loginError: '',  // 登入錯誤訊息
+      loginStep: 'student-id', // student-id | setup-code | verify-code
+      pendingProfile: null,
+      tasks: {}, // { '1-1': true, '1-2': false }
+      progress: 0,
+      showCelebration: false,
+      showConfirmModal: false,
+      authReady: false
+    };
+
+    let unsubscribeSnapshot = null;
+    const verificationSessionKey = 'learning-platform.115-1.verification.student-id.v1';
+    const legacyVerificationSessionKey = 'learning-platform.verification.student-id.v1';
+
+    function hasVerifiedStudentSession(studentId) {
+      if (sessionStorage.getItem(verificationSessionKey) === studentId) return true;
+      if (sessionStorage.getItem(legacyVerificationSessionKey) === studentId) {
+        sessionStorage.setItem(verificationSessionKey, studentId);
+        sessionStorage.removeItem(legacyVerificationSessionKey);
+        return true;
+      }
+      return false;
+    }
+
+    const escapeHtml = (value) => String(value || '').replace(/[&<>'"]/g, (character) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[character]));
+
+    // 計算總進度
+    function calculateProgress() {
+      let total = 0;
+      let completed = 0;
+      initialData.forEach(note => {
+        note.tasks.forEach(t => {
+          total++;
+          if (state.tasks[t.id]) completed++;
+        });
+      });
+      state.progress = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+      // 觸發滿分動畫
+      if (state.progress === 100 && total > 0 && !state.showCelebration) {
+        state.showCelebration = true;
+        render();
+        setTimeout(() => {
+          state.showCelebration = false;
+          render();
+        }, 5000);
+      }
+    }
+
+    const studentAccountEmail = (studentId) => `${studentId}@students.jimwang-4b0ca.firebaseapp.com`;
+
+    async function mergeCurrentAnonymousProgress(profile, legacy, stableUid) {
+      if (!legacy || legacy.profile?.studentId !== profile.studentId) return;
+      const stableRef = doc(db, 'users', stableUid);
+      const stableSnapshot = await getDoc(stableRef);
+      const stable = stableSnapshot.exists() ? stableSnapshot.data() : {};
+      const legacyTerm = legacy.terms?.[currentTermId] || legacy;
+      const stableTerm = stable.terms?.[currentTermId] || stable;
+      const certificates = { ...(stableTerm.certificates || {}) };
+      Object.entries(legacyTerm.certificates || {}).forEach(([key, value]) => {
+        const current = certificates[key];
+        const better = !current || Number(value?.accuracy || 0) > Number(current?.accuracy || 0)
+          || (Number(value?.accuracy || 0) === Number(current?.accuracy || 0)
+            && Number(value?.durationSeconds || Infinity) < Number(current?.durationSeconds || Infinity));
+        if (better) certificates[key] = value;
+      });
+      await setDoc(stableRef, {
+        studentId: profile.studentId,
+        profile,
+        identity: { provider: 'student-email', studentId: profile.studentId },
+        terms: {
+          [currentTermId]: {
+            tasks: { ...(legacyTerm.tasks || {}), ...(stableTerm.tasks || {}) },
+            certificates,
+            updatedAt: new Date()
+          }
+        },
+        updatedAt: new Date()
+      }, { merge: true });
+    }
+
+    async function establishStudentIdentity(profile, code) {
+      const email = studentAccountEmail(profile.studentId);
+      const currentUser = auth.currentUser;
+      const anonymousUid = currentUser?.isAnonymous ? currentUser.uid : '';
+      const legacySnapshot = anonymousUid ? await getDoc(doc(db, 'users', anonymousUid)) : null;
+      const legacyProgress = legacySnapshot?.exists() ? legacySnapshot.data() : null;
+      try {
+        if (currentUser?.isAnonymous) {
+          await linkWithCredential(currentUser, EmailAuthProvider.credential(email, code));
+          return auth.currentUser;
+        }
+        return (await signInWithEmailAndPassword(auth, email, code)).user;
+      } catch (error) {
+        if (!['auth/email-already-in-use', 'auth/credential-already-in-use'].includes(error.code) || !anonymousUid) throw error;
+        const user = (await signInWithEmailAndPassword(auth, email, code)).user;
+        await mergeCurrentAnonymousProgress(profile, legacyProgress, user.uid);
+        return user;
+      }
+    }
+
+    // 先等待瀏覽器還原既有登入身分，避免回首頁時把固定學生帳號覆蓋為匿名身分。
+    const initialAuthState = new Promise((resolve) => {
+      let unsubscribe = () => {};
+      unsubscribe = onAuthStateChanged(auth, (user) => { unsubscribe(); resolve(user); });
+    });
+
+    // 首次尚未登入時才建立暫時身分，用來讀取名冊並完成學生登入。
+    const initAuth = async () => {
+      try {
+        if (await initialAuthState) return;
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          try {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } catch (tokenErr) {
+            console.warn("自訂權杖登入失敗 (可能是使用了自訂的 Firebase 專案)，改用匿名登入:", tokenErr);
+            await signInAnonymously(auth);
+          }
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (e) {
+        console.error("驗證失敗:", e);
+      }
+    };
+
+    initAuth();
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        state.authReady = true;
+        const savedProfile = window.LearningProfile.get();
+        // 同一個瀏覽工作階段已驗證的學生，從課程頁回到入口網時不必再次輸入驗證碼。
+        if (!user.isAnonymous && window.LearningProfile.isComplete(savedProfile) && hasVerifiedStudentSession(savedProfile.studentId)) {
+          await openStudentSession(savedProfile);
+        } else {
+          state.status = 'login';
+          state.loginStep = 'student-id';
+          render();
+        }
+      }
+    });
+
+    async function openStudentSession(profile) {
+      if (!auth.currentUser || auth.currentUser.isAnonymous || !window.LearningProfile.isComplete(profile)) return;
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+
+      state.profile = window.LearningProfile.normalize(profile);
+      state.studentId = state.profile.studentId;
+      state.tasks = {};
+      state.status = 'main';
+      calculateProgress();
+      render();
+
+      const docRef = doc(db, 'users', auth.currentUser.uid);
+      try {
+        // 每次回到入口網都更新活動時間；教師端的即時監測會隨即反映。
+        await setDoc(docRef, {
+          studentId: state.studentId,
+          profile: state.profile,
+          identity: { provider: 'student-email', studentId: state.studentId },
+          terms: { [currentTermId]: { updatedAt: new Date() } },
+          updatedAt: new Date()
+        }, { merge: true });
+      } catch (error) {
+        console.error('建立學生進度紀錄失敗:', error);
+      }
+
+      unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
+        state.tasks = docSnap.exists() ? (docSnap.data().terms?.[currentTermId]?.tasks || {}) : {};
+        calculateProgress();
+        render();
+      }, (err) => {
+        console.error("取得資料錯誤:", err);
+      });
+    }
+
+    // 處理學生登入
+    async function handleLogin(studentId) {
+      if (!state.authReady) return;
+      const derived = window.LearningProfile.deriveFromStudentId(studentId);
+      if (!derived) {
+        state.loginError = '學號格式錯誤，請輸入正確的 7 位數學號。';
+        render();
+        return;
+      }
+
+      let profile;
+      try {
+        const rosterSnapshot = await getDoc(doc(db, 'rosters', derived.studentId));
+        if (!rosterSnapshot.exists() || !rosterSnapshot.data().name) {
+          state.loginError = '查無此學號的姓名資料，請洽教師確認名冊。';
+          render();
+          return;
+        }
+        const roster = rosterSnapshot.data();
+        profile = window.LearningProfile.normalize({ ...derived, name: roster.name });
+        state.pendingProfile = profile;
+        state.loginStep = /^\d{6}$/.test(String(roster.verificationCode || '')) ? 'verify-code' : 'setup-code';
+      } catch (error) {
+        console.error('讀取名冊失敗:', error);
+        state.loginError = '無法讀取學生名冊，請稍後再試。';
+        render();
+        return;
+      }
+
+      const trimmedId = profile.studentId;
+
+      // 檢查學號格式：必須為 7 位數字且以 15 開頭
+      if (!/^15\d{5}$/.test(trimmedId)) {
+        state.loginError = '學號格式錯誤：必須為 7 位數字且以 15 開頭';
+        render();
+        return;
+      }
+
+      state.loginError = '';
+      render();
+    }
+
+    function validateVerificationCode(code) {
+      return /^\d{6}$/.test(String(code || '').trim());
+    }
+
+    async function setupVerificationCode(code, confirmation) {
+      if (!state.pendingProfile) return;
+      if (!validateVerificationCode(code)) {
+        state.loginError = '驗證碼必須是 6 位數字。';
+        render();
+        return;
+      }
+      if (code !== confirmation) {
+        state.loginError = '兩次輸入的驗證碼不一致。';
+        render();
+        return;
+      }
+      try {
+        await setDoc(doc(db, 'rosters', state.pendingProfile.studentId), {
+          verificationCode: code,
+          verificationCodeUpdatedAt: new Date()
+        }, { merge: true });
+        await establishStudentIdentity(state.pendingProfile, code);
+        sessionStorage.setItem(verificationSessionKey, state.pendingProfile.studentId);
+        state.loginError = '';
+        window.LearningProfile.save(state.pendingProfile);
+        await openStudentSession(state.pendingProfile);
+      } catch (error) {
+        console.error('設定驗證碼失敗:', error);
+        state.loginError = '暫時無法設定驗證碼，請稍後再試。';
+        render();
+      }
+    }
+
+    async function verifyVerificationCode(code) {
+      if (!state.pendingProfile) return;
+      if (!validateVerificationCode(code)) {
+        state.loginError = '請輸入 6 位數字驗證碼。';
+        render();
+        return;
+      }
+      try {
+        const rosterSnapshot = await getDoc(doc(db, 'rosters', state.pendingProfile.studentId));
+        const savedCode = rosterSnapshot.exists() ? String(rosterSnapshot.data().verificationCode || '') : '';
+        if (code !== savedCode) {
+          state.loginError = '驗證碼不正確，請再試一次。';
+          render();
+          return;
+        }
+        await establishStudentIdentity(state.pendingProfile, code);
+        sessionStorage.setItem(verificationSessionKey, state.pendingProfile.studentId);
+        state.loginError = '';
+        window.LearningProfile.save(state.pendingProfile);
+        await openStudentSession(state.pendingProfile);
+      } catch (error) {
+        console.error('驗證碼檢查失敗:', error);
+        state.loginError = '暫時無法建立固定學習帳號，請稍後再試。';
+        render();
+      }
+    }
+
+    function returnToStudentIdLogin() {
+      state.loginStep = 'student-id';
+      state.loginError = '';
+      state.pendingProfile = null;
+      render();
+    }
+
+    // 處理任務勾選
+    async function toggleTask(taskId) {
+      if (automaticTaskIds.has(taskId)) return;
+      if (state.tasks[taskId]) {
+        state.tasks[taskId] = false; // 取消勾選
+      } else {
+        // 勾選並記錄當下時間 (格式: M/D HH:MM)
+        const now = new Date();
+        const pad = (n) => n.toString().padStart(2, '0');
+        const dateString = `${now.getMonth() + 1}/${now.getDate()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        state.tasks[taskId] = dateString;
+      }
+      
+      calculateProgress();
+      render(); // Optimistic UI Update
+
+      // 寫入 Firebase
+      const docRef = doc(db, 'users', auth.currentUser.uid);
+      try {
+        await setDoc(docRef, { studentId: state.studentId, profile: state.profile, identity: { provider: 'student-email', studentId: state.studentId }, terms: { [currentTermId]: { tasks: state.tasks, updatedAt: new Date() } }, updatedAt: new Date() }, { merge: true });
+      } catch (err) {
+        console.error("更新任務失敗:", err);
+      }
+    }
+
+    // 重設進度
+    async function resetTasks() {
+      // 保留資訊生活測驗自動取得的完成紀錄，只重設可手動標注的任務。
+      state.tasks = Object.fromEntries(Object.entries(state.tasks).filter(([taskId]) => automaticTaskIds.has(taskId)));
+      state.showConfirmModal = false;
+      calculateProgress();
+      render();
+
+      const docRef = doc(db, 'users', auth.currentUser.uid);
+      try {
+        await setDoc(docRef, { studentId: state.studentId, profile: state.profile, identity: { provider: 'student-email', studentId: state.studentId }, terms: { [currentTermId]: { tasks: state.tasks, updatedAt: new Date() } }, updatedAt: new Date() }, { merge: true });
+      } catch (err) {
+        console.error("重置任務失敗:", err);
+      }
+    }
+
+    // 繪製 UI 
+    function render() {
+      const appContainer = document.getElementById('app');
+      
+      if (state.status === 'loading') {
+        appContainer.innerHTML = `
+          <div class="min-h-screen flex items-center justify-center">
+            <div class="text-indigo-600 font-bold text-xl flex items-center gap-2">
+              <svg class="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              系統載入中...
+            </div>
+          </div>`;
+        return;
+      }
+
+      if (state.status === 'login') {
+        const isStudentIdStep = state.loginStep === 'student-id';
+        const isSetupCode = state.loginStep === 'setup-code';
+        const pendingProfile = state.pendingProfile || {};
+        appContainer.innerHTML = `
+          <div class="min-h-screen flex items-center justify-center p-4 bg-slate-100">
+            <div class="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
+              <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+                </div>
+                <p class="text-indigo-600 font-semibold mb-1">一一五學年度上學期</p>
+                <h2 class="text-2xl font-bold text-slate-800">資訊科技任務系統</h2>
+                <p class="text-slate-500 text-sm mt-2">${isStudentIdStep ? '輸入學號後，系統會帶入班級、座號與姓名。' : (isSetupCode ? '首次登入，請設定專屬的六位數驗證碼。' : '請輸入你的六位數驗證碼。')}</p>
+              </div>
+              <div class="space-y-4">
+                ${isStudentIdStep ? `
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">學生學號</label>
+                    <input type="text" id="student-id-input" class="w-full px-4 py-3 bg-slate-50 border ${state.loginError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500'} rounded-xl focus:bg-white focus:ring-2 outline-none transition-all" placeholder="例如：1502026" autocomplete="off" value="${escapeHtml(state.profile.studentId)}">
+                  </div>` : `
+                  <div class="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm">
+                    <p class="font-bold text-indigo-900">${escapeHtml(pendingProfile.classRoom)} 班 ${escapeHtml(pendingProfile.seatNo)} 號・${escapeHtml(pendingProfile.name)}</p>
+                    <p class="mt-1 font-mono text-xs text-indigo-600">${escapeHtml(pendingProfile.studentId)}</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">${isSetupCode ? '自訂六位數驗證碼' : '六位數驗證碼'}</label>
+                    <input type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" id="verification-code-input" class="w-full px-4 py-3 bg-slate-50 border ${state.loginError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500'} rounded-xl focus:bg-white focus:ring-2 outline-none transition-all tracking-[0.45em] text-center font-mono text-lg" placeholder="••••••" autocomplete="new-password">
+                  </div>
+                  ${isSetupCode ? `<div><label class="block text-sm font-semibold text-slate-700 mb-2">再次輸入驗證碼</label><input type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" id="verification-code-confirm-input" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all tracking-[0.45em] text-center font-mono text-lg" placeholder="••••••" autocomplete="new-password"></div>` : ''}
+                  <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-600"><input id="toggle-verification-code" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">顯示驗證碼</label>
+                `}
+                ${state.loginError ? `<p class="text-red-500 text-xs font-medium">${state.loginError}</p>` : ''}
+                <button id="login-submit-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors shadow-lg shadow-indigo-200">${isStudentIdStep ? '下一步' : (isSetupCode ? '設定並開始挑戰' : '驗證並開始挑戰')}</button>
+                ${isStudentIdStep ? '' : '<button id="change-student-id-btn" class="w-full py-2 text-sm font-bold text-slate-500 hover:text-indigo-600">更換學號</button>'}
+              </div>
+            </div>
+          </div>`;
+          
+          // 自動聚焦
+        setTimeout(() => (document.getElementById(isStudentIdStep ? 'student-id-input' : 'verification-code-input'))?.focus(), 0);
+        return;
+      }
+
+      if (state.status === 'main') {
+        // 生成便利貼網格
+        const notesHtml = initialData.map((note, index) => {
+          const rotations = ['rotate-1', '-rotate-1', 'rotate-2', '-rotate-2', 'rotate-0'];
+          const rotationClass = rotations[index % rotations.length];
+          const noteTasks = note.tasks;
+          const completedCount = noteTasks.filter(t => state.tasks[t.id]).length;
+          const isNoteDone = completedCount === noteTasks.length;
+
+          const tasksHtml = noteTasks.map(task => {
+            const taskValue = state.tasks[task.id];
+            const isCompleted = !!taskValue;
+            const isAutomatic = automaticTaskIds.has(task.id);
+            // 如果 taskValue 是一串文字（時間紀錄），就建立日期標籤
+            const dateTagHtml = (isCompleted && typeof taskValue === 'string') 
+              ? `<span class="ml-1 text-[10px] text-slate-500 bg-white/60 px-1.5 py-0.5 rounded flex-shrink-0 border border-slate-200">${taskValue}</span>` 
+              : '';
+
+            return `
+              <li class="flex items-start group">
+                <label class="flex items-start gap-3 w-full ${isAutomatic ? 'cursor-default' : 'cursor-pointer task-label'}" ${isAutomatic ? 'aria-label="資訊生活測驗通過後自動記錄"' : `data-task-id="${task.id}"`}>
+                  <div class="relative flex-shrink-0 mt-0.5">
+                    <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isCompleted ? 'bg-current border-current' : 'border-current opacity-50 group-hover:opacity-100'}">
+                      ${isCompleted ? `<svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>` : ''}
+                    </div>
+                  </div>
+                  <div class="flex-1 flex justify-between items-start gap-1">
+                    <span class="text-sm leading-snug transition-all duration-200 select-none ${isCompleted ? 'line-through opacity-60' : 'opacity-90 font-medium'}">
+                      ${task.text}${isAutomatic ? '<span class="ml-2 inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 no-underline">測驗自動記錄</span>' : ''}
+                    </span>
+                    ${dateTagHtml}
+                  </div>
+                </label>
+              </li>
+            `;
+          }).join('');
+
+          return `
+            <div class="relative p-5 rounded-lg shadow-md hover:shadow-xl transition-all duration-300 ${note.theme} ${rotationClass} hover:rotate-0 hover:-translate-y-1 hover:z-10">
+              <div class="absolute -top-3 left-1/2 transform -translate-x-1/2 w-16 h-6 ${note.tape} backdrop-blur-sm -rotate-2 z-10"></div>
+              <div class="flex justify-between items-start mb-4 border-b border-black/10 pb-2">
+                <h3 class="font-bold text-lg">${note.title}</h3>
+                ${isNoteDone ? `<svg class="w-5 h-5 opacity-80" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>` : ''}
+              </div>
+              <ul class="space-y-3">${tasksHtml}</ul>
+              <div class="mt-5 text-right text-xs font-semibold opacity-60">
+                完成度：${completedCount} / ${noteTasks.length}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // 滿分動畫區塊
+        const celebrationHtml = state.showCelebration ? `
+          <div class="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
+            <div class="bg-white/90 backdrop-blur p-8 rounded-2xl shadow-2xl text-center transform animate-bounce-slow border border-yellow-200">
+              <svg class="w-24 h-24 text-yellow-500 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+              <h2 class="text-3xl font-bold text-gray-800">太棒了！</h2>
+              <p class="text-lg text-gray-600 mt-2">你已經完成本學期所有任務！</p>
+            </div>
+          </div>
+        ` : '';
+
+        // 確認視窗 (替代原生的 alert/confirm)
+        const modalHtml = state.showConfirmModal ? `
+          <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 transform transition-all">
+              <h3 class="text-lg font-bold text-slate-800 mb-2">確認重設手動進度？</h3>
+              <p class="text-slate-500 text-sm mb-6">這將會清除 Scratch 程式設計與運算思維的手動打勾記錄；資訊生活測驗自動記錄會保留。</p>
+              <div class="flex gap-3 justify-end">
+                <button id="cancel-reset-btn" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">取消</button>
+                <button id="confirm-reset-btn" class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">確定重設</button>
+              </div>
+            </div>
+          </div>
+        ` : '';
+
+        // 組合主畫面
+        appContainer.innerHTML = `
+          ${celebrationHtml}
+          ${modalHtml}
+          <div class="max-w-7xl mx-auto p-4 md:p-8 relative overflow-hidden">
+            <nav class="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm">
+              <a href="index.html" class="font-black text-indigo-700 text-base">資訊科技學習平台</a>
+            </nav>
+            <header class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative">
+              
+              <div class="text-center md:text-left mt-4 md:mt-0">
+                <div class="inline-block bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold mb-2 border border-indigo-100">
+                  ${escapeHtml(state.profile.classRoom)} 班 ${escapeHtml(state.profile.seatNo)} 號・${escapeHtml(state.profile.name)}（${state.studentId}）
+                </div>
+                <h1 class="text-2xl md:text-3xl font-bold text-slate-800 tracking-wide">一一五學年度上學期資訊科技</h1>
+                <p class="text-slate-500 mt-2 font-medium">任務自我確認介面</p>
+              </div>
+
+              <div class="flex-1 w-full max-w-md bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div class="flex justify-between items-end mb-2">
+                  <span class="text-sm font-semibold text-slate-600">學期總進度</span>
+                  <span class="text-2xl font-bold text-indigo-600">${state.progress}%</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-3 mb-2 overflow-hidden">
+                  <div class="bg-indigo-600 h-3 rounded-full transition-all duration-1000 ease-out" style="width: ${state.progress}%"></div>
+                </div>
+                <div class="flex justify-end">
+                  <button id="reset-btn" class="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                    重設手動進度
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <section id="courses" class="mb-10">
+              <div class="flex items-end justify-between gap-4 mb-4">
+                <div><p class="text-indigo-600 font-bold text-sm">COURSE CENTER</p><h2 class="text-2xl font-black text-slate-800">從課程開始學習</h2></div>
+                <a href="snake.html" class="text-sm font-bold text-indigo-600 hover:text-indigo-800">貪食蛇遊戲 →</a>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                ${courseCatalog.map(course => `
+                  <a href="${course.href}" class="group rounded-2xl bg-gradient-to-br ${course.color} p-5 text-white shadow-md hover:-translate-y-1 hover:shadow-xl transition-all min-h-44 flex flex-col">
+                    <span class="text-3xl mb-5">${course.icon}</span>
+                    <h3 class="font-black text-lg">${course.title}</h3>
+                    <p class="text-white/85 text-sm mt-2 leading-relaxed">${course.description}</p>
+                    <span class="mt-auto pt-4 text-sm font-bold">開始學習 →</span>
+                  </a>`).join('')}
+              </div>
+            </section>
+
+            <section id="progress">
+              <div class="mb-4"><p class="text-indigo-600 font-bold text-sm">MY PROGRESS</p><h2 class="text-2xl font-black text-slate-800">本學期任務進度</h2></div>
+            <main class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8 pb-12">
+              ${notesHtml}
+            </main>
+            </section>
+          </div>
+        `;
+      }
+    }
+
+    // 事件委派 (統一監聽所有點擊事件)
+    document.addEventListener('click', (e) => {
+      // 登入按鈕
+      if (e.target.closest('#login-submit-btn')) {
+        if (state.loginStep === 'student-id') {
+          handleLogin(document.getElementById('student-id-input').value);
+        } else if (state.loginStep === 'setup-code') {
+          setupVerificationCode(document.getElementById('verification-code-input').value, document.getElementById('verification-code-confirm-input').value);
+        } else {
+          verifyVerificationCode(document.getElementById('verification-code-input').value);
+        }
+        return;
+      }
+      if (e.target.closest('#change-student-id-btn')) {
+        returnToStudentIdLogin();
+        return;
+      }
+      // 任務勾選
+      const taskLabel = e.target.closest('.task-label');
+      if (taskLabel) {
+        e.preventDefault(); // 阻擋預設動作
+        const taskId = taskLabel.dataset.taskId;
+        toggleTask(taskId);
+        return;
+      }
+      // 重設按鈕
+      if (e.target.closest('#reset-btn')) {
+        state.showConfirmModal = true;
+        render();
+        return;
+      }
+      // 取消重設
+      if (e.target.closest('#cancel-reset-btn')) {
+        state.showConfirmModal = false;
+        render();
+        return;
+      }
+      // 確認重設
+      if (e.target.closest('#confirm-reset-btn')) {
+        resetTasks();
+        return;
+      }
+    });
+
+    document.addEventListener('change', (e) => {
+      if (e.target.id !== 'toggle-verification-code') return;
+      const type = e.target.checked ? 'text' : 'password';
+      document.getElementById('verification-code-input').type = type;
+      const confirmInput = document.getElementById('verification-code-confirm-input');
+      if (confirmInput) confirmInput.type = type;
+    });
+
+    // 支援按下 Enter 登入
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && state.status === 'login') {
+        if (state.loginStep === 'student-id') {
+          const input = document.getElementById('student-id-input');
+          if (input && document.activeElement && document.activeElement.closest('.space-y-4')) handleLogin(input.value);
+        } else {
+          const codeInput = document.getElementById('verification-code-input');
+          if (codeInput && document.activeElement && document.activeElement.closest('.space-y-4')) {
+            if (state.loginStep === 'setup-code') setupVerificationCode(codeInput.value, document.getElementById('verification-code-confirm-input').value);
+            else verifyVerificationCode(codeInput.value);
+          }
+        }
+      }
+    });
+
+  </script>
+</body>
+</html>
