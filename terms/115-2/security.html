@@ -150,7 +150,7 @@
         </div>
 
         <!-- 5. 通關卡畫面 -->
-        <div id="result-screen" class="glass-card p-8 hidden animate-pop">
+        <div id="result-screen" class="glass-card p-8 hidden">
             <div class="pass-card rounded-[2rem] p-8 shadow-2xl">
                 <div class="text-center mb-6">
                     <h2 id="pass-status-title" class="text-4xl font-black text-blue-600 italic underline tracking-tighter uppercase">QUIZ PASS CARD</h2>
@@ -218,7 +218,7 @@
         </div>
 
         <!-- 6. 學習狀態警示單畫面 -->
-        <div id="warning-screen" class="glass-card p-8 hidden animate-pop">
+        <div id="warning-screen" class="glass-card p-8 hidden">
             <div class="bg-white border-4 border-red-500 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-full h-4 bg-red-500"></div>
                 <div class="text-center mb-6 mt-4">
@@ -725,17 +725,67 @@
                 const certificates = termData.certificates || {};
                 const stampSlots = [['4-1', '個人資料的定義'], ['4-2', '個人資料的保護措施'], ['4-3', '資訊安全與防範措施'], ['5-1', '遊戲篇'], ['5-2', '模擬篇'], ['6-1', '數位著作的意義'], ['6-2', '著作合理使用的判斷'], ['6-3', '著作利用的其他建議']];
                 const passed = stampSlots.filter(([chapterKey]) => certificates[`security-${chapterKey}`]).length;
-                const stamps = stampSlots.map(([chapterKey, title], index) => certificates[`security-${chapterKey}`]
-                    ? `<article class="relative rounded-xl border-2 border-emerald-400 bg-emerald-50 p-3 text-center text-emerald-800"><span class="absolute right-1 top-1 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white">PASSED</span><div class="text-2xl">🏅</div><p class="mt-1 text-xs font-black">${index + 1}. ${title}</p></article>`
-                    : `<article class="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-3 text-center text-slate-400"><div class="text-2xl grayscale">🏅</div><p class="mt-1 text-xs font-black">${index + 1}. ${title}</p></article>`).join('');
-                content.innerHTML = `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">${stamps}</div>${passed === stampSlots.length
-                    ? '<div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center"><p class="font-black text-emerald-800">🎉 八枚印章已集滿！</p><p class="mt-1 text-sm text-emerald-700">知識大擂台已開放。</p><a href="quiz.html" class="mt-3 inline-flex rounded-xl bg-violet-700 px-4 py-2 text-sm font-black text-white hover:bg-violet-800">進入知識大擂台 →</a></div>'
-                    : `<p class="mt-4 rounded-xl border border-dashed border-violet-200 bg-violet-50 p-3 text-center text-sm font-bold text-violet-700">目前已集 ${passed} / ${stampSlots.length} 枚印章；完成所有資訊安全與數位著作測驗後開放知識大擂台。</p>`}`;
+                content.innerHTML = passed === stampSlots.length ? `
+                    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center"><p class="text-lg font-black text-emerald-800">🎉 八枚印章已集滿！</p><p class="mt-2 text-sm font-medium text-emerald-700">知識大擂台已開放，可挑戰進階複習並登上英雄榜。</p><a href="quiz.html" class="mt-4 inline-flex rounded-xl bg-violet-700 px-5 py-3 font-black text-white shadow-lg shadow-violet-200 transition hover:-translate-y-0.5 hover:bg-violet-800">進入知識大擂台 →</a></div>` : `
+                    <div class="rounded-2xl border border-dashed border-violet-200 bg-violet-50 p-5 text-center"><p class="font-black text-violet-800">🔒 尚未解鎖知識大擂台</p><p class="mt-2 text-sm font-medium text-violet-700">目前已集 ${passed} / ${stampSlots.length} 枚印章；完成所有資訊安全與數位著作測驗後開放。</p></div>`;
             } catch (error) {
                 console.error('Unable to check knowledge arena unlock:', error);
                 content.innerHTML = '<div class="rounded-xl bg-rose-50 p-4 text-center text-sm font-bold text-rose-700">暫時無法讀取通關進度，請稍後再試。</div>';
             }
         }
+
+        const securityCertificateSlots = [
+            ['4-1', '4-1 個人資料的定義'], ['4-2', '4-2 個人資料的保護措施'], ['4-3', '4-3 資訊安全與防範措施'],
+            ['5-1', '5-1 遊戲篇'], ['5-2', '5-2 模擬篇'],
+            ['6-1', '6-1 數位著作的意義'], ['6-2', '6-2 著作合理使用的判斷'], ['6-3', '6-3 著作利用的其他建議']
+        ];
+        let securityCertificateRecords = new Map();
+        const escapeCertificate = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+        const certificateDate = value => value ? new Date(value).toLocaleString('zh-TW', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '尚無紀錄';
+
+        function ensureCertificateWall() {
+            if (document.getElementById('certificate-modal')) return;
+            document.body.insertAdjacentHTML('beforeend', `<div id="certificate-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"><div class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"><div class="mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4"><div><p class="text-xs font-black tracking-widest text-blue-600">MY CERTIFICATES</p><h3 class="mt-1 text-2xl font-black text-slate-800">我的資訊安全證書</h3><p id="certificate-student" class="mt-1 text-sm font-bold text-slate-500"></p></div><button type="button" data-close-certificates class="rounded-lg px-3 py-2 font-bold text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="關閉">✕</button></div><div id="certificate-list" class="space-y-3"></div><button type="button" data-close-certificates class="mt-6 w-full rounded-xl bg-slate-800 py-3 font-bold text-white transition hover:bg-slate-950">關閉</button></div></div><div id="certificate-detail-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm"><div class="max-h-[90vh] w-full max-w-xl overflow-y-auto"><div id="certificate-detail-content"></div><button type="button" data-close-certificate-detail class="mt-4 w-full rounded-xl bg-white py-3 font-bold text-slate-700 shadow-lg transition hover:bg-slate-100">返回集章牆</button></div></div>`);
+            document.querySelectorAll('[data-close-certificates]').forEach(button => button.addEventListener('click', closeCertificateRecords));
+            document.querySelector('[data-close-certificate-detail]').addEventListener('click', closeCertificateDetail);
+        }
+
+        async function showCertificateRecords() {
+            ensureCertificateWall();
+            const modal = document.getElementById('certificate-modal');
+            const list = document.getElementById('certificate-list');
+            const profile = window.LearnerProfile?.readLocalProfile() || {};
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            document.getElementById('certificate-student').textContent = `${profile.classRoom || ''} 班 ${profile.seatNo || ''} 號・${profile.name || '同學'}`;
+            list.innerHTML = '<div class="rounded-2xl bg-blue-50 p-6 text-center font-bold text-blue-700">正在讀取證書紀錄…</div>';
+            try {
+                const firebaseApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(window.SCHOOL_APP.firebaseConfig);
+                const current = firebase.auth(firebaseApp).currentUser;
+                if (!current) throw new Error('not-signed-in');
+                const snapshot = await firebase.firestore(firebaseApp).collection('users').doc(current.uid).get();
+                const certificates = snapshot.data()?.terms?.[window.SCHOOL_APP.currentTermId]?.certificates || {};
+                securityCertificateRecords = new Map(securityCertificateSlots.map(([key, title]) => [key, certificates[`security-${key}`] ? { ...certificates[`security-${key}`], title } : null]));
+                const completed = [...securityCertificateRecords.values()].filter(Boolean).length;
+                document.getElementById('certificate-student').textContent = `${profile.classRoom || ''} 班 ${profile.seatNo || ''} 號・${profile.name || '同學'}・已集 ${completed} / ${securityCertificateSlots.length} 章`;
+                list.innerHTML = `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">${securityCertificateSlots.map(([key, title]) => {
+                    const certificate = securityCertificateRecords.get(key);
+                    return certificate ? `<button type="button" data-certificate="${key}" class="relative overflow-hidden rounded-2xl border-2 border-blue-500 bg-white p-4 text-left shadow-md transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-200"><div class="absolute right-[-28px] top-3 rotate-45 bg-emerald-500 px-8 py-1 text-[9px] font-black text-white">PASSED</div><p class="text-[10px] font-black tracking-[0.16em] text-blue-600">QUIZ PASS CARD</p><h4 class="mt-2 min-h-10 pr-8 text-sm font-black leading-snug text-slate-800">${escapeCertificate(certificate.chapterTitle || title)}</h4><div class="mt-3 border-t border-blue-100 pt-3 text-xs"><p class="text-slate-400">通關時間</p><p class="font-bold text-slate-600">${escapeCertificate(certificateDate(certificate.awardedAt))}</p></div><p class="mt-3 text-center text-xs font-black text-blue-600">點選查看證書</p></button>` : `<article class="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-4 opacity-75"><p class="text-[10px] font-black tracking-[0.16em] text-slate-400">CERTIFICATE SLOT</p><h4 class="mt-2 min-h-10 text-sm font-black leading-snug text-slate-500">${escapeCertificate(title)}</h4><div class="mt-3 border-t border-slate-200 pt-3 text-xs font-bold text-slate-400">尚未完成</div></article>`;
+                }).join('')}</div>`;
+                document.querySelectorAll('[data-certificate]').forEach(button => button.addEventListener('click', () => showCertificateDetail(button.dataset.certificate)));
+            } catch (error) {
+                console.error('Unable to read security certificates:', error);
+                list.innerHTML = '<div class="rounded-2xl bg-red-50 p-6 text-center font-bold text-red-700">暫時無法讀取證書紀錄，請稍後再試。</div>';
+            }
+        }
+
+        function closeCertificateRecords() { const modal = document.getElementById('certificate-modal'); modal?.classList.add('hidden'); modal?.classList.remove('flex'); }
+        function showCertificateDetail(chapterKey) {
+            const certificate = securityCertificateRecords.get(chapterKey); if (!certificate) return;
+            const profile = window.LearnerProfile?.readLocalProfile() || {};
+            document.getElementById('certificate-detail-content').innerHTML = `<div class="pass-card rounded-[2rem] p-8 shadow-2xl"><div class="mb-6 text-center"><h2 class="text-3xl font-black italic tracking-tighter text-blue-600 underline">QUIZ PASS CARD</h2><p class="mt-1 text-[10px] font-bold tracking-[0.3em] text-gray-400">INFORMATION TECHNOLOGY LEARNING SYSTEM</p></div><div class="mb-6 rounded-xl border-y-4 border-double border-blue-50 bg-blue-50/30 p-5"><div class="flex items-center justify-around"><div class="text-center"><span class="mb-1 block text-[10px] font-black uppercase text-blue-400">Class</span><span class="text-xl font-black text-gray-800">${escapeCertificate(profile.classRoom)}</span></div><div class="h-8 w-[2px] bg-blue-100"></div><div class="text-center"><span class="mb-1 block text-[10px] font-black uppercase text-blue-400">No.</span><span class="text-xl font-black text-gray-800">${escapeCertificate(profile.seatNo)}</span></div><div class="h-8 w-[2px] bg-blue-100"></div><div class="text-center"><span class="mb-1 block text-[10px] font-black uppercase text-blue-400">Name</span><span class="text-xl font-black text-gray-800">${escapeCertificate(profile.name)}</span></div></div><p class="mt-4 border-t border-blue-100 pt-3 text-center text-sm font-bold text-gray-600">通關時間：${escapeCertificate(certificateDate(certificate.awardedAt))}</p></div><div class="space-y-4"><div class="rounded-2xl border border-gray-100 bg-gray-50 p-5"><span class="mb-1 block text-[10px] font-black uppercase text-gray-400">Completed Chapter</span><span class="text-lg font-black leading-tight text-blue-800">${escapeCertificate(certificate.chapterTitle || certificate.title)}</span></div><div class="rounded-xl border border-gray-100 bg-gray-50 p-4 text-center"><span class="mb-1 block text-[10px] font-black text-gray-400">CORRECT</span><span class="text-2xl font-black text-green-500">${escapeCertificate(certificate.score)}</span></div></div></div>`;
+            const modal = document.getElementById('certificate-detail-modal'); modal.classList.remove('hidden'); modal.classList.add('flex');
+        }
+        function closeCertificateDetail() { const modal = document.getElementById('certificate-detail-modal'); modal?.classList.add('hidden'); modal?.classList.remove('flex'); }
 
         // Keep this course on the same visual template as the first-semester
         // Information Life course.  Course titles and chapter counts vary,
@@ -749,7 +799,7 @@
             chapterList.classList.add('space-y-7');
             const header = screen.querySelector(':scope > header');
             if (header) {
-                header.innerHTML = `<div><p class="text-xs font-black tracking-[0.18em] text-blue-600">SECURITY &amp; DIGITAL WORKS PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊安全與數位著作・測驗集章</h2><p class="mt-2 text-sm font-medium text-slate-500">完成所有章節測驗，收集 8 枚證書並解鎖「知識大擂台」。</p></div><button type="button" onclick="document.getElementById('knowledge-arena-unlock')?.scrollIntoView({behavior:'smooth',block:'start'})" class="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl">🏆 我的證書・集章牆</button>`;
+                header.innerHTML = `<div><p class="text-xs font-black tracking-[0.18em] text-blue-600">SECURITY &amp; DIGITAL WORKS PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊安全與數位著作・測驗集章</h2><p class="mt-2 text-sm font-medium text-slate-500">完成所有章節測驗，收集 8 枚證書並解鎖「知識大擂台」。</p></div><button type="button" onclick="showCertificateRecords()" class="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl">🏆 我的證書・集章牆</button>`;
             }
 
             const summaries = [
@@ -782,15 +832,9 @@
         window.onload = () => { connectSharedStudentSession(); goToChapters(); };
 
         function markCollectibleChapters() {
-            document.querySelectorAll('#chapter-screen button[onclick^="showStudyNotes"]').forEach((button) => {
-                if (button.dataset.collectibleMarked) return;
-                button.dataset.collectibleMarked = 'true';
-                button.classList.add('relative', 'pt-7');
-                const badge = document.createElement('span');
-                badge.className = 'absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-amber-950 shadow-sm';
-                badge.textContent = '🏅 可集章';
-                button.prepend(badge);
-            });
+            // The shared template communicates collection through the
+            // certificate wall, so chapter buttons keep the clean
+            // first-semester visual treatment.
         }
 
         function goToChapters() {
@@ -819,6 +863,11 @@
 
         function backToChapters() {
             document.getElementById('study-screen').classList.add('hidden');
+            document.getElementById('quiz-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.add('hidden');
+            document.getElementById('warning-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('animate-pop');
+            document.getElementById('warning-screen').classList.remove('animate-pop');
             document.getElementById('chapter-screen').classList.remove('hidden');
         }
 
@@ -896,12 +945,12 @@
             rawQ.activeOpts = shuffledOpts;
             rawQ.activeCorrect = newCorrectIdx;
 
-            let html = `<p class="text-2xl font-black text-gray-800 mb-6 leading-relaxed">${rawQ.q}</p><div class="space-y-4">`;
+            let html = `<h3 class="text-xl font-bold text-gray-800 mb-6">${rawQ.q}</h3><div class="space-y-4">`;
             shuffledOpts.forEach((opt, idx) => {
                 html += `
-                    <label class="flex items-center p-5 border-2 border-gray-100 rounded-2xl hover:bg-blue-50 hover:border-blue-200 cursor-pointer transition group">
-                        <input type="radio" name="opt" value="${idx}" class="w-6 h-6 accent-blue-600">
-                        <span class="ml-4 font-bold text-gray-700 text-lg group-hover:text-blue-700">${opt}</span>
+                    <label class="flex items-center p-4 border-2 border-gray-100 rounded-xl cursor-pointer hover:bg-blue-50 transition">
+                        <input type="radio" name="opt" value="${idx}" class="w-5 h-5 text-blue-600">
+                        <span class="ml-3 text-lg text-gray-700">${opt}</span>
                     </label>
                 `;
             });
@@ -936,6 +985,7 @@
                 clearInterval(timerInterval);
                 document.getElementById('quiz-screen').classList.add('hidden');
                 document.getElementById('warning-screen').classList.remove('hidden');
+                document.getElementById('warning-screen').classList.add('animate-pop');
                 return;
             }
 
@@ -962,6 +1012,7 @@
 
             document.getElementById('quiz-screen').classList.add('hidden');
             document.getElementById('result-screen').classList.remove('hidden');
+            document.getElementById('result-screen').classList.add('animate-pop');
 
             document.getElementById('res-class').textContent = currentUser.class;
             document.getElementById('res-no').textContent = currentUser.no;
@@ -991,12 +1042,14 @@
         // 新增：從警示單返回重點閱讀畫面
         function backToStudyFromWarning() {
             document.getElementById('warning-screen').classList.add('hidden');
+            document.getElementById('warning-screen').classList.remove('animate-pop');
             document.getElementById('study-screen').classList.remove('hidden');
         }
 
         // 新增：完成挑戰後返回章節選擇畫面
         function returnToChapters() {
             document.getElementById('result-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('animate-pop');
             document.getElementById('chapter-screen').classList.remove('hidden');
         }
     </script>
