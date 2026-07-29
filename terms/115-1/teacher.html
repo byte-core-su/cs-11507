@@ -299,15 +299,19 @@
     function subscribeRoster() {
       if (unsubscribeRoster) unsubscribeRoster();
       closeVerificationManager();
-      const classRoom = activeAccountClass;
-      unsubscribeRoster = db.collection('rosters').where('classRoom', '==', classRoom).onSnapshot((snapshot) => {
-        const rows = snapshot.docs.map(doc => doc.data()).sort((a, b) => Number(a.seatNo) - Number(b.seatNo));
-        rosterRows = rows;
-        document.getElementById('roster-count').textContent = `${classRoom} 班共 ${rows.length} 位學生`;
-        document.getElementById('roster-body').innerHTML = rows.length ? rows.map(row => `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.studentId)}</td><td class="p-3">${escapeHtml(row.gender)}</td><td class="p-3 font-bold">${escapeHtml(row.name)}</td><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${/^\d{6}$/.test(String(row.verificationCode || '')) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${/^\d{6}$/.test(String(row.verificationCode || '')) ? '已設定' : '未設定'}</span></td><td class="p-3 text-right"><button data-id="${escapeHtml(row.studentId)}" class="manage-code rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50">驗證碼</button><button data-id="${escapeHtml(row.studentId)}" class="delete ml-1 rounded-lg px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50">刪除</button></td></tr>`).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400">尚未建立名冊。</td></tr>';
-        document.querySelectorAll('.manage-code').forEach(button => button.addEventListener('click', () => openVerificationManager(button.dataset.id)));
-        document.querySelectorAll('.delete').forEach(button => button.addEventListener('click', () => deleteRoster(button.dataset.id)));
+      unsubscribeRoster = db.collection('rosters').onSnapshot((snapshot) => {
+        rosterRows = snapshot.docs.map(doc => doc.data());
+        renderRoster();
+        renderProgress();
       }, () => { document.getElementById('roster-count').textContent = '無法讀取名冊，請確認 Firestore Rules。'; });
+    }
+    function renderRoster() {
+      const classRoom = activeAccountClass;
+      const rows = rosterRows.filter(row => row.classRoom === classRoom).sort((a, b) => Number(a.seatNo) - Number(b.seatNo));
+      document.getElementById('roster-count').textContent = `${classRoom} 班共 ${rows.length} 位學生`;
+      document.getElementById('roster-body').innerHTML = rows.length ? rows.map(row => `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.studentId)}</td><td class="p-3">${escapeHtml(row.gender)}</td><td class="p-3 font-bold">${escapeHtml(row.name)}</td><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${/^\d{6}$/.test(String(row.verificationCode || '')) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${/^\d{6}$/.test(String(row.verificationCode || '')) ? '已設定' : '未設定'}</span></td><td class="p-3 text-right"><button data-id="${escapeHtml(row.studentId)}" class="manage-code rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50">驗證碼</button><button data-id="${escapeHtml(row.studentId)}" class="delete ml-1 rounded-lg px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50">刪除</button></td></tr>`).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400">尚未建立名冊。</td></tr>';
+      document.querySelectorAll('.manage-code').forEach(button => button.addEventListener('click', () => openVerificationManager(button.dataset.id)));
+      document.querySelectorAll('.delete').forEach(button => button.addEventListener('click', () => deleteRoster(button.dataset.id)));
     }
 
     function closeVerificationManager() {
@@ -371,7 +375,7 @@
       container.querySelectorAll('.account-class').forEach((button) => button.addEventListener('click', () => {
         activeAccountClass = button.dataset.class;
         renderAccountClassButtons();
-        subscribeRoster();
+        renderRoster();
       }));
     }
     function renderProgressClassButtons() {
@@ -500,8 +504,9 @@
         const recordsByStudent = new Map();
         snapshot.docs.forEach((document) => {
           const data = document.data();
-          const profile = data.profile || {};
-          if (!profile.studentId || !profile.classRoom || !profile.name) return;
+          const studentId = data.profile?.studentId || data.studentId || '';
+          const profile = { ...(deriveFromStudentId(studentId) || {}), ...(data.profile || {}), studentId };
+          if (!profile.studentId || !profile.classRoom) return;
           const candidate = { ...data, profile, updatedAt: data.updatedAt, documentId: document.id };
           const records = recordsByStudent.get(profile.studentId) || [];
           records.push(candidate);
@@ -513,23 +518,37 @@
         document.getElementById('progress-count').textContent = '無法讀取學習進度，請確認 Firestore Rules。';
       });
     }
+    function rosterProgressRows() {
+      const progressByStudent = new Map(progressRecords.map(record => [record.profile?.studentId, record]));
+      return rosterRows.map(roster => {
+        const progress = progressByStudent.get(roster.studentId);
+        return {
+          ...(progress || { terms: {}, teacherProgress: {}, updatedAt: null, documentId: '' }),
+          profile: { ...deriveFromStudentId(roster.studentId), ...(progress?.profile || {}), ...roster, studentId: roster.studentId },
+          hasStarted: Boolean(progress && Object.prototype.hasOwnProperty.call(progress.terms || {}, currentTermId))
+        };
+      });
+    }
     function renderProgress() {
         const classRoom = activeProgressClass;
-        const rows = progressRecords.filter(row => row.profile.classRoom === classRoom).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
+        const rows = rosterProgressRows().filter(row => row.profile.classRoom === classRoom).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
         const completedTotal = rows.reduce((sum, row) => sum + Object.values(row.terms?.[currentTermId]?.tasks || {}).filter(Boolean).length, 0);
+        const startedCount = rows.filter(row => row.hasStarted).length;
         const possibleTotal = rows.length * totalTasks;
-        document.getElementById('progress-count').textContent = `${classRoom} 班已有 ${rows.length} 位學生登入入口網`;
-        document.getElementById('progress-summary').textContent = rows.length ? `班級總完成率 ${Math.round((completedTotal / possibleTotal) * 100)}%` : '尚無進度資料';
+        document.getElementById('progress-count').textContent = `${classRoom} 班名冊共 ${rows.length} 位；本學期已開始 ${startedCount} 位`;
+        document.getElementById('progress-summary').textContent = rows.length ? `班級總完成率 ${Math.round((completedTotal / possibleTotal) * 100)}%` : '此班尚未建立名冊';
         document.getElementById('progress-body').innerHTML = rows.length ? rows.map((row) => {
           const completed = Object.values(row.terms?.[currentTermId]?.tasks || {}).filter(Boolean).length;
           const percentage = Math.round((completed / totalTasks) * 100);
           const certificates = getInfoLifeCertificates(row);
-          const certificateSummary = certificates.length
+          const certificateSummary = row.hasStarted && certificates.length
             ? `<button data-id="${escapeHtml(row.profile.studentId)}" class="show-certificates rounded-lg bg-indigo-50 px-3 py-2 text-left text-xs font-bold text-indigo-700 hover:bg-indigo-100"><span class="block text-sm">${certificates.length} 張</span><span class="mt-0.5 block text-indigo-500">查看細節</span></button>`
             : '<span class="text-slate-400">—</span>';
           const thinkingPassed = getThinkingPassedIds(row);
-          const thinkingSummary = `<span class="font-bold text-emerald-700">${thinkingPassed.length} / ${thinkingChallenges.length}</span><button data-id="${escapeHtml(row.profile.studentId)}" class="manage-thinking mt-1 block rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">核定通關</button>`;
-          return `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name)}</td><td class="p-3">${completed} / ${totalTasks}</td><td class="p-3"><span class="font-bold text-emerald-700">${percentage}%</span></td><td class="p-3">${certificateSummary}</td><td class="p-3">${thinkingSummary}</td><td class="p-3 text-slate-500">${formatUpdatedAt(row.updatedAt)}</td></tr>`;
+          const thinkingSummary = row.hasStarted ? `<span class="font-bold text-emerald-700">${thinkingPassed.length} / ${thinkingChallenges.length}</span><button data-id="${escapeHtml(row.profile.studentId)}" class="manage-thinking mt-1 block rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">核定通關</button>` : '<span class="text-slate-400">—</span>';
+          const taskSummary = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>';
+          const rateSummary = row.hasStarted ? `<span class="font-bold text-emerald-700">${percentage}%</span>` : '<span class="text-slate-400">—</span>';
+          return `<tr class="border-b border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name)}</td><td class="p-3">${taskSummary}</td><td class="p-3">${rateSummary}</td><td class="p-3">${certificateSummary}</td><td class="p-3">${thinkingSummary}</td><td class="p-3 text-slate-500">${row.hasStarted ? formatUpdatedAt(row.updatedAt) : '—'}</td></tr>`;
         }).join('') : '<tr><td colspan="8" class="p-8 text-center text-slate-400">尚無學生從入口網登入。</td></tr>';
         document.querySelectorAll('.manage-thinking').forEach((button) => button.addEventListener('click', () => openThinkingManager(button.dataset.id)));
         document.querySelectorAll('.show-certificates').forEach((button) => button.addEventListener('click', () => openCertificateManager(button.dataset.id)));
