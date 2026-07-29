@@ -186,7 +186,7 @@
       const classRoom = activeRosterClass;
       const rows = rosterRows.filter(row => row.classRoom === classRoom).sort((a, b) => Number(a.seatNo) - Number(b.seatNo));
       $('roster-note').textContent = `${classRoom} 班共 ${rows.length} 位學生`;
-      $('roster-body').innerHTML = rows.length ? rows.map(row => `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.name || '—')}</td><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${/^\d{6}$/.test(row.verificationCode || '') ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${/^\d{6}$/.test(row.verificationCode || '') ? '已設定' : '未設定'}</span></td><td class="p-3 text-right"><button data-code="${escapeHtml(row.studentId)}" class="code-button rounded-lg px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50">驗證碼</button><button data-delete="${escapeHtml(row.studentId)}" class="delete-button rounded-lg px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50">刪除</button></td></tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
+      $('roster-body').innerHTML = rows.length ? rows.map(row => `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.name || '—')}</td><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${/^\d{6}$/.test(row.verificationCode || '') ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${/^\d{6}$/.test(row.verificationCode || '') ? '學生已設定' : '學生尚未設定'}</span></td><td class="p-3 text-right"><button data-code="${escapeHtml(row.studentId)}" class="code-button rounded-lg px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50">查看／重設</button><button data-delete="${escapeHtml(row.studentId)}" class="delete-button rounded-lg px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50">刪除</button></td></tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
       document.querySelectorAll('.code-button').forEach(button => button.addEventListener('click', () => manageCode(button.dataset.code)));
       document.querySelectorAll('.delete-button').forEach(button => button.addEventListener('click', () => deleteRoster(button.dataset.delete)));
     }
@@ -223,22 +223,28 @@
     }
 
     async function syncStudentAccountCode(studentId, previousCode, nextCode) {
+      if (!/^\d{6}$/.test(previousCode || '')) throw new Error('first-code-must-be-set-by-student');
       const secondary = firebase.initializeApp(config, `code-${Date.now()}-${Math.random().toString(36).slice(2)}`);
       const secondaryAuth = secondary.auth();
       try {
-        let signInError;
-        if (/^\d{6}$/.test(previousCode || '')) { try { await secondaryAuth.signInWithEmailAndPassword(studentEmail(studentId), previousCode); await secondaryAuth.currentUser.updatePassword(nextCode); return; } catch (error) { signInError = error; } }
-        try { await secondaryAuth.createUserWithEmailAndPassword(studentEmail(studentId), nextCode); } catch (error) { if (error.code === 'auth/email-already-in-use' && signInError) throw signInError; throw error; }
+        await secondaryAuth.signInWithEmailAndPassword(studentEmail(studentId), previousCode);
+        await secondaryAuth.currentUser.updatePassword(nextCode);
       } finally { await secondary.delete(); }
     }
     function manageCode(studentId) {
       const student = rosterRows.find(row => row.studentId === studentId); if (!student) return;
+      if (!/^\d{6}$/.test(student.verificationCode || '')) {
+        openModal('學生帳號', '尚未設定驗證碼', `${student.name || '未命名'} · ${student.classRoom} 班 ${student.seatNo} 號 · ${student.studentId}`, '<p class="text-sm leading-6 text-slate-600">學生尚未完成首次登入設定。請由學生自行設定六位數驗證碼；完成後，教師可在此查看、重設或更改。</p><button id="close-code-info" class="mt-5 rounded-xl bg-slate-700 px-5 py-3 text-sm font-bold text-white">關閉</button>');
+        $('close-code-info').addEventListener('click', closeModal);
+        return;
+      }
       verificationStudentId = studentId;
-      openModal('學生帳號', '設定登入驗證碼', `${student.name || '未命名'} · ${student.classRoom} 班 ${student.seatNo} 號 · ${student.studentId}`, `<label class="block text-sm font-bold">六位數驗證碼<input id="code-input" inputmode="numeric" maxlength="6" type="password" value="${/^\d{6}$/.test(student.verificationCode || '') ? escapeHtml(student.verificationCode) : ''}" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3"></label><label class="mt-3 flex items-center gap-2 text-sm"><input id="show-code" type="checkbox">顯示驗證碼</label><p id="code-message" class="mt-3 text-sm text-slate-500">首次設定會建立學生登入帳號；變更時會同步更新帳號密碼。</p><button id="save-code" class="mt-5 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white">儲存驗證碼</button>`);
+      openModal('學生帳號', '查看／更改登入驗證碼', `${student.name || '未命名'} · ${student.classRoom} 班 ${student.seatNo} 號 · ${student.studentId}`, `<label class="block text-sm font-bold">六位數驗證碼<input id="code-input" inputmode="numeric" maxlength="6" type="password" value="${escapeHtml(student.verificationCode)}" class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3"></label><label class="mt-3 flex items-center gap-2 text-sm"><input id="show-code" type="checkbox">顯示驗證碼</label><p id="code-message" class="mt-3 text-sm text-slate-500">可查看現有驗證碼，或輸入新的六位數字後儲存；變更會同步更新學生登入密碼。</p><button id="save-code" class="mt-5 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white">儲存變更</button>`);
       $('show-code').addEventListener('change', event => { $('code-input').type = event.target.checked ? 'text' : 'password'; }); $('save-code').addEventListener('click', saveCode);
     }
     async function saveCode() {
       const code = $('code-input').value.trim(); const student = rosterRows.find(row => row.studentId === verificationStudentId); if (!student || !/^\d{6}$/.test(code)) { $('code-message').textContent = '請輸入六位數字驗證碼。'; return; }
+      if (!/^\d{6}$/.test(student.verificationCode || '')) { $('code-message').textContent = '學生必須先自行完成首次驗證碼設定。'; return; }
       $('save-code').disabled = true; $('code-message').textContent = '正在同步學生帳號…';
       try { await syncStudentAccountCode(student.studentId, student.verificationCode || '', code); await db.collection('rosters').doc(student.studentId).update({ verificationCode: code, verificationCodeUpdatedAt: firebase.firestore.FieldValue.serverTimestamp() }); $('code-message').textContent = '已同步學生帳號與名冊驗證碼。'; }
       catch (error) { console.error(error); $('code-message').textContent = '儲存失敗。若帳號已存在，請確認名冊中的舊驗證碼正確。'; }
