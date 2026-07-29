@@ -181,8 +181,13 @@
         identity: { provider: 'student-email', studentId },
         // A term entry is created at login, not only after the first task is checked.
         // This lets the teacher console list every student who has entered 11502.
-        terms: { [currentTermId]: { startedAt: new Date().toISOString() } }
+        terms: { [currentTermId]: { startedAt: new Date().toISOString(), attendance: { [taipeiDateKey()]: { loginAt: new Date() } } } }
       }, { merge: true });
+    }
+
+    function taipeiDateKey(date = new Date()) {
+      const values = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+      return `${values.year}-${values.month}-${values.day}`;
     }
 
     async function enterPreview(studentId) {

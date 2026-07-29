@@ -168,6 +168,10 @@
     }
 
     const studentAccountEmail = (studentId) => `${studentId}@students.jimwang-4b0ca.firebaseapp.com`;
+    const taipeiDateKey = (date = new Date()) => {
+      const values = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+      return `${values.year}-${values.month}-${values.day}`;
+    };
 
     async function mergeCurrentAnonymousProgress(profile, legacy, stableUid) {
       if (!legacy || legacy.profile?.studentId !== profile.studentId) return;
@@ -279,7 +283,7 @@
           studentId: state.studentId,
           profile: state.profile,
           identity: { provider: 'student-email', studentId: state.studentId },
-          terms: { [currentTermId]: { updatedAt: new Date() } },
+          terms: { [currentTermId]: { updatedAt: new Date(), attendance: { [taipeiDateKey()]: { loginAt: new Date() } } } },
           updatedAt: new Date()
         }, { merge: true });
       } catch (error) {
