@@ -810,7 +810,17 @@
             [...chapterList.children].filter(node => node.tagName === 'SECTION').forEach((section, index) => {
                 const [chapterKey, color, label] = summaries[index] || [];
                 const banner = section.firstElementChild;
-                if (!banner || !chapterKey || banner.querySelector('.chapter-summary')) return;
+                if (!banner || !chapterKey) return;
+                let copy = banner.querySelector(':scope > .chapter-copy');
+                if (!copy) {
+                    copy = document.createElement('div');
+                    copy.className = 'chapter-copy';
+                    copy.style.flex = '1 1 0%';
+                    copy.style.minWidth = '0';
+                    [...banner.children].filter(node => !node.classList.contains('chapter-summary')).forEach(node => copy.append(node));
+                    banner.prepend(copy);
+                }
+                if (banner.querySelector('.chapter-summary')) return;
                 banner.classList.add('flex', 'flex-col', 'gap-5', 'sm:flex-row', 'sm:items-center', 'sm:justify-between');
                 const button = document.createElement('button');
                 button.type = 'button';
