@@ -63,6 +63,45 @@
     </style>
   <script src="../../firebase-config.js"></script>
   <script src="../../shared/learner-profile.js"></script>
+  <script type="module">
+      import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+      import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+      import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+      const { SCHOOL_APP, LearnerProfile } = window;
+      const storageKey = SCHOOL_APP.storageKeys.flowchartProgress;
+      const saved = LearnerProfile.readTermStorage(storageKey, {});
+      let records = saved?.units || {};
+      let firebaseUser = null;
+      let db = null;
+      let ready;
+      window.FlowchartProgress = new Promise(resolve => { ready = resolve; });
+      const storeLocal = () => LearnerProfile.writeTermStorage(storageKey, { units: records });
+      if (!SCHOOL_APP.isFirebaseConfigured()) ready(records);
+      else {
+          const app = getApps().length ? getApp() : initializeApp(SCHOOL_APP.firebaseConfig);
+          db = getFirestore(app);
+          onAuthStateChanged(getAuth(app), async user => {
+              firebaseUser = user;
+              if (!user) { ready(records); return; }
+              try {
+                  const snapshot = await getDoc(doc(db, 'users', user.uid));
+                  const remote = snapshot.data()?.terms?.[SCHOOL_APP.currentTermId]?.workflow?.flowcharts || {};
+                  records = { ...records, ...remote };
+                  storeLocal();
+              } catch (error) { console.error(error); }
+              ready(records);
+          });
+      }
+      window.saveFlowchartProgress = async (unitId, record) => {
+          records = { ...records, [unitId]: record };
+          storeLocal();
+          if (firebaseUser && db) await setDoc(doc(db, 'users', firebaseUser.uid), {
+              terms: { [SCHOOL_APP.currentTermId]: { workflow: { flowcharts: records }, updatedAt: new Date().toISOString() } }
+          }, { merge: true });
+          return records;
+      };
+  </script>
 </head>
 <body>
     <div id="root"></div>
@@ -111,6 +150,9 @@
             const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
             const [quizFeedback, setQuizFeedback] = useState(null); 
             const [shake, setShake] = useState(false);
+            const [flowchartRecords, setFlowchartRecords] = useState({});
+            const [orderedFlowSteps, setOrderedFlowSteps] = useState([]);
+            const [flowchartMessage, setFlowchartMessage] = useState('');
             const [unlockedUnitIds, setUnlockedUnitIds] = useState(() => {
                 try {
                     const storageKey = 'scratch-programming.115-1.unlocked-units.v1';
@@ -130,6 +172,18 @@
             useEffect(() => {
                 localStorage.setItem('scratch-programming.115-1.unlocked-units.v1', JSON.stringify(unlockedUnitIds));
             }, [unlockedUnitIds]);
+
+            const shuffledFlowSteps = unit => {
+                const completed = flowchartRecords[unit.id]?.steps?.split(/\r?\n/).map(step => step.trim()).filter(Boolean);
+                if (completed?.length) return completed;
+                return shuffleArray(unit.details);
+            };
+
+            useEffect(() => {
+                let active = true;
+                Promise.resolve(window.FlowchartProgress).then(records => { if (active) setFlowchartRecords(records || {}); });
+                return () => { active = false; };
+            }, []);
 
             // 關閉 Modal 時禁止背景滾動
             useEffect(() => {
@@ -355,6 +409,8 @@
                 setIsImageModalOpen(false);
                 setIsQuizModalOpen(false);
                 setCurrentHintIndex(0); // 重置圖片索引
+                setOrderedFlowSteps(shuffledFlowSteps(unit));
+                setFlowchartMessage(flowchartRecords[unit.id]?.completedAt ? '✓ 已完成本單元流程圖任務。' : '依程式執行的先後，排列本單元的學習重點。');
                 window.scrollTo(0, 0);
             };
 
@@ -364,10 +420,40 @@
                 setIsImageModalOpen(false);
                 setIsQuizModalOpen(false);
                 setCurrentHintIndex(0);
+                setOrderedFlowSteps([]);
+                setFlowchartMessage('');
             };
 
             const markUnitUnlocked = (unitId) => {
                 setUnlockedUnitIds((previous) => previous.includes(unitId) ? previous : [...previous, unitId]);
+            };
+
+            const moveFlowStep = (index, direction) => {
+                setOrderedFlowSteps(current => {
+                    const target = index + direction;
+                    if (target < 0 || target >= current.length) return current;
+                    const next = [...current];
+                    [next[index], next[target]] = [next[target], next[index]];
+                    return next;
+                });
+            };
+
+            const completeFlowchartTask = async () => {
+                if (!selectedUnit) return;
+                const correct = selectedUnit.details.every((step, index) => orderedFlowSteps[index] === step);
+                if (!correct) {
+                    setFlowchartMessage('順序還不正確，請依程式執行的先後重新排列。');
+                    return;
+                }
+                try {
+                    const record = { steps: selectedUnit.details.join('\n'), completedAt: new Date().toISOString(), title: selectedUnit.title };
+                    const records = await window.saveFlowchartProgress(selectedUnit.id, record);
+                    setFlowchartRecords(records);
+                    setFlowchartMessage('✓ 順序正確！已完成本單元流程圖任務。');
+                } catch (error) {
+                    console.error(error);
+                    setFlowchartMessage('順序正確！完成紀錄暫時未同步，請稍後再試。');
+                }
             };
 
             // --- 測驗邏輯 ---
@@ -528,7 +614,7 @@
                                                     {unit.title}
                                                 </h3>
                                                 <p className="text-sm text-slate-500 mb-4 line-clamp-2">{unit.subtitle}</p>
-                                                <span className="inline-flex rounded-full px-2 py-1 text-xs font-bold bg-amber-100 text-amber-700">先閱讀與建立流程圖</span>
+                                                <span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${flowchartRecords[unit.id]?.completedAt ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{flowchartRecords[unit.id]?.completedAt ? '✓ 流程圖已完成' : '先閱讀與建立流程圖'}</span>
                                                 <div className="flex items-center text-orange-500 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-6 right-6">
                                                     <span>開始學習</span>
                                                     <Icons.ChevronRight className="w-4 h-4 ml-1" />
@@ -658,6 +744,15 @@
 
                                         {/* 右側：行動呼籲連結 */}
                                         <div className="lg:col-span-1 space-y-6">
+                                            <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+                                                <div className="flex items-center gap-3"><div className="rounded-lg bg-emerald-100 p-2 text-xl">🗺️</div><div><p className="text-xs font-black tracking-[.16em] text-emerald-700">STEP 1 · FLOWCHART</p><h3 className="font-black text-slate-800">先完成流程圖任務</h3></div></div>
+                                                <p className="mt-4 text-sm leading-6 text-slate-600">依照本單元的學習重點，將下列步驟排成正確的程式執行順序。</p>
+                                                <div className="mt-3 space-y-2">
+                                                    {orderedFlowSteps.map((step, index) => <div key={`${step}-${index}`} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-2 text-sm text-slate-700"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">{index + 1}</span><span className="min-w-0 flex-1 leading-5">{step}</span><div className="flex gap-1"><button type="button" onClick={() => moveFlowStep(index, -1)} disabled={index === 0} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="上移">↑</button><button type="button" onClick={() => moveFlowStep(index, 1)} disabled={index === orderedFlowSteps.length - 1} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="下移">↓</button></div></div>)}
+                                                </div>
+                                                <button type="button" onClick={completeFlowchartTask} className="mt-3 w-full rounded-lg bg-emerald-600 px-3 py-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-700">檢查排列順序並完成此步驟</button>
+                                                <p className={`mt-3 text-xs font-bold ${flowchartRecords[selectedUnit.id]?.completedAt ? 'text-emerald-700' : 'text-slate-500'}`}>{flowchartMessage || (flowchartRecords[selectedUnit.id]?.completedAt ? '✓ 已完成本單元流程圖任務。' : '尚未完成流程圖任務')}</p>
+                                            </section>
                                             
                                             {/* 1. 原始程式連結 */}
                                             <div className="bg-white rounded-xl p-6 border border-blue-100 shadow-sm hover:shadow-md transition-shadow">
@@ -674,7 +769,7 @@
                                                     href={selectedUnit.projectLink} 
                                                     target="_blank" 
                                                     rel="noopener noreferrer"
-                                                    className="learning-action-primary w-full text-center py-3 px-4 active:transform active:scale-95"
+                                                    className={`learning-action-primary w-full text-center py-3 px-4 ${flowchartRecords[selectedUnit.id]?.completedAt ? 'active:transform active:scale-95' : 'pointer-events-none opacity-40'}`}
                                                 >
                                                     開啟原始程式專案
                                                 </a>
