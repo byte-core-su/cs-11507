@@ -88,19 +88,30 @@
     }
 
     function mergedProgress() {
-      const rosterMap = new Map(rosterRows.map(row => [row.studentId, row]));
-      return progressRows.filter(row => Object.prototype.hasOwnProperty.call(row.data.terms || {}, term)).map(row => { const profile = row.data.profile || {}; const studentId = profile.studentId || ''; const derived = deriveFromStudentId(studentId) || {}; const roster = rosterMap.get(studentId) || {}; return { ...row, profile: { ...derived, ...profile, ...roster, studentId } }; }).filter(row => row.profile.studentId);
+      const usersByStudentId = new Map();
+      progressRows.forEach(row => {
+        const profile = row.data.profile || {};
+        const studentId = profile.studentId || row.data.studentId || '';
+        if (studentId) usersByStudentId.set(studentId, row);
+      });
+      return rosterRows.map(roster => {
+        const user = usersByStudentId.get(roster.studentId);
+        const data = user?.data || { terms: {}, teacherProgress: {} };
+        const profile = { ...deriveFromStudentId(roster.studentId), ...(data.profile || {}), ...roster, studentId: roster.studentId };
+        return { id: user?.id || '', data, profile, hasStarted: Object.prototype.hasOwnProperty.call(data.terms || {}, term) };
+      });
     }
     function renderProgress() {
       const classRoom = activeProgressClass;
       const rows = mergedProgress().filter(row => row.profile.classRoom === classRoom).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
       const completeTotal = rows.reduce((sum, row) => sum + completedTasks(row), 0);
+      const startedCount = rows.filter(row => row.hasStarted).length;
       $('student-count').textContent = rows.length;
       $('average-count').textContent = rows.length ? `${(completeTotal / rows.length).toFixed(1)} / ${totalTasks}` : `0 / ${totalTasks}`;
       $('class-rate').textContent = rows.length ? `${Math.round(completeTotal / (rows.length * totalTasks) * 100)}%` : '—';
-      $('progress-note').textContent = `${classRoom} 班已有 ${rows.length} 位學生登入 11502 入口網`;
-      $('progress-summary').textContent = rows.length ? `班級總完成率 ${Math.round(completeTotal / (rows.length * totalTasks) * 100)}%` : '尚無進度資料';
-      $('progress-body').innerHTML = rows.length ? rows.map(row => { const completed = completedTasks(row); const certs = certificates(row); const challenges = completedChallenges(row); return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}</td><td class="p-3">${completed} / ${totalTasks}</td><td class="p-3 font-bold text-emerald-700">${Math.round(completed / totalTasks * 100)}%</td><td class="p-3">${certs.length ? `<button data-cert="${escapeHtml(row.profile.studentId)}" class="cert-button rounded-lg bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">${certs.length} 張</button>` : '<span class="text-slate-400">—</span>'}</td><td class="p-3"><span class="font-bold text-emerald-700">${challenges.length} / ${thinkingChallenges.length}</span><button data-thinking="${escapeHtml(row.profile.studentId)}" class="thinking-button ml-2 rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">核定</button></td><td class="p-3 text-xs text-slate-500">${escapeHtml(formatDate(row.data.updatedAt || row.data.terms?.[term]?.updatedAt))}</td></tr>`; }).join('') : '<tr><td colspan="8" class="p-8 text-center text-slate-400">尚無學生從入口網登入。</td></tr>';
+      $('progress-note').textContent = `${classRoom} 班名冊共 ${rows.length} 位；本學期已開始 ${startedCount} 位`;
+      $('progress-summary').textContent = rows.length ? `班級總完成率 ${Math.round(completeTotal / (rows.length * totalTasks) * 100)}%` : '此班尚未建立名冊';
+      $('progress-body').innerHTML = rows.length ? rows.map(row => { const completed = completedTasks(row); const certs = certificates(row); const challenges = completedChallenges(row); const status = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>'; const rate = row.hasStarted ? `${Math.round(completed / totalTasks * 100)}%` : '—'; const certificateCell = row.hasStarted && certs.length ? `<button data-cert="${escapeHtml(row.profile.studentId)}" class="cert-button rounded-lg bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">${certs.length} 張</button>` : '<span class="text-slate-400">—</span>'; const thinkingCell = row.hasStarted ? `<span class="font-bold text-emerald-700">${challenges.length} / ${thinkingChallenges.length}</span><button data-thinking="${escapeHtml(row.profile.studentId)}" class="thinking-button ml-2 rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">核定</button>` : '<span class="text-slate-400">—</span>'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}</td><td class="p-3">${status}</td><td class="p-3 font-bold text-emerald-700">${rate}</td><td class="p-3">${certificateCell}</td><td class="p-3">${thinkingCell}</td><td class="p-3 text-xs text-slate-500">${row.hasStarted ? escapeHtml(formatDate(row.data.updatedAt || row.data.terms?.[term]?.updatedAt)) : '—'}</td></tr>`; }).join('') : '<tr><td colspan="8" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
       document.querySelectorAll('.thinking-button').forEach(button => button.addEventListener('click', () => manageThinking(button.dataset.thinking)));
       document.querySelectorAll('.cert-button').forEach(button => button.addEventListener('click', () => showCertificates(button.dataset.cert)));
     }
