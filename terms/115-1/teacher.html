@@ -9,11 +9,12 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
   <script src="../../firebase-config.js"></script>
+  <script src="../../shared/site-shell.js" defer></script>
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-800">
   <section id="login-view" class="min-h-screen grid place-items-center p-5">
     <form id="login-form" class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl space-y-5">
-      <div class="text-center"><p class="font-bold text-indigo-600">11501 TEACHER</p><h1 class="mt-2 text-2xl font-black">教師名冊後台</h1><p class="mt-2 text-sm text-slate-500">登入後管理學生姓名對照表。</p></div>
+      <div class="text-center"><p class="text-xs font-black tracking-[.2em] text-indigo-600">115-1 · 上學期</p><h1 class="mt-2 text-2xl font-black">資訊科技學習平台</h1><p class="mt-2 text-sm font-bold text-slate-600">教師管理</p><p class="mt-1 text-sm text-slate-500">登入後管理名冊、學習進度與出席。</p></div>
       <label class="block text-sm font-bold">教師 Email<input id="email" type="email" required autocomplete="username" class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"></label>
       <label class="block text-sm font-bold">密碼<input id="password" type="password" required autocomplete="current-password" class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"></label>
       <p id="login-error" class="hidden rounded-lg bg-red-50 p-3 text-sm font-medium text-red-700"></p>
@@ -23,7 +24,7 @@
 
   <main id="app" class="hidden mx-auto max-w-6xl p-5 md:p-8">
     <header class="mb-6 flex flex-col gap-3 rounded-2xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-      <div><p class="font-bold text-indigo-600">TEACHER CONSOLE</p><h1 class="text-2xl font-black">教師管理後台</h1><p class="mt-1 text-sm text-slate-500">名冊帳號與學生學習進度分頁管理。</p></div>
+      <div><p class="text-xs font-black tracking-[.2em] text-indigo-600">115-1 · 上學期 · TEACHER CONSOLE</p><h1 class="mt-1 text-2xl font-black">資訊科技學習平台｜教師管理</h1><p class="mt-1 text-sm text-slate-500">名冊帳號、學習進度與每日出席分頁管理。</p></div>
       <div class="flex items-center gap-3"><span id="teacher-email" class="text-sm text-slate-500"></span><button id="logout" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold hover:bg-slate-50">登出</button></div>
     </header>
 

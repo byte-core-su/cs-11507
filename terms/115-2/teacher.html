@@ -9,12 +9,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+  <script src="../../shared/site-shell.js" defer></script>
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-800">
   <main class="min-h-screen p-5 md:p-8">
     <section id="login-view" class="grid min-h-[calc(100vh-2.5rem)] place-items-center">
       <form id="login-form" class="w-full max-w-md space-y-5 rounded-3xl bg-white p-8 shadow-xl">
-        <div class="text-center"><p class="font-bold text-indigo-600">11502 TEACHER</p><h1 class="mt-2 text-2xl font-black">教師管理後台</h1><p class="mt-2 text-sm text-slate-500">登入後可管理學生帳號與學習進度。</p></div>
+        <div class="text-center"><p class="text-xs font-black tracking-[.2em] text-indigo-600">115-2 · 下學期</p><h1 class="mt-2 text-2xl font-black">資訊科技學習平台</h1><p class="mt-2 text-sm font-bold text-slate-600">教師管理</p><p class="mt-1 text-sm text-slate-500">登入後可管理名冊、學習進度與出席。</p></div>
         <label class="block text-sm font-bold">教師信箱<input id="teacher-email" type="email" autocomplete="username" value="jimwang@mail.qfm.kh.edu.tw" class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"></label>
         <label class="block text-sm font-bold">密碼<input id="teacher-password" type="password" autocomplete="current-password" required class="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"></label>
         <p id="login-message" class="text-sm text-slate-500" role="status"></p>
@@ -24,7 +25,7 @@
 
     <section id="dashboard-view" class="mx-auto hidden max-w-6xl">
       <header class="mb-6 flex flex-col gap-3 rounded-2xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div><p class="font-bold text-indigo-600">TEACHER CONSOLE · 11502</p><h1 class="text-2xl font-black">教師管理後台</h1><p class="mt-1 text-sm text-slate-500">以學生學號為唯一識別；班級、座號由學號自動判讀。</p></div>
+        <div><p class="text-xs font-black tracking-[.2em] text-indigo-600">115-2 · 下學期 · TEACHER CONSOLE</p><h1 class="mt-1 text-2xl font-black">資訊科技學習平台｜教師管理</h1><p class="mt-1 text-sm text-slate-500">以學生學號為唯一識別；班級、座號由學號自動判讀。</p></div>
         <button id="logout-button" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold hover:bg-slate-50">登出</button>
       </header>
 
