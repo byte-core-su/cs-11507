@@ -5,9 +5,7 @@ window.TERM_PORTAL_CONFIG = Object.freeze({
     ['Scratch 程式設計', '完成流程圖後，將想法寫成積木程式。', 'scratch.html', '🧩', 'linear-gradient(135deg,#f97316,#ea580c)'],
     ['運算思維', '拆解問題並找出解法。', 'thinking.html', '🧠', 'linear-gradient(135deg,#8b5cf6,#c026d3)'],
     ['演算法與流程圖', '演算法與流程圖實作。', 'project.html', '🗺️', 'linear-gradient(135deg,#10b981,#059669)'],
-    ['5016B 專題實作', 'Arduino 與智慧控制專題。', '5016b.html', '🤖', 'linear-gradient(135deg,#f97316,#ef4444)'],
-    ['知識大擂台', '挑戰資訊科技知識。', 'quiz.html', '🏆', 'linear-gradient(135deg,#f43f5e,#db2777)'],
-    ['小小李斯特', '音樂創作延伸。', 'music.html', '🎵', 'linear-gradient(135deg,#0891b2,#06b6d4)']
+    ['5016B 專題實作', 'Arduino 與智慧控制專題，另含音樂創作補充單元。', '5016b.html', '🤖', 'linear-gradient(135deg,#f97316,#ef4444)']
   ],
   easterEgg: ['line.html', '課間小遊戲：一筆畫解謎', '✏️'],
   taskGroups: [
