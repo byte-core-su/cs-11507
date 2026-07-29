@@ -71,10 +71,8 @@
         const StudentChallengeSystem = () => {
             // --- 狀態管理 ---
             const [user, setUser] = useState(() => {
-                const profile = window.LearnerProfile && window.LearnerProfile.readLocalProfile();
-                return profile && window.LearnerProfile.isValidStudentId(profile.studentId)
-                    ? { studentId: profile.studentId, name: profile.name || '同學' }
-                    : null;
+                const profile = window.LearningProfile.get();
+                return window.LearningProfile.isComplete(profile) ? profile : null;
             });
             const [selectedChallenge, setSelectedChallenge] = useState(null);
             const [loading, setLoading] = useState(false);
@@ -84,9 +82,6 @@
             const [studyTime, setStudyTime] = useState(0); 
 
             // --- 資料設定 ---
-            const classes = Array.from({ length: 12 }, (_, i) => `7${String(i + 1).padStart(2, '0')}`);
-            const seatNumbers = Array.from({ length: 28 }, (_, i) => String(i + 1).padStart(2, '0'));
-
             // 挑戰題目列表
             const challenges = [
                 { 
@@ -161,22 +156,6 @@
                 }
             }, [user]);
 
-            // --- 處理函式 ---
-            const handleLogin = (e) => {
-                e.preventDefault();
-                const profile = window.LearnerProfile && window.LearnerProfile.readLocalProfile();
-                if (profile && window.LearnerProfile.isValidStudentId(profile.studentId)) {
-                    setLoading(true);
-                    setTimeout(() => {
-                        setUser({ studentId: profile.studentId, name: profile.name || '同學' });
-                        setStudyTime(0);
-                        setLoading(false);
-                    }, 800);
-                } else {
-                    window.location.replace('index.html');
-                }
-            };
-
             // 開啟挑戰視窗
             const handleOpenChallenge = (challenge) => {
                 setSelectedChallenge(challenge);
@@ -219,36 +198,10 @@
                                 <p className="text-indigo-200 text-sm mt-1">學生登入系統</p>
                             </div>
                             
-                            <form onSubmit={handleLogin} className="p-8 space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">班級 (Class)</label>
-                                    <select name="classRoom" required defaultValue="" className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-3 border bg-gray-50">
-                                        <option value="" disabled>請選擇班級</option>
-                                        {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">座號 (Number)</label>
-                                    <select name="seatNo" required defaultValue="" className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-3 border bg-gray-50">
-                                        <option value="" disabled>請選擇座號</option>
-                                        {seatNumbers.map(n => <option key={n} value={n}>{n}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">姓名 (Name)</label>
-                                    <input type="text" name="name" required placeholder="請輸入真實姓名" className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-3 border bg-gray-50"/>
-                                </div>
-
-                                <button 
-                                    type="submit" 
-                                    disabled={loading}
-                                    className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${loading ? 'opacity-70 cursor-wait' : ''}`}
-                                >
-                                    {loading ? '登入中...' : '開始挑戰'}
-                                </button>
-                            </form>
+                            <div className="p-8 space-y-5 text-center">
+                                <p className="text-slate-600 leading-relaxed">學生資料由入口網統一設定。請先完成班級、座號、姓名與學號設定後再開始挑戰。</p>
+                                <a href="index.html" className="block w-full py-3 px-4 rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">前往入口網設定資料</a>
+                            </div>
                         </div>
                     </div>
                 );

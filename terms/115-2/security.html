@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>115-2 下學期｜資訊生活：安全與隱私</title>
+    <title>115-2 下學期｜資訊安全與數位著作</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -83,17 +83,6 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 6px rgba(185, 28, 28, 0.3);
         }
-        /* 與上學期「資訊生活」共用的章節卡片語言；教材內容仍由本學期提供。 */
-        #chapter-screen > .space-y-6 > div { overflow: hidden; border: 1px solid #bfdbfe; border-radius: 1.5rem; background: white; box-shadow: 0 1px 3px rgb(15 23 42 / .08); }
-        #chapter-screen > .space-y-6 > div:nth-child(2) { border-color: #a7f3d0; }
-        #chapter-screen > .space-y-6 > div:nth-child(3) { border-color: #ddd6fe; }
-        #chapter-screen > .space-y-6 > div > div:first-child { margin: 0; padding: 1.5rem; background: linear-gradient(90deg,#2563eb,#0891b2); color: white; }
-        #chapter-screen > .space-y-6 > div:nth-child(2) > div:first-child { background: linear-gradient(90deg,#059669,#0f766e); }
-        #chapter-screen > .space-y-6 > div:nth-child(3) > div:first-child { background: linear-gradient(90deg,#7c3aed,#4f46e5); }
-        #chapter-screen > .space-y-6 > div > div:first-child span { color: white; font-size: 1.25rem; }
-        #chapter-screen > .space-y-6 > div > div:first-child .pdf-link { background: rgba(255,255,255,.95); color: #1d4ed8; box-shadow: none; }
-        #chapter-screen > .space-y-6 > div > div:last-child { padding: 1.25rem; }
-        #chapter-screen > .space-y-6 > div button { min-height: 4.5rem; border: 1px solid currentColor; border-radius: 1rem; padding: .75rem 1rem; text-align: left; }
     </style>
     <script src="../../firebase-config.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
@@ -117,52 +106,17 @@
 
         <!-- 2. 章節選擇畫面 -->
         <div id="chapter-screen" class="glass-card p-8 hidden">
-            <header class="mb-7 flex flex-col gap-4 border-b border-gray-100 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-black tracking-[0.18em] text-blue-600">INFO LIFE PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊生活・安全與隱私</h2><p class="mt-2 text-sm font-medium text-slate-500">完成各小節測驗，收集八枚資訊生活證書並解鎖知識大擂台。</p></div><div class="rounded-2xl bg-blue-50 px-4 py-3 text-center text-blue-700"><span class="block text-3xl">🏅</span><span class="mt-1 block text-xs font-black">可集章挑戰</span></div></header>
+            <header class="mb-7 flex flex-col gap-4 border-b border-gray-100 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-black tracking-[0.18em] text-blue-600">SECURITY &amp; DIGITAL WORKS PASSPORT</p><h2 class="mt-1 text-2xl font-black text-gray-800">資訊安全與數位著作・測驗集章</h2><p class="mt-2 text-sm font-medium text-slate-500">完成第四、第五、第六章的小節測驗，收集八枚課程證書並解鎖知識大擂台。</p></div><div class="rounded-2xl bg-blue-50 px-4 py-3 text-center text-blue-700"><span class="block text-3xl">🏅</span><span class="mt-1 block text-xs font-black">可集章挑戰</span></div></header>
             
             <div class="space-y-6">
-                <!-- 第 04 章 -->
-                <div class="p-5 border-2 border-gray-50 rounded-2xl bg-white shadow-sm hover:shadow-md transition">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex flex-wrap items-center">
-                            <span class="text-xl font-black text-blue-700 text-left">第 04 章 資料保護與資訊安全</span>
-                            <a href="https://drive.google.com/file/d/1gnmRJWz30-EtO_bDeK3ML6BIrh8XjE1h/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-3">
-                        <button onclick="showStudyNotes('4-1')" class="py-2 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs hover:bg-blue-600 hover:text-white transition">4-1 個人資料的定義</button>
-                        <button onclick="showStudyNotes('4-2')" class="py-2 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs hover:bg-blue-600 hover:text-white transition">4-2 個人資料的保護措施</button>
-                        <button onclick="showStudyNotes('4-3')" class="py-2 bg-blue-50 text-blue-700 rounded-lg font-bold text-xs hover:bg-blue-600 hover:text-white transition">4-3 資訊安全與防範措施</button>
-                    </div>
-                </div>
+                <!-- 第四章 -->
+                <section class="overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-sm"><div class="bg-gradient-to-r from-blue-600 to-cyan-600 p-6 text-white"><p class="text-xs font-black tracking-[0.18em] text-blue-100">CHAPTER 04・可收集 3 枚證書</p><h3 class="mt-2 text-2xl font-black">第四章 資料保護與資訊安全</h3><p class="mt-2 text-sm text-blue-100">從個人資料保護到資訊安全防範，建立安全的數位生活習慣。</p></div><div class="p-5"><div class="mb-3 flex items-center justify-between"><h4 class="font-black text-slate-700">小節測驗</h4><a href="https://drive.google.com/file/d/1gnmRJWz30-EtO_bDeK3ML6BIrh8XjE1h/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a></div><div class="grid gap-3 sm:grid-cols-2"><button onclick="showStudyNotes('4-1')" class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-left font-bold text-blue-800 transition hover:-translate-y-0.5 hover:bg-blue-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 1 / 3</span><span class="mt-1 block">4-1 個人資料的定義</span></button><button onclick="showStudyNotes('4-2')" class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-left font-bold text-blue-800 transition hover:-translate-y-0.5 hover:bg-blue-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 2 / 3</span><span class="mt-1 block">4-2 個人資料的保護措施</span></button><button onclick="showStudyNotes('4-3')" class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-left font-bold text-blue-800 transition hover:-translate-y-0.5 hover:bg-blue-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 3 / 3</span><span class="mt-1 block">4-3 資訊安全與防範措施</span></button></div></div><footer class="border-t border-blue-100 bg-blue-50 px-5 py-4 text-sm leading-relaxed text-blue-900"><span class="font-black">章節底框提示：</span>完成三個小節測驗，即可集滿第四章的三枚章印。</footer></section>
 
-                <!-- 第 05 章 -->
-                <div class="p-5 border-2 border-gray-50 rounded-2xl bg-white shadow-sm hover:shadow-md transition">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex flex-wrap items-center">
-                            <span class="text-xl font-black text-emerald-700 text-left">第 05 章 基礎程式設計 (2)</span>
-                            <a href="https://drive.google.com/file/d/1F95LyMt5I6Ka1ZS5JQflz5vetT-8B_sH/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <button onclick="showStudyNotes('5-1')" class="py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-xs hover:bg-emerald-600 hover:text-white transition">5-1 遊戲篇</button>
-                        <button onclick="showStudyNotes('5-2')" class="py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-xs hover:bg-emerald-600 hover:text-white transition">5-2 模擬篇</button>
-                    </div>
-                </div>
+                <!-- 第五章 -->
+                <section class="overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm"><div class="bg-gradient-to-r from-emerald-600 to-teal-600 p-6 text-white"><p class="text-xs font-black tracking-[0.18em] text-emerald-100">CHAPTER 05・可收集 2 枚證書</p><h3 class="mt-2 text-2xl font-black">第五章 基礎程式設計(2)</h3><p class="mt-2 text-sm text-emerald-100">從遊戲邏輯到模擬設計，將程式概念轉化為可操作的作品。</p></div><div class="p-5"><div class="mb-3 flex items-center justify-between"><h4 class="font-black text-slate-700">小節測驗</h4><a href="https://drive.google.com/file/d/1F95LyMt5I6Ka1ZS5JQflz5vetT-8B_sH/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a></div><div class="grid gap-3 sm:grid-cols-2"><button onclick="showStudyNotes('5-1')" class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left font-bold text-emerald-800 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 1 / 2</span><span class="mt-1 block">5-1 遊戲篇</span></button><button onclick="showStudyNotes('5-2')" class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left font-bold text-emerald-800 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:text-white"><span class="block text-xs opacity-70">小節集章 2 / 2</span><span class="mt-1 block">5-2 模擬篇</span></button></div></div><footer class="border-t border-emerald-100 bg-emerald-50 px-5 py-4 text-sm leading-relaxed text-emerald-900"><span class="font-black">章節底框提示：</span>完成兩個小節測驗，即可集滿第五章的兩枚章印。</footer></section>
 
-                <!-- 第 06 章 -->
-                <div class="p-5 border-2 border-gray-50 rounded-2xl bg-white shadow-sm hover:shadow-md transition">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex flex-wrap items-center">
-                            <span class="text-xl font-black text-purple-700 text-left">第 06 章 數位著作合理使用</span>
-                            <a href="https://drive.google.com/file/d/1Oh5pzS9NQI6vnd4M8vAyoi2Mx6SF0tZP/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-3">
-                        <button onclick="showStudyNotes('6-1')" class="py-2 bg-purple-50 text-purple-700 rounded-lg font-bold text-xs hover:bg-purple-600 hover:text-white transition">6-1 數位著作的意義</button>
-                        <button onclick="showStudyNotes('6-2')" class="py-2 bg-purple-50 text-purple-700 rounded-lg font-bold text-xs hover:bg-purple-600 hover:text-white transition">6-2 著作合理使用的判斷</button>
-                        <button onclick="showStudyNotes('6-3')" class="py-2 bg-purple-50 text-purple-700 rounded-lg font-bold text-xs hover:bg-purple-600 hover:text-white transition">6-3 著作利用的其他建議</button>
-                    </div>
-                </div>
+                <!-- 第六章 -->
+                <section class="overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-sm"><div class="bg-gradient-to-r from-violet-700 to-indigo-700 p-6 text-white"><p class="text-xs font-black tracking-[0.18em] text-violet-200">CHAPTER 06・可收集 3 枚證書</p><h3 class="mt-2 text-2xl font-black">第六章 數位著作合理使用</h3><p class="mt-2 text-sm text-violet-100">理解數位著作、合理使用與合法素材來源，成為負責任的數位公民。</p></div><div class="p-5"><div class="mb-3 flex items-center justify-between"><h4 class="font-black text-slate-700">小節測驗</h4><a href="https://drive.google.com/file/d/1Oh5pzS9NQI6vnd4M8vAyoi2Mx6SF0tZP/view?usp=sharing" target="_blank" class="pdf-link">課本教材 PDF</a></div><div class="grid gap-3 sm:grid-cols-2"><button onclick="showStudyNotes('6-1')" class="rounded-2xl border border-violet-100 bg-violet-50 p-4 text-left font-bold text-violet-800 transition hover:-translate-y-0.5 hover:bg-violet-700 hover:text-white"><span class="block text-xs opacity-70">小節集章 1 / 3</span><span class="mt-1 block">6-1 數位著作的意義</span></button><button onclick="showStudyNotes('6-2')" class="rounded-2xl border border-violet-100 bg-violet-50 p-4 text-left font-bold text-violet-800 transition hover:-translate-y-0.5 hover:bg-violet-700 hover:text-white"><span class="block text-xs opacity-70">小節集章 2 / 3</span><span class="mt-1 block">6-2 著作合理使用的判斷</span></button><button onclick="showStudyNotes('6-3')" class="rounded-2xl border border-violet-100 bg-violet-50 p-4 text-left font-bold text-violet-800 transition hover:-translate-y-0.5 hover:bg-violet-700 hover:text-white"><span class="block text-xs opacity-70">小節集章 3 / 3</span><span class="mt-1 block">6-3 著作利用的其他建議</span></button></div></div><footer class="border-t border-violet-100 bg-violet-50 px-5 py-4 text-sm leading-relaxed text-violet-900"><span class="font-black">章節底框提示：</span>完成三個小節測驗，即可集滿第六章的三枚章印。</footer></section>
             </div>
         </div>
 
@@ -462,9 +416,9 @@
             },
             
             // 總複習
-            "CH4": { title: "第 04 章 資料保護與資訊安全", content: "<p>● 本章重點回顧：個資定義、密碼安全、防毒防駭、網路隱私保護。</p>" },
-            "CH5": { title: "第 05 章 基礎程式設計 (2)", content: "<p>● 本章重點回顧：遊戲邏輯設計、科學模擬原理、變數與事件應用。</p>" },
-            "CH6": { title: "第 06 章 數位著作合理使用", content: "<p>● 本章重點回顧：著作權法規、合理使用四大原則、校園授權實務。</p>" }
+            "CH4": { title: "第四章 資料保護與資訊安全", content: "<p>● 本章重點回顧：個資定義、密碼安全、防毒防駭、網路隱私保護。</p>" },
+            "CH5": { title: "第五章 基礎程式設計(2)", content: "<p>● 本章重點回顧：遊戲邏輯設計、科學模擬原理、變數與事件應用。</p>" },
+            "CH6": { title: "第六章 數位著作合理使用", content: "<p>● 本章重點回顧：著作權法規、合理使用四大原則、校園授權實務。</p>" }
         };
 
         // --- 2. 題庫生成 (每小節 20 題) ---
@@ -693,7 +647,7 @@
                 if (!taskId) return;
                 const now = new Date().toISOString();
                 const certificateId = `security-${chapterId}`;
-                const certificate = { course: '資訊安全', chapterKey: chapterId, chapterTitle: studyNotes[chapterId]?.title || chapterId, score, awardedAt: now };
+                const certificate = { course: '資訊安全與數位著作', chapterKey: chapterId, chapterTitle: studyNotes[chapterId]?.title || chapterId, score, awardedAt: now };
                 await firebase.firestore(app).collection('users').doc(user.uid).set({
                     terms: {
                         [termId]: {
@@ -755,7 +709,7 @@
                 card.className = 'mt-6 overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm';
                 screen.append(card);
             }
-            card.innerHTML = '<div class="bg-gradient-to-r from-violet-700 to-indigo-700 p-5 text-white"><p class="text-xs font-black tracking-[0.18em] text-violet-200">ADVANCED REVIEW</p><h3 class="mt-1 text-xl font-black">🏆 知識大擂台</h3><p class="mt-1 text-sm text-violet-100">集滿八枚資訊安全印章後開放進階挑戰。</p></div><div id="knowledge-arena-content" class="p-5"><div class="rounded-xl bg-violet-50 p-4 text-center text-sm font-bold text-violet-700">正在確認通關進度…</div></div>';
+            card.innerHTML = '<div class="bg-gradient-to-r from-violet-700 to-indigo-700 p-5 text-white"><p class="text-xs font-black tracking-[0.18em] text-violet-200">ADVANCED REVIEW</p><h3 class="mt-1 text-xl font-black">🏆 知識大擂台</h3><p class="mt-1 text-sm text-violet-100">集滿八枚課程印章後開放進階挑戰。</p></div><div id="knowledge-arena-content" class="p-5"><div class="rounded-xl bg-violet-50 p-4 text-center text-sm font-bold text-violet-700">正在確認通關進度…</div></div>';
             const content = document.getElementById('knowledge-arena-content');
             try {
                 if (!window.SCHOOL_APP?.isFirebaseConfigured() || !window.firebase) throw new Error('Firebase unavailable');
@@ -769,14 +723,14 @@
                 const snapshot = await firebase.firestore(app).collection('users').doc(user.uid).get();
                 const termData = snapshot.data()?.terms?.[window.SCHOOL_APP.currentTermId] || {};
                 const certificates = termData.certificates || {};
-                const stampSlots = [['4-1', '資訊科技與生活'], ['4-2', '資訊科技議題'], ['4-3', '數位生活'], ['5-1', '網路安全'], ['5-2', '資訊倫理'], ['6-1', '個資保護'], ['6-2', '網路詐騙'], ['6-3', '數位足跡']];
+                const stampSlots = [['4-1', '個人資料的定義'], ['4-2', '個人資料的保護措施'], ['4-3', '資訊安全與防範措施'], ['5-1', '遊戲篇'], ['5-2', '模擬篇'], ['6-1', '數位著作的意義'], ['6-2', '著作合理使用的判斷'], ['6-3', '著作利用的其他建議']];
                 const passed = stampSlots.filter(([chapterKey]) => certificates[`security-${chapterKey}`]).length;
                 const stamps = stampSlots.map(([chapterKey, title], index) => certificates[`security-${chapterKey}`]
                     ? `<article class="relative rounded-xl border-2 border-emerald-400 bg-emerald-50 p-3 text-center text-emerald-800"><span class="absolute right-1 top-1 rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white">PASSED</span><div class="text-2xl">🏅</div><p class="mt-1 text-xs font-black">${index + 1}. ${title}</p></article>`
                     : `<article class="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-3 text-center text-slate-400"><div class="text-2xl grayscale">🏅</div><p class="mt-1 text-xs font-black">${index + 1}. ${title}</p></article>`).join('');
                 content.innerHTML = `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">${stamps}</div>${passed === stampSlots.length
                     ? '<div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center"><p class="font-black text-emerald-800">🎉 八枚印章已集滿！</p><p class="mt-1 text-sm text-emerald-700">知識大擂台已開放。</p><a href="quiz.html" class="mt-3 inline-flex rounded-xl bg-violet-700 px-4 py-2 text-sm font-black text-white hover:bg-violet-800">進入知識大擂台 →</a></div>'
-                    : `<p class="mt-4 rounded-xl border border-dashed border-violet-200 bg-violet-50 p-3 text-center text-sm font-bold text-violet-700">目前已集 ${passed} / ${stampSlots.length} 枚印章；完成所有資訊安全測驗後開放知識大擂台。</p>`}`;
+                    : `<p class="mt-4 rounded-xl border border-dashed border-violet-200 bg-violet-50 p-3 text-center text-sm font-bold text-violet-700">目前已集 ${passed} / ${stampSlots.length} 枚印章；完成所有資訊安全與數位著作測驗後開放知識大擂台。</p>`}`;
             } catch (error) {
                 console.error('Unable to check knowledge arena unlock:', error);
                 content.innerHTML = '<div class="rounded-xl bg-rose-50 p-4 text-center text-sm font-bold text-rose-700">暫時無法讀取通關進度，請稍後再試。</div>';
