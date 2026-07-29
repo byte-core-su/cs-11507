@@ -803,9 +803,9 @@
             }
 
             const summaries = [
-                ['CH4', 'blue', '第四章重點回顧'],
-                ['CH5', 'emerald', '第五章重點回顧'],
-                ['CH6', 'violet', '第六章重點回顧']
+                ['CH4', 'blue', '第四章重點'],
+                ['CH5', 'emerald', '第五章重點'],
+                ['CH6', 'violet', '第六章重點']
             ];
             [...chapterList.children].filter(node => node.tagName === 'SECTION').forEach((section, index) => {
                 const [chapterKey, color, label] = summaries[index] || [];
@@ -825,7 +825,7 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = `chapter-summary rounded-2xl bg-white px-5 py-4 text-left text-${color}-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl`;
-                button.innerHTML = `<span class="block text-xs font-black text-${color}-500">📖 學習重點與章節概覽</span><span class="mt-1 block text-base font-black">開啟${label} →</span>`;
+                button.innerHTML = `<span class="block text-xs font-black text-${color}-500">📖 閱讀章節重點</span><span class="mt-1 block text-base font-black">開啟${label} →</span>`;
                 button.addEventListener('click', () => showStudyNotes(chapterKey));
                 banner.append(button);
             });
@@ -866,7 +866,10 @@
             const note = studyNotes[id] || { title: id, content: "內容整理中..." };
             document.getElementById('study-title').textContent = note.title;
             document.getElementById('study-content').innerHTML = note.content;
-            document.getElementById('start-quiz-btn').onclick = () => startQuiz(id);
+            const startButton = document.getElementById('start-quiz-btn');
+            const isChapterOverview = id.startsWith('CH');
+            startButton.classList.toggle('hidden', isChapterOverview);
+            startButton.onclick = isChapterOverview ? null : () => startQuiz(id);
             document.getElementById('chapter-screen').classList.add('hidden');
             document.getElementById('study-screen').classList.remove('hidden');
         }
