@@ -19,3 +19,7 @@
 部署前請將根目錄的 `firestore.rules` 發佈至 Firebase，並以本目錄作為網站部署根目錄。
 
 下一個學年度只需新增新的學期內容資料夾，並將 `firebase-config.js` 的 `academicYearId` 更新為新的學年度。
+
+## 測試學期切換
+
+正式入口不帶參數時，會依日期自動判定學期。測試時可在入口網址加上 `?testTerm=115-1` 或 `?testTerm=115-2`，例如 `index.html?testTerm=115-1`。測試學期會在該瀏覽器工作階段內維持，頁面左下角會顯示黃色測試標示；以 `?testTerm=auto` 開啟入口即可回到正式自動判定。
