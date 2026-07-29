@@ -32,6 +32,7 @@
       <nav class="mb-6 flex gap-2 rounded-2xl bg-white p-2 shadow-sm" aria-label="教師功能">
         <button data-tab="progress" class="tab-button flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white">學習進度</button>
         <button data-tab="roster" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">學生帳號</button>
+        <button data-tab="classroom" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">Google Classroom</button>
       </nav>
 
       <section id="progress-tab" class="tab-panel">
@@ -47,6 +48,15 @@
         <section class="mb-6 rounded-2xl bg-white p-6 shadow-sm"><div class="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-lg font-black">匯入學生名冊</h2><p class="mt-1 text-sm text-slate-500">每行一位學生，格式為「學號,姓名」；班級、座號與性別會由學號自動判讀。</p></div><span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">1510101 → 701 班 1 號</span></div><textarea id="roster-import" rows="7" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="1510101,王小明&#10;1520102,陳小華"></textarea><div class="mt-3 flex flex-wrap items-center gap-3"><button id="import-roster" class="rounded-xl bg-indigo-600 px-5 py-2.5 font-bold text-white hover:bg-indigo-700">匯入或更新名冊</button><p id="import-message" class="text-sm text-slate-500"></p></div></section>
         <section class="rounded-2xl bg-white p-6 shadow-sm"><div class="mb-5"><h2 class="text-lg font-black">學生帳號與驗證碼</h2><p id="roster-note" class="mt-1 text-sm text-slate-500">正在讀取資料…</p><div id="roster-class-buttons" class="mt-4 flex flex-wrap gap-2" aria-label="選擇名冊班級"></div></div><div class="overflow-x-auto"><table class="w-full min-w-[680px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">驗證碼</th><th class="p-3 text-right">管理</th></tr></thead><tbody id="roster-body"></tbody></table></div></section>
       </section>
+
+      <section id="classroom-tab" class="tab-panel hidden">
+        <section class="rounded-2xl bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-indigo-600">GOOGLE CLASSROOM</p><h2 class="text-lg font-black">作業繳交看板</h2><p class="mt-1 max-w-2xl text-sm text-slate-500">唯讀顯示 Classroom 的課程、作業與繳交狀態；不會修改 Classroom 或學生資料。</p></div><button id="classroom-refresh" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">更新課程</button></div>
+          <div class="mt-5 rounded-xl bg-slate-50 p-4"><label class="block text-sm font-bold text-slate-700">Apps Script Web App 網址<input id="classroom-endpoint" type="url" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-xs outline-none focus:ring-2 focus:ring-indigo-500" placeholder="https://script.google.com/macros/s/.../exec"></label><div class="mt-3 flex flex-wrap items-center gap-3"><button id="classroom-save-endpoint" class="rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-50">儲存連線設定</button><a id="classroom-authorize" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 hover:bg-amber-100" target="_blank" rel="noopener">Google 授權</a><span id="classroom-message" class="text-sm text-slate-500">尚未設定 Classroom 連線。</span></div></div>
+          <div class="mt-6"><h3 class="font-black">課程</h3><div id="classroom-courses" class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><p class="text-sm text-slate-400">設定連線後按「更新課程」。</p></div></div>
+          <section id="classroom-workspace" class="mt-7 hidden border-t border-slate-200 pt-6"><div class="flex flex-wrap items-end justify-between gap-3"><div><p id="classroom-selected-course" class="font-black text-indigo-700"></p><h3 class="mt-1 text-lg font-black">作業與繳交狀態</h3></div><div id="classroom-assignment-select" class="flex flex-wrap gap-2"></div></div><p id="classroom-submission-note" class="mt-3 text-sm text-slate-500"></p><div class="mt-4 overflow-x-auto"><table class="w-full min-w-[760px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">繳交狀態</th><th class="p-3">最後更新</th><th class="p-3">附件</th></tr></thead><tbody id="classroom-submissions"></tbody></table></div></section>
+        </section>
+      </section>
     </section>
   </main>
 
@@ -61,6 +71,8 @@
     const term = window.SCHOOL_APP?.currentTermId || '115-2';
     const termLabel = `${term} · ${term.endsWith('-1') ? '上學期' : '下學期'}`;
     const teacherEmail = 'jimwang@mail.qfm.kh.edu.tw';
+    const classroomConfig = window.LEARNING_CLASSROOM_CONFIG || {};
+    const classroomStorageKey = 'learning-platform.classroom.endpoint.v1';
     const totalTasks = 24;
     const classes = Array.from({ length: 11 }, (_, i) => `7${String(i + 1).padStart(2, '0')}`);
     const thinkingChallenges = ['重排積木', '寶箱開鎖', '畢業手鍊', '彙整遊戲卡', '班級出遊', '夜市射氣球', '團隊攀岩', '誰的帽子'];
@@ -75,6 +87,8 @@
     const studentEmail = studentId => `${studentId}@${window.SCHOOL_APP.studentEmailDomain}`;
     let app, auth, db, unsubscribeRoster, unsubscribeProgress, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
     let activeProgressClass = classes[0], activeRosterClass = classes[0], selectedAttendanceDate = taipeiDateKey();
+    let classroomEndpoint = String(classroomConfig.endpoint || '').trim(), classroomCourses = [], classroomAssignments = [], selectedClassroomCourse = null, selectedClassroomAssignment = null;
+    try { classroomEndpoint = localStorage.getItem(classroomStorageKey) || classroomEndpoint; } catch (_) {}
 
     function setLoginMessage(text, error = false) { $('login-message').textContent = text; $('login-message').className = `mt-4 text-sm ${error ? 'text-rose-600' : 'text-slate-500'}`; }
     function completedTasks(row) { return Object.values(row.data.terms?.[term]?.tasks || {}).filter(Boolean).length; }
@@ -83,6 +97,83 @@
     function openModal(kicker, title, meta, content) { $('modal-kicker').textContent = kicker; $('modal-title').textContent = title; $('modal-meta').textContent = meta; $('modal-content').innerHTML = content; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); }
     function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; }
     function refreshAll() { renderRoster(); renderProgress(); }
+
+    function normalizedClassroomEndpoint(value) {
+      try {
+        const url = new URL(String(value || '').trim());
+        return url.protocol === 'https:' ? url.toString() : '';
+      } catch (_) { return ''; }
+    }
+    function setClassroomMessage(text, error = false) { $('classroom-message').textContent = text; $('classroom-message').className = `text-sm ${error ? 'text-rose-600' : 'text-slate-500'}`; }
+    function updateClassroomConnection() {
+      const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
+      $('classroom-endpoint').value = classroomEndpoint;
+      $('classroom-refresh').disabled = !endpoint;
+      $('classroom-refresh').classList.toggle('opacity-50', !endpoint);
+      $('classroom-authorize').classList.toggle('hidden', !endpoint);
+      if (endpoint) $('classroom-authorize').href = `${endpoint}${endpoint.includes('?') ? '&' : '?'}action=auth`;
+      setClassroomMessage(endpoint ? '連線設定已儲存。請先完成 Google 授權，再更新課程。' : '請貼上 Apps Script Web App 的 /exec 網址。', !endpoint);
+    }
+    function classroomRequest(action, parameters = {}) {
+      const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
+      if (!endpoint) return Promise.reject(new Error('請先設定 Apps Script Web App 網址。'));
+      return new Promise((resolve, reject) => {
+        const callback = `classroomCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const url = new URL(endpoint);
+        url.searchParams.set('action', action);
+        url.searchParams.set('callback', callback);
+        Object.entries(parameters).forEach(([key, value]) => url.searchParams.set(key, value));
+        const script = document.createElement('script');
+        const cleanup = () => { clearTimeout(timer); script.remove(); delete window[callback]; };
+        const timer = setTimeout(() => { cleanup(); reject(new Error('Classroom 回應逾時，請確認部署網址與 Google 授權。')); }, 15000);
+        window[callback] = payload => { cleanup(); payload?.status === 'success' ? resolve(payload) : reject(new Error(payload?.message || 'Classroom 讀取失敗。')); };
+        script.onerror = () => { cleanup(); reject(new Error('無法載入 Classroom 服務，請確認 Web App /exec 網址。')); };
+        script.src = url.toString();
+        document.head.appendChild(script);
+      });
+    }
+    function submissionState(row) {
+      const labels = { TURNED_IN: '已繳交', RETURNED: '已發還', RECLAIMED_BY_STUDENT: '學生收回', CREATED: '未繳交', NEW: '未繳交' };
+      const label = labels[row.state] || row.state || '未繳交';
+      return `${label}${row.late ? '（遲交）' : ''}`;
+    }
+    function safeExternalUrl(value) { try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.toString() : ''; } catch (_) { return ''; } }
+    function renderClassroomCourses() {
+      const container = $('classroom-courses');
+      container.innerHTML = classroomCourses.length ? classroomCourses.map(course => `<button data-classroom-course="${escapeHtml(course.id)}" class="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-indigo-300 hover:bg-indigo-50"><b class="block">${escapeHtml(course.name)}</b><span class="mt-1 block text-sm text-slate-500">${escapeHtml(course.section || '未標示班級')}</span></button>`).join('') : '<p class="text-sm text-slate-400">目前沒有可讀取的有效課程。</p>';
+      container.querySelectorAll('[data-classroom-course]').forEach(button => button.addEventListener('click', () => selectClassroomCourse(button.dataset.classroomCourse)));
+    }
+    function renderClassroomAssignments() {
+      const workspace = $('classroom-workspace');
+      workspace.classList.toggle('hidden', !selectedClassroomCourse);
+      if (!selectedClassroomCourse) return;
+      $('classroom-selected-course').textContent = selectedClassroomCourse.name;
+      const container = $('classroom-assignment-select');
+      container.innerHTML = classroomAssignments.length ? classroomAssignments.map(assignment => `<button data-classroom-assignment="${escapeHtml(assignment.id)}" class="rounded-lg px-3 py-2 text-sm font-bold ${selectedClassroomAssignment?.id === assignment.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">${escapeHtml(assignment.title)}</button>`).join('') : '<span class="text-sm text-slate-400">這門課目前沒有作業。</span>';
+      container.querySelectorAll('[data-classroom-assignment]').forEach(button => button.addEventListener('click', () => selectClassroomAssignment(button.dataset.classroomAssignment)));
+    }
+    function renderClassroomSubmissions(rows) {
+      const sorted = [...rows].sort((a, b) => String(a.classRoom).localeCompare(String(b.classRoom)) || Number(a.seatNo) - Number(b.seatNo));
+      $('classroom-submissions').innerHTML = sorted.length ? sorted.map(row => { const attachments = (row.attachments || []).map(item => { const url = safeExternalUrl(item.url); return url ? `<a class="mr-2 text-xs font-bold text-indigo-700 underline" target="_blank" rel="noopener" href="${escapeHtml(url)}">${escapeHtml(item.name || '附件')}</a>` : `<span class="mr-2 text-xs text-slate-400">${escapeHtml(item.name || '附件')}</span>`; }).join('') || '<span class="text-slate-400">—</span>'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo || '—')}</td><td class="p-3 font-mono">${escapeHtml(row.studentId || '未對應')}</td><td class="p-3 font-bold">${escapeHtml(row.name || '—')}</td><td class="p-3"><span class="font-bold ${row.state === 'TURNED_IN' ? 'text-emerald-700' : 'text-slate-600'}">${escapeHtml(submissionState(row))}</span></td><td class="p-3 text-xs text-slate-500">${escapeHtml(formatDate(row.updateTime))}</td><td class="p-3">${attachments}</td></tr>`; }).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400">沒有繳交資料。</td></tr>';
+    }
+    async function loadClassroomCourses() {
+      $('classroom-refresh').disabled = true; setClassroomMessage('正在讀取 Classroom 課程…');
+      try { classroomCourses = (await classroomRequest('courses')).courses || []; selectedClassroomCourse = null; selectedClassroomAssignment = null; $('classroom-workspace').classList.add('hidden'); renderClassroomCourses(); setClassroomMessage(`已讀取 ${classroomCourses.length} 門課程。`); }
+      catch (error) { setClassroomMessage(error.message, true); }
+      finally { $('classroom-refresh').disabled = !normalizedClassroomEndpoint(classroomEndpoint); }
+    }
+    async function selectClassroomCourse(courseId) {
+      selectedClassroomCourse = classroomCourses.find(course => course.id === courseId) || null; if (!selectedClassroomCourse) return;
+      classroomAssignments = []; selectedClassroomAssignment = null; renderClassroomAssignments(); $('classroom-submission-note').textContent = '正在讀取作業…'; $('classroom-submissions').innerHTML = '';
+      try { classroomAssignments = (await classroomRequest('assignments', { courseId })).assignments || []; renderClassroomAssignments(); if (classroomAssignments.length) selectClassroomAssignment(classroomAssignments[0].id); else $('classroom-submission-note').textContent = '這門課目前沒有作業。'; }
+      catch (error) { $('classroom-submission-note').textContent = error.message; }
+    }
+    async function selectClassroomAssignment(assignmentId) {
+      selectedClassroomAssignment = classroomAssignments.find(assignment => assignment.id === assignmentId) || null; if (!selectedClassroomAssignment || !selectedClassroomCourse) return;
+      renderClassroomAssignments(); $('classroom-submission-note').textContent = `正在讀取「${selectedClassroomAssignment.title}」的繳交狀態…`;
+      try { const rows = (await classroomRequest('submissions', { courseId: selectedClassroomCourse.id, courseWorkId: selectedClassroomAssignment.id })).submissions || []; renderClassroomSubmissions(rows); $('classroom-submission-note').textContent = `${selectedClassroomAssignment.title}：共 ${rows.length} 位學生。`; }
+      catch (error) { $('classroom-submission-note').textContent = error.message; $('classroom-submissions').innerHTML = ''; }
+    }
 
     function renderRoster() {
       const classRoom = activeRosterClass;
@@ -154,6 +245,14 @@
     function showDashboard() { if (!$('dashboard-view').classList.contains('hidden')) return; $('login-view').classList.add('hidden'); $('dashboard-view').classList.remove('hidden'); subscribeData(); }
     function classButtons(containerId, type) { const active = type === 'progress' ? activeProgressClass : activeRosterClass; $(containerId).innerHTML = classes.map(value => `<button data-class="${value}" class="class-button rounded-lg px-3 py-2 text-sm font-bold ${value === active ? (type === 'progress' ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white') : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${value}</button>`).join(''); $(containerId).querySelectorAll('.class-button').forEach(button => button.addEventListener('click', () => { if (type === 'progress') activeProgressClass = button.dataset.class; else activeRosterClass = button.dataset.class; populateClasses(); refreshAll(); })); }
     function populateClasses() { classButtons('progress-class-buttons', 'progress'); classButtons('roster-class-buttons', 'roster'); }
+    $('classroom-save-endpoint').addEventListener('click', () => {
+      const endpoint = normalizedClassroomEndpoint($('classroom-endpoint').value);
+      if (!endpoint) { setClassroomMessage('請輸入有效的 HTTPS Web App /exec 網址。', true); return; }
+      classroomEndpoint = endpoint;
+      try { localStorage.setItem(classroomStorageKey, endpoint); } catch (_) {}
+      updateClassroomConnection();
+    });
+    $('classroom-refresh').addEventListener('click', loadClassroomCourses);
     $('close-modal').addEventListener('click', closeModal); $('modal').addEventListener('click', event => { if (event.target === $('modal')) closeModal(); });
     document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'progress' ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white') : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); }));
     $('import-roster').addEventListener('click', importRoster);
@@ -162,7 +261,7 @@
     $('logout-button').addEventListener('click', async () => { unsubscribeRoster?.(); unsubscribeProgress?.(); await auth.signOut(); location.reload(); });
     $('login-form').addEventListener('submit', async event => { event.preventDefault(); if (!auth) return; const email = $('teacher-email').value.trim(); try { setLoginMessage('正在登入…'); const credential = await auth.signInWithEmailAndPassword(email, $('teacher-password').value); if (credential.user.email !== teacherEmail) { await auth.signOut(); throw new Error('not-teacher'); } showDashboard(); } catch (error) { console.error(error); setLoginMessage('登入失敗，請確認教師帳號、密碼與 Firestore Rules。', true); } });
     if (!config || !window.firebase) { setLoginMessage('Firebase 設定尚未完成，無法使用教師端。', true); return; }
-    app = firebase.initializeApp(config); auth = firebase.auth(); db = firebase.firestore(); auth.setPersistence(firebase.auth.Auth.Persistence.SESSION); populateClasses(); auth.onAuthStateChanged(user => { if (user?.email === teacherEmail && $('dashboard-view').classList.contains('hidden')) showDashboard(); });
+    app = firebase.initializeApp(config); auth = firebase.auth(); db = firebase.firestore(); auth.setPersistence(firebase.auth.Auth.Persistence.SESSION); populateClasses(); updateClassroomConnection(); auth.onAuthStateChanged(user => { if (user?.email === teacherEmail && $('dashboard-view').classList.contains('hidden')) showDashboard(); });
   })();
   </script>
 </body>

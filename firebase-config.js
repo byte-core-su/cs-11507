@@ -64,5 +64,7 @@
   // Compatibility aliases keep the first-term learning activities working
   // while both terms use the one shared configuration above.
   global.LEARNING_FIREBASE_CONFIG = firebaseConfig;
+  // Paste the deployed Google Apps Script Web App `/exec` URL here after
+  // completing the Classroom setup described in README.md.
   global.LEARNING_CLASSROOM_CONFIG = Object.freeze({ endpoint: '' });
 })(window);
