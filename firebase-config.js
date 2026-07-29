@@ -21,7 +21,16 @@
   }
 
   const pathMatch = global.location.pathname.match(/\/terms\/(\d{3}-[12])(?:\/|$)/);
-  const currentTermId = pathMatch ? pathMatch[1] : automaticTerm();
+  const testTermStorageKey = 'learning-platform.test-term.v1';
+  const requestedTestTerm = new URLSearchParams(global.location.search).get('testTerm');
+  let testTermId = '';
+  try {
+    if (requestedTestTerm === 'auto') global.sessionStorage.removeItem(testTermStorageKey);
+    else if (/^115-[12]$/.test(requestedTestTerm || '')) global.sessionStorage.setItem(testTermStorageKey, requestedTestTerm);
+    testTermId = global.sessionStorage.getItem(testTermStorageKey) || '';
+  } catch (_) { testTermId = /^115-[12]$/.test(requestedTestTerm || '') ? requestedTestTerm : ''; }
+  const activeTermId = testTermId || automaticTerm();
+  const currentTermId = pathMatch ? pathMatch[1] : activeTermId;
   const rootPath = pathMatch ? '../../' : './';
   const storageKeys = Object.freeze({
     scratchUnits: `scratch-programming.${currentTermId}.unlocked-units.v1`,
@@ -34,6 +43,9 @@
     currentTermId,
     automaticTerm,
     automaticTermId: automaticTerm(),
+    activeTermId,
+    testTermId,
+    isTestMode: Boolean(testTermId),
     academicYearId,
     rootPath,
     firebaseProjectId: firebaseConfig.projectId,
