@@ -7,11 +7,13 @@
  */
 const TEACHER_EMAIL = 'jimwang@mail.qfm.kh.edu.tw';
 const CLASSROOM_API_ROOT = 'https://classroom.googleapis.com/v1/';
+const DRIVE_API_ROOT = 'https://www.googleapis.com/drive/v3/';
 
 // 提供給 Apps Script 編輯器直接執行，用來觸發或確認 Classroom 權限。
 function authorizeClassroom() {
   requireTeacher_();
   classroomGet_('courses', { teacherId: 'me', courseStates: 'ACTIVE', pageSize: 1 });
+  authorizeDriveMetadata_();
 }
 
 function doGet(event) {
@@ -66,6 +68,13 @@ function classroomGet_(path, parameters) {
   return payload;
 }
 
+function authorizeDriveMetadata_() {
+  const response = UrlFetchApp.fetch(DRIVE_API_ROOT + 'about?fields=user', {
+    method: 'get', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true
+  });
+  if (response.getResponseCode() >= 300) throw new Error('Google Drive 附件中繼資料授權失敗。請重新執行 authorizeClassroom 並允許唯讀檔案中繼資料權限。');
+}
+
 function getCourses_() {
   const response = classroomGet_('courses', { teacherId: 'me', courseStates: 'ACTIVE', pageSize: 100 });
   return (response.courses || []).map(function(course) {
@@ -87,6 +96,12 @@ function getSubmissions_(courseId, courseWorkId) {
   const response = classroomGet_('courses/' + encodeURIComponent(courseId) + '/courseWork/' + encodeURIComponent(courseWorkId) + '/studentSubmissions', { pageSize: 100 });
   const submissionsByUserId = {};
   (response.studentSubmissions || []).forEach(function(submission) { submissionsByUserId[String(submission.userId)] = submission; });
+  const allAttachments = [];
+  (response.studentSubmissions || []).forEach(function(submission) {
+    const attachments = submission.assignmentSubmission && submission.assignmentSubmission.attachments;
+    (attachments || []).forEach(function(attachment) { allAttachments.push(attachment); });
+  });
+  const driveFiles = driveFileMetadataMap_(allAttachments);
 
   // 以課程名冊為主，確保「未交」的學生也會列出。
   return students.map(function(student) {
@@ -100,7 +115,7 @@ function getSubmissions_(courseId, courseWorkId) {
       state: submission.state || 'CREATED',
       late: submission.late === true,
       updateTime: submission.updateTime || null,
-      attachments: attachments_(submission.assignmentSubmission && submission.assignmentSubmission.attachments)
+      attachments: attachments_(submission.assignmentSubmission && submission.assignmentSubmission.attachments, driveFiles)
     };
   });
 }
@@ -143,14 +158,40 @@ function deriveStudentProfile_(studentId) {
   return { classRoom: '7' + suffix.slice(0, 2), seatNo: String(Number(suffix.slice(2))) };
 }
 
-function attachments_(attachments) {
+function driveFileMetadataMap_(attachments) {
+  const ids = [];
+  const seen = {};
+  (attachments || []).forEach(function(attachment) {
+    const id = attachment && attachment.driveFile && attachment.driveFile.driveFile && attachment.driveFile.driveFile.id;
+    if (id && !seen[id]) { seen[id] = true; ids.push(id); }
+  });
+  if (!ids.length) return {};
+  const token = ScriptApp.getOAuthToken();
+  const requests = ids.map(function(id) {
+    return {
+      url: DRIVE_API_ROOT + 'files/' + encodeURIComponent(id) + '?fields=id,name,mimeType,webViewLink&supportsAllDrives=true',
+      method: 'get', headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true
+    };
+  });
+  const files = {};
+  try {
+    UrlFetchApp.fetchAll(requests).forEach(function(response, index) {
+      if (response.getResponseCode() >= 300) return;
+      try { files[ids[index]] = JSON.parse(response.getContentText() || '{}'); } catch (_) {}
+    });
+  } catch (_) {}
+  return files;
+}
+
+function attachments_(attachments, driveFiles) {
   return (attachments || []).map(function(attachment) {
     if (attachment.driveFile && attachment.driveFile.driveFile) {
       const driveFile = attachment.driveFile.driveFile;
-      const name = driveFile.title || 'Google Drive 附件';
+      const metadata = (driveFiles && driveFiles[driveFile.id]) || {};
+      const name = metadata.name || driveFile.title || 'Google Drive 附件';
       // alternateLink 偶爾未回傳，仍可用 Drive 檔案 ID 建立教師可開啟的連結。
-      const url = driveFile.alternateLink || (driveFile.id ? 'https://drive.google.com/open?id=' + encodeURIComponent(driveFile.id) : '');
-      return { name: name, url: url, kind: attachmentKind_(name) };
+      const url = metadata.webViewLink || driveFile.alternateLink || (driveFile.id ? 'https://drive.google.com/open?id=' + encodeURIComponent(driveFile.id) : '');
+      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || '') };
     }
     if (attachment.link) { const name = attachment.link.title || attachment.link.url || '連結附件'; return { name: name, url: attachment.link.url || '', kind: attachmentKind_(name) }; }
     if (attachment.youTubeVideo) return { name: attachment.youTubeVideo.title || 'YouTube 影片', url: attachment.youTubeVideo.alternateLink || '', kind: 'video' };
@@ -158,8 +199,10 @@ function attachments_(attachments) {
   });
 }
 
-function attachmentKind_(name) {
+function attachmentKind_(name, mimeType) {
   const value = String(name || '').toLowerCase();
+  if (mimeType === 'image/png') return 'image';
+  if (mimeType === 'video/mp4') return 'video';
   if (/\.png(?:$|[?#])/.test(value)) return 'image';
   if (/\.mp4(?:$|[?#])/.test(value)) return 'video';
   return '';
