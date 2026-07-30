@@ -54,8 +54,8 @@
         <section class="rounded-2xl bg-white p-6 shadow-sm">
           <div class="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p class="font-bold text-emerald-600">LEARNING PROGRESS</p><h2 class="text-lg font-black">學生學習進度與出席</h2><p id="progress-note" class="mt-1 text-sm text-slate-500">正在讀取資料…</p></div><div class="flex items-end gap-3"><label class="text-sm font-bold text-slate-600">出席日期<input id="attendance-date" type="date" class="mt-1 block rounded-lg border border-slate-300 px-3 py-2 font-normal text-slate-700"></label><div id="progress-summary" class="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700">—</div></div></div>
           <div id="progress-class-buttons" class="mb-5 flex flex-wrap gap-2" aria-label="選擇進度班級"></div>
-          <div class="grid gap-4 sm:grid-cols-3"><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">已登入學生</p><p id="student-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">平均完成項目</p><p id="average-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">班級總完成率</p><p id="class-rate" class="mt-1 text-2xl font-black">—</p></article></div>
-          <div class="mt-5 overflow-x-auto"><table class="w-full min-w-[1000px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">出席狀況</th><th class="p-3">學習項目</th><th class="p-3">完成率</th><th class="p-3">證書</th><th class="p-3">思考挑戰</th><th class="p-3">更新時間</th></tr></thead><tbody id="progress-body"></tbody></table></div>
+          <div class="grid gap-4 sm:grid-cols-4"><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">已登入學生</p><p id="student-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">平均已評分任務</p><p id="average-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">班級任務完成率</p><p id="class-rate" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">平均累計時間</p><p id="average-time" class="mt-1 text-2xl font-black">—</p></article></div>
+          <div class="mt-5 overflow-x-auto"><table class="w-full min-w-[1180px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">出席狀況</th><th class="p-3">教師評分任務</th><th class="p-3">完成率</th><th class="p-3">累計時間</th><th class="p-3">評分</th><th class="p-3">證書</th><th class="p-3">思考挑戰</th><th class="p-3">更新時間</th></tr></thead><tbody id="progress-body"></tbody></table></div>
         </section>
       </section>
 
@@ -79,7 +79,10 @@
     const termLabel = `${term} · ${term.endsWith('-1') ? '上學期' : '下學期'}`;
     const teacherEmail = 'jimwang@mail.qfm.kh.edu.tw';
     const classroomConfig = window.LEARNING_CLASSROOM_CONFIG || {};
-    const totalTasks = 24;
+    const assessedTasks = term === '115-1'
+      ? [['info-life', '資訊生活：1-1 資訊科技與人類生活'], ['flowchart', '演算流程：2-2-3 動畫實作'], ['programming', '程式設計：2-2-3 動畫實作'], ['thinking-1', '運算思維：(1) 重排積木']]
+      : [['info-life', '資訊安全與數位著作：4-1 個人資料的定義'], ['flowchart', '演算流程：5-1-1 小狗散步遊戲'], ['programming', '程式設計：5-1-1 小狗散步遊戲'], ['thinking-1', '運算思維：(1) 點心時間']];
+    const totalTasks = assessedTasks.length;
     const classes = Array.from({ length: 11 }, (_, i) => `7${String(i + 1).padStart(2, '0')}`);
     const thinkingChallenges = ['重排積木', '寶箱開鎖', '畢業手鍊', '彙整遊戲卡', '班級出遊', '夜市射氣球', '團隊攀岩', '誰的帽子'];
     const stampUnits = term === '115-1'
@@ -97,7 +100,7 @@
     const formatAttendanceTime = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '—'; };
     const deriveFromStudentId = value => { const studentId = String(value || '').trim(); if (!/^15[12]\d{4}$/.test(studentId)) return null; const suffix = studentId.slice(-4); const classRoom = `7${suffix.slice(0, 2)}`; if (!classes.includes(classRoom)) return null; return { studentId, classRoom, seatNo: String(Number(suffix.slice(2))), gender: studentId[2] === '1' ? '男' : '女' }; };
     const studentEmail = studentId => `${studentId}@${window.SCHOOL_APP.studentEmailDomain}`;
-    let app, auth, db, unsubscribeRoster, unsubscribeProgress, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
+    let app, auth, db, unsubscribeRoster, unsubscribeProgress, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null, scoreStudent = null;
     let activeProgressClass = classes[0], activeRosterClass = classes[0], activeLiveClass = classes[0], activeMissionClass = classes[0], selectedAttendanceDate = taipeiDateKey();
     let selectedStampUnit = stampUnits[0][0], selectedFlowchartUnit = flowchartUnits[0][0];
     let classroomEndpoint = String(classroomConfig.endpoint || '').trim(), classroomCourses = [], classroomAssignments = [], selectedClassroomCourse = null, selectedClassroomAssignment = null;
@@ -105,7 +108,10 @@
     let liveSubmissions = new Map();
 
     function setLoginMessage(text, error = false) { $('login-message').textContent = text; $('login-message').className = `mt-4 text-sm ${error ? 'text-rose-600' : 'text-slate-500'}`; }
-    function completedTasks(row) { return Object.values(row.data.terms?.[term]?.tasks || {}).filter(Boolean).length; }
+    function taskScore(row, taskId) { const value = row.data.teacherProgress?.[term]?.taskScores?.[taskId]; return Number.isFinite(Number(value?.score)) ? value : null; }
+    function completedTasks(row) { return assessedTasks.filter(([taskId]) => taskScore(row, taskId)).length; }
+    function usageSeconds(row) { return Math.max(0, Number(row.data.terms?.[term]?.usage?.totalActiveSeconds) || 0); }
+    function formatUsage(seconds) { const totalSeconds = Math.round(Math.max(0, Number(seconds) || 0)); const hours = Math.floor(totalSeconds / 3600); const minutes = Math.floor((totalSeconds % 3600) / 60); return hours ? `${hours} 小時 ${minutes} 分` : `${minutes} 分`; }
     function certificates(row) { const source = row.data.terms?.[term]?.certificates || row.data.certificates || []; return Array.isArray(source) ? source : Object.values(source || {}); }
     function completedChallenges(row) { const source = row.data.teacherProgress?.[term]?.completedChallenges || []; return Array.isArray(source) ? source : Object.keys(source || {}).filter(key => source[key]); }
     function latestTermActivity(data) {
@@ -116,7 +122,7 @@
       return values.sort((a, b) => timestamp(b) - timestamp(a))[0] || null;
     }
     function openModal(kicker, title, meta, content) { $('modal-kicker').textContent = kicker; $('modal-title').textContent = title; $('modal-meta').textContent = meta; $('modal-content').innerHTML = content; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); }
-    function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; }
+    function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; scoreStudent = null; }
     function refreshAll() { renderRoster(); renderProgress(); renderLiveDashboard(); renderMissionDashboard(); }
     function certificateForUnit(row, chapterKey) {
       const source = row.data.terms?.[term]?.certificates || row.data.certificates || {};
@@ -388,16 +394,50 @@
       const classRoom = activeProgressClass;
       const rows = mergedProgress().filter(row => row.profile.classRoom === classRoom).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
       const completeTotal = rows.reduce((sum, row) => sum + completedTasks(row), 0);
+      const usageTotal = rows.reduce((sum, row) => sum + usageSeconds(row), 0);
       const startedCount = rows.filter(row => row.hasStarted).length;
       const presentCount = rows.filter(row => row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt).length;
       $('student-count').textContent = rows.length;
       $('average-count').textContent = rows.length ? `${(completeTotal / rows.length).toFixed(1)} / ${totalTasks}` : `0 / ${totalTasks}`;
       $('class-rate').textContent = rows.length ? `${Math.round(completeTotal / (rows.length * totalTasks) * 100)}%` : '—';
+      $('average-time').textContent = rows.length ? formatUsage(usageTotal / rows.length) : '0 分';
       $('progress-note').textContent = `${classRoom} 班名冊共 ${rows.length} 位；本學期已開始 ${startedCount} 位；${selectedAttendanceDate} 出席 ${presentCount} 位`;
       $('progress-summary').textContent = rows.length ? `出席率 ${Math.round(presentCount / rows.length * 100)}%` : '此班尚未建立名冊';
-      $('progress-body').innerHTML = rows.length ? rows.map(row => { const completed = completedTasks(row); const certs = certificates(row); const challenges = completedChallenges(row); const attendance = row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt; const attendanceCell = attendance ? `<span class="font-bold text-emerald-700">已登入 ${formatAttendanceTime(attendance)}</span>` : '<span class="font-bold text-rose-600">未登入</span>'; const status = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>'; const rate = row.hasStarted ? `${Math.round(completed / totalTasks * 100)}%` : '—'; const certificateCell = row.hasStarted && certs.length ? `<button data-cert="${escapeHtml(row.profile.studentId)}" class="cert-button rounded-lg bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">${certs.length} 張</button>` : '<span class="text-slate-400">—</span>'; const thinkingCell = row.hasStarted ? `<span class="font-bold text-emerald-700">${challenges.length} / ${thinkingChallenges.length}</span><button data-thinking="${escapeHtml(row.profile.studentId)}" class="thinking-button ml-2 rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">核定</button>` : '<span class="text-slate-400">—</span>'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}</td><td class="p-3">${attendanceCell}</td><td class="p-3">${status}</td><td class="p-3 font-bold text-emerald-700">${rate}</td><td class="p-3">${certificateCell}</td><td class="p-3">${thinkingCell}</td><td class="p-3 text-xs text-slate-500">${row.hasStarted ? escapeHtml(formatDate(row.data.updatedAt || row.data.terms?.[term]?.updatedAt)) : '—'}</td></tr>`; }).join('') : '<tr><td colspan="9" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
+      $('progress-body').innerHTML = rows.length ? rows.map(row => { const completed = completedTasks(row); const certs = certificates(row); const challenges = completedChallenges(row); const attendance = row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt; const attendanceCell = attendance ? `<span class="font-bold text-emerald-700">已登入 ${formatAttendanceTime(attendance)}</span>` : '<span class="font-bold text-rose-600">未登入</span>'; const status = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>'; const rate = row.hasStarted ? `${Math.round(completed / totalTasks * 100)}%` : '—'; const certificateCell = row.hasStarted && certs.length ? `<button data-cert="${escapeHtml(row.profile.studentId)}" class="cert-button rounded-lg bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">${certs.length} 張</button>` : '<span class="text-slate-400">—</span>'; const thinkingCell = row.hasStarted ? `<span class="font-bold text-emerald-700">${challenges.length} / ${thinkingChallenges.length}</span><button data-thinking="${escapeHtml(row.profile.studentId)}" class="thinking-button ml-2 rounded-lg px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50">核定</button>` : '<span class="text-slate-400">—</span>'; const scoreCell = row.id ? `<button data-task-score="${escapeHtml(row.profile.studentId)}" class="rounded-lg bg-violet-50 px-2 py-1 text-xs font-bold text-violet-700 hover:bg-violet-100">評分 ${completed} / ${totalTasks}</button>` : '<span class="text-slate-400">尚未登入</span>'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}</td><td class="p-3">${attendanceCell}</td><td class="p-3">${status}</td><td class="p-3 font-bold text-emerald-700">${rate}</td><td class="p-3 font-bold text-slate-600">${formatUsage(usageSeconds(row))}</td><td class="p-3">${scoreCell}</td><td class="p-3">${certificateCell}</td><td class="p-3">${thinkingCell}</td><td class="p-3 text-xs text-slate-500">${row.hasStarted ? escapeHtml(formatDate(row.data.updatedAt || row.data.terms?.[term]?.updatedAt)) : '—'}</td></tr>`; }).join('') : '<tr><td colspan="11" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
       document.querySelectorAll('.thinking-button').forEach(button => button.addEventListener('click', () => manageThinking(button.dataset.thinking)));
       document.querySelectorAll('.cert-button').forEach(button => button.addEventListener('click', () => showCertificates(button.dataset.cert)));
+      document.querySelectorAll('[data-task-score]').forEach(button => button.addEventListener('click', () => manageTaskScores(button.dataset.taskScore)));
+    }
+
+    function manageTaskScores(studentId) {
+      const row = mergedProgress().find(item => item.profile.studentId === studentId); if (!row) return;
+      if (!row.id) { openModal('教師評分', '尚未建立學生資料', `${row.profile.name || '未命名'} · ${row.profile.studentId}`, '<p class="text-sm leading-6 text-slate-600">學生需要先登入入口網建立個人資料，教師才能寫入本學期評分。</p>'); return; }
+      scoreStudent = row;
+      const fields = assessedTasks.map(([taskId, label]) => { const saved = taskScore(row, taskId); return `<label class="block rounded-xl border border-slate-200 p-3 text-sm font-bold text-slate-700">${escapeHtml(label)}<input data-task-score-input="${escapeHtml(taskId)}" type="number" min="0" max="100" step="1" inputmode="numeric" value="${saved ? escapeHtml(saved.score) : ''}" placeholder="0–100" class="mt-2 block w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal outline-none focus:ring-2 focus:ring-violet-400"></label>`; }).join('');
+      openModal('教師評分', '本學期任務評分', `${row.profile.classRoom} 班 ${row.profile.seatNo} 號 · ${row.profile.name || '未命名'}`, `<p class="text-sm leading-6 text-slate-500">輸入 0–100 分後儲存；學生入口只會顯示此處的教師評分，無法自行勾選。</p><div class="mt-4 space-y-3">${fields}</div><p id="task-score-message" class="mt-3 text-sm text-slate-500"></p><button id="save-task-scores" class="mt-5 rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white hover:bg-violet-700">儲存教師評分</button>`);
+      $('save-task-scores').addEventListener('click', saveTaskScores);
+    }
+
+    async function saveTaskScores() {
+      if (!scoreStudent?.id) return;
+      const scores = { ...(scoreStudent.data.teacherProgress?.[term]?.taskScores || {}) };
+      for (const [taskId] of assessedTasks) {
+        const input = document.querySelector(`[data-task-score-input="${taskId}"]`);
+        const raw = String(input?.value || '').trim();
+        if (!raw) { delete scores[taskId]; continue; }
+        const score = Number(raw);
+        if (!Number.isInteger(score) || score < 0 || score > 100) { $('task-score-message').textContent = '每個分數請填寫 0 到 100 的整數，或留白表示尚未評分。'; return; }
+        scores[taskId] = { score, scoredAt: new Date().toISOString(), scoredBy: teacherEmail };
+      }
+      $('save-task-scores').disabled = true; $('task-score-message').textContent = '正在儲存教師評分…';
+      try {
+        const update = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+        update[`teacherProgress.${term}.taskScores`] = scores;
+        update[`teacherProgress.${term}.updatedAt`] = new Date().toISOString();
+        await db.collection('users').doc(scoreStudent.id).update(update);
+        $('task-score-message').textContent = '教師評分已儲存，學生入口會自動更新。';
+      } catch (error) { console.error(error); $('task-score-message').textContent = '儲存失敗，請確認教師權限。'; }
+      finally { $('save-task-scores').disabled = false; }
     }
 
     async function syncStudentAccountCode(studentId, previousCode, nextCode) {
