@@ -52,7 +52,7 @@
       <section id="classroom-tab" class="tab-panel hidden">
         <section class="rounded-2xl bg-white p-6 shadow-sm">
           <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-indigo-600">GOOGLE CLASSROOM</p><h2 class="text-lg font-black">作業繳交看板</h2><p class="mt-1 max-w-2xl text-sm text-slate-500">唯讀顯示 Classroom 的課程、作業與繳交狀態；不會修改 Classroom 或學生資料。</p></div><button id="classroom-refresh" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">更新課程</button></div>
-          <div class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 p-4"><a id="classroom-authorize" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 hover:bg-amber-100" target="_blank" rel="noopener">Google 授權</a><span id="classroom-message" class="text-sm text-slate-500">正在載入 Classroom 連線…</span></div>
+          <div class="mt-5 rounded-xl bg-slate-50 p-4"><span id="classroom-message" class="text-sm text-slate-500">正在載入 Classroom 連線…</span></div>
           <div class="mt-6"><h3 class="font-black">課程</h3><div id="classroom-courses" class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><p class="text-sm text-slate-400">設定連線後按「更新課程」。</p></div></div>
           <section id="classroom-workspace" class="mt-7 hidden border-t border-slate-200 pt-6"><div class="flex flex-wrap items-end justify-between gap-3"><div><p id="classroom-selected-course" class="font-black text-indigo-700"></p><h3 class="mt-1 text-lg font-black">作業與繳交狀態</h3></div><div id="classroom-assignment-select" class="flex flex-wrap gap-2"></div></div><p id="classroom-submission-note" class="mt-3 text-sm text-slate-500"></p><div class="mt-4 overflow-x-auto"><table class="w-full min-w-[760px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">繳交狀態</th><th class="p-3">最後更新</th><th class="p-3">附件</th></tr></thead><tbody id="classroom-submissions"></tbody></table></div></section>
         </section>
@@ -114,9 +114,7 @@
       const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
       $('classroom-refresh').disabled = !endpoint;
       $('classroom-refresh').classList.toggle('opacity-50', !endpoint);
-      $('classroom-authorize').classList.toggle('hidden', !endpoint);
-      if (endpoint) $('classroom-authorize').href = `${endpoint}${endpoint.includes('?') ? '&' : '?'}action=auth`;
-      setClassroomMessage(endpoint ? '已使用系統預設 Classroom 連線。請完成 Google 授權後更新課程。' : '請貼上 Apps Script Web App 的 /exec 網址。', !endpoint);
+      setClassroomMessage(endpoint ? '已使用系統預設 Classroom 連線，可直接更新課程。' : 'Classroom 連線尚未設定。', !endpoint);
     }
     function classroomRequest(action, parameters = {}) {
       const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
