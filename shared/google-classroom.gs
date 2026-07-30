@@ -1,18 +1,19 @@
 /**
  * 115 學年度資訊科技學習平台的共用 Google Classroom 唯讀連接程式。
  *
- * 部署方式請見專案 README。Web App 必須設定為「以存取網頁應用程式的使用者身分執行」，
+ * 透過 Classroom REST API 讀取資料，不依賴 Apps Script 的 Classroom 進階服務。
+ * Web App 必須設定為「以存取網頁應用程式的使用者身分執行」，
  * 且只開放 jimwang@mail.qfm.kh.edu.tw 存取，避免將學生作業資料暴露在公開網址。
  */
 const TEACHER_EMAIL = 'jimwang@mail.qfm.kh.edu.tw';
+const CLASSROOM_API_ROOT = 'https://classroom.googleapis.com/v1/';
 
 function doGet(event) {
   const action = String((event && event.parameter && event.parameter.action) || '').trim();
   try {
     requireTeacher_();
     if (action === 'auth') {
-      // 呼叫一次 Classroom 服務，讓 Apps Script 顯示所需的 Google 授權畫面。
-      Classroom.Courses.list({ teacherId: 'me', courseStates: 'ACTIVE', pageSize: 1 });
+      classroomGet_('courses', { teacherId: 'me', courseStates: 'ACTIVE', pageSize: 1 });
       return HtmlService.createHtmlOutput('<!doctype html><html><body style="font-family:system-ui;padding:2rem"><h2>Classroom 授權完成</h2><p>可以關閉此分頁，回到教師後台按「更新資料」。</p></body></html>');
     }
     if (action === 'courses') return respond_(event, { status: 'success', courses: getCourses_() });
@@ -39,15 +40,35 @@ function requiredParameter_(event, name) {
   return value;
 }
 
+function classroomGet_(path, parameters) {
+  const query = Object.keys(parameters || {}).filter(function(key) {
+    return parameters[key] !== undefined && parameters[key] !== null && parameters[key] !== '';
+  }).map(function(key) {
+    return encodeURIComponent(key) + '=' + encodeURIComponent(parameters[key]);
+  }).join('&');
+  const response = UrlFetchApp.fetch(CLASSROOM_API_ROOT + path + (query ? '?' + query : ''), {
+    method: 'get',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true
+  });
+  const body = response.getContentText();
+  let payload = {};
+  try { payload = body ? JSON.parse(body) : {}; } catch (_) { payload = {}; }
+  if (response.getResponseCode() >= 300) {
+    throw new Error((payload.error && payload.error.message) || 'Classroom API 讀取失敗（HTTP ' + response.getResponseCode() + '）。');
+  }
+  return payload;
+}
+
 function getCourses_() {
-  const response = Classroom.Courses.list({ teacherId: 'me', courseStates: 'ACTIVE', pageSize: 100 });
+  const response = classroomGet_('courses', { teacherId: 'me', courseStates: 'ACTIVE', pageSize: 100 });
   return (response.courses || []).map(function(course) {
     return { id: course.id, name: course.name || '未命名課程', section: course.section || '' };
   }).sort(function(a, b) { return a.name.localeCompare(b.name, 'zh-Hant'); });
 }
 
 function getAssignments_(courseId) {
-  const response = Classroom.Courses.CourseWork.list(courseId, { pageSize: 100, orderBy: 'updateTime desc' });
+  const response = classroomGet_('courses/' + encodeURIComponent(courseId) + '/courseWork', { pageSize: 100, orderBy: 'updateTime desc' });
   return (response.courseWork || []).map(function(work) {
     return { id: work.id, title: work.title || '未命名作業', dueDate: work.dueDate || null, dueTime: work.dueTime || null };
   });
@@ -57,7 +78,7 @@ function getSubmissions_(courseId, courseWorkId) {
   const students = listStudents_(courseId);
   const studentsByUserId = {};
   students.forEach(function(student) { studentsByUserId[String(student.userId)] = student; });
-  const response = Classroom.Courses.CourseWork.StudentSubmissions.list(courseId, courseWorkId, { pageSize: 100 });
+  const response = classroomGet_('courses/' + encodeURIComponent(courseId) + '/courseWork/' + encodeURIComponent(courseWorkId) + '/studentSubmissions', { pageSize: 100 });
   const submissionsByUserId = {};
   (response.studentSubmissions || []).forEach(function(submission) { submissionsByUserId[String(submission.userId)] = submission; });
 
@@ -79,7 +100,7 @@ function getSubmissions_(courseId, courseWorkId) {
 }
 
 function listStudents_(courseId) {
-  const response = Classroom.Courses.Students.list(courseId, { pageSize: 100 });
+  const response = classroomGet_('courses/' + encodeURIComponent(courseId) + '/students', { pageSize: 100 });
   return (response.students || []).map(function(student) {
     const profile = student.profile || {};
     const email = String(profile.emailAddress || '').toLowerCase();
