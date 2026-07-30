@@ -9,12 +9,7 @@ window.TERM_PORTAL_CONFIG = Object.freeze({
   ],
   courseGridColumns: 3,
   easterEgg: ['line.html', '課間小遊戲：一筆畫解謎', '✏️'],
-  teacherTasks: [
-    ['info-life', '資訊安全與數位著作：4-1 個人資料的定義', { source: 'certificate', unit: '4-1' }],
-    ['flowchart', '演算流程：5-1-1 小狗散步遊戲', { source: 'flowchart', unit: '1' }],
-    ['programming', '程式設計：5-1-1 小狗散步遊戲', { source: 'teacher-check', task: 'programming' }],
-    ['thinking-1', '運算思維：(1) 點心時間', { source: 'teacher-check', task: 'thinking' }]
-  ],
+  flowchartUnits: ['5-1-1 小狗散步遊戲', '5-1-2 賽馬遊戲', '5-1-3 水族箱遊戲', '5-1-4 打擊魔鬼遊戲', '5-1-A 企鵝漫步', '5-1-B 動物大遷徙', '5-1-C 養魚遊戲', '5-1-D 獵殺魔鬼'],
   taskGroups: [
     ['任務一', [['1-2','資訊安全與數位著作：4-1 個人資料的定義'],['1-1','Scratch 程式設計：分身與互動設計'],['1-3','運算思維：(1) 點心時間']]],
     ['任務二', [['2-2','資訊安全與數位著作：4-2 個人資料的保護措施'],['2-1','Scratch 程式設計：流程與條件設計'],['2-3','運算思維：(2) 地圖著色']]],
