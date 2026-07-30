@@ -16,7 +16,7 @@
 - `users/{uid}.terms.{termId}.attendance.{YYYY-MM-DD}`：學生當日登入時間；教師可依日期查詢出席。
 - `users/{uid}.terms.{termId}.usage`：本學期有效使用秒數與每次上課紀錄。登入會建立紀錄；頁面可見時每 2 分鐘累積，離開或關閉頁面則以最後活動時間結束該次紀錄。
 - `users/{uid}.teacherProgress.{termId}`：該學期教師核定資料。
-- `users/{uid}.teacherProgress.{termId}.taskScores`：四項本學期任務的教師評分（0–100）。學生入口只讀取此處的分數，學生不能自行勾選或修改。
+- `users/{uid}.teacherProgress.{termId}.taskCompletions`：運算思維與程式設計由教師檢核 Classroom 附件後寫入的完成紀錄；學生入口只能讀取，不能自行勾選或修改。
 
 部署前請將根目錄的 `firestore.rules` 發佈至 Firebase，並以本目錄作為網站部署根目錄。
 

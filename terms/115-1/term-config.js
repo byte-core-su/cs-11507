@@ -10,10 +10,10 @@ window.TERM_PORTAL_CONFIG = Object.freeze({
   courseGridColumns: 3,
   easterEgg: ['snake.html', '課間小遊戲：貪食蛇', '🐍'],
   teacherTasks: [
-    ['info-life', '資訊生活：1-1 資訊科技與人類生活'],
-    ['flowchart', '演算流程：2-2-3 動畫實作'],
-    ['programming', '程式設計：2-2-3 動畫實作'],
-    ['thinking-1', '運算思維：(1) 重排積木']
+    ['info-life', '資訊生活：1-1 資訊科技與人類生活', { source: 'certificate', unit: '1-1' }],
+    ['flowchart', '演算流程：2-2-3 動畫實作', { source: 'flowchart', unit: '1' }],
+    ['programming', '程式設計：2-2-3 動畫實作', { source: 'teacher-check', task: 'programming' }],
+    ['thinking-1', '運算思維：(1) 重排積木', { source: 'teacher-check', task: 'thinking' }]
   ],
   taskGroups: [
     ['任務一', [['1-2','資訊生活：1-1 資訊科技與人類生活'],['1-1','Scratch 程式設計：2-2-3 動畫實作'],['1-3','運算思維：(1) 重排積木']]],
