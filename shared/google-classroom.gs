@@ -110,7 +110,9 @@ function listStudents_(courseId) {
   return (response.students || []).map(function(student) {
     const profile = student.profile || {};
     const email = String(profile.emailAddress || '').toLowerCase();
-    const studentId = studentIdFromEmail_(email);
+    const fullName = (profile.name && profile.name.fullName) || '';
+    // 部分 Classroom 帳號的信箱沒有學號，但學校顯示名稱如「00 1510100」。
+    const studentId = studentIdFromEmail_(email) || studentIdFromDisplayName_(fullName);
     const derived = deriveStudentProfile_(studentId);
     return {
       userId: student.userId,
@@ -118,7 +120,7 @@ function listStudents_(courseId) {
       studentId: studentId,
       classRoom: derived.classRoom,
       seatNo: derived.seatNo,
-      name: (profile.name && profile.name.fullName) || '未提供姓名'
+      name: fullName || '未提供姓名'
     };
   });
 }
@@ -127,6 +129,11 @@ function studentIdFromEmail_(email) {
   // Classroom 可能使用校務信箱 qfm1510101@…，也可能使用平台登入帳號
   // 1510101@students.jimwang-4b0ca.firebaseapp.com；兩者皆以學號對應名冊。
   const match = String(email || '').match(/(15[12]\d{4})/);
+  return match ? match[1] : '';
+}
+
+function studentIdFromDisplayName_(name) {
+  const match = String(name || '').match(/(15[12]\d{4})/);
   return match ? match[1] : '';
 }
 
