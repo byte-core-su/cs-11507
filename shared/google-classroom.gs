@@ -72,7 +72,9 @@ function authorizeDriveMetadata_() {
   const response = UrlFetchApp.fetch(DRIVE_API_ROOT + 'about?fields=user', {
     method: 'get', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true
   });
-  if (response.getResponseCode() >= 300) throw new Error('Google Drive 附件中繼資料授權失敗。請重新執行 authorizeClassroom 並允許唯讀檔案中繼資料權限。');
+  if (response.getResponseCode() >= 300) {
+    throw new Error('Google Drive 附件中繼資料授權失敗（HTTP ' + response.getResponseCode() + '）：' + response.getContentText().slice(0, 240));
+  }
 }
 
 function getCourses_() {
