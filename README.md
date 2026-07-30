@@ -14,6 +14,7 @@
 - `users/{uid}.profile`：共用學生身分。
 - `users/{uid}.terms.{termId}`：該學期任務、證書與成績。
 - `users/{uid}.terms.{termId}.attendance.{YYYY-MM-DD}`：學生當日登入時間；教師可依日期查詢出席。
+- `users/{uid}.terms.{termId}.usage`：本學期有效使用秒數與每次上課紀錄。登入會建立紀錄；頁面可見時每 2 分鐘累積，離開或關閉頁面則以最後活動時間結束該次紀錄。
 - `users/{uid}.teacherProgress.{termId}`：該學期教師核定資料。
 
 部署前請將根目錄的 `firestore.rules` 發佈至 Firebase，並以本目錄作為網站部署根目錄。
