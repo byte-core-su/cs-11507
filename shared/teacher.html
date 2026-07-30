@@ -55,6 +55,7 @@
           <div class="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p class="font-bold text-emerald-600">LEARNING PROGRESS</p><h2 class="text-lg font-black">學生學習進度與出席</h2><p id="progress-note" class="mt-1 text-sm text-slate-500">正在讀取資料…</p></div><div class="flex items-end gap-3"><label class="text-sm font-bold text-slate-600">出席日期<input id="attendance-date" type="date" class="mt-1 block rounded-lg border border-slate-300 px-3 py-2 font-normal text-slate-700"></label><div id="progress-summary" class="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700">—</div></div></div>
           <div id="progress-class-buttons" class="mb-5 flex flex-wrap gap-2" aria-label="選擇進度班級"></div>
           <div class="grid gap-4 sm:grid-cols-4"><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">已登入學生</p><p id="student-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">平均完成任務</p><p id="average-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">班級任務完成率</p><p id="class-rate" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">平均累計時間</p><p id="average-time" class="mt-1 text-2xl font-black">—</p></article></div>
+          <section class="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4"><div class="flex flex-wrap items-end justify-between gap-3"><div><p class="text-xs font-black tracking-[.14em] text-emerald-600">WEEKLY GROWTH</p><h3 class="mt-1 font-black text-slate-800">每週成長曲線</h3><p id="weekly-growth-note" class="mt-1 text-xs text-slate-500">以右上日期為截止日，顯示最近八週的累計完成項目。</p></div><label class="text-sm font-bold text-slate-600">曲線對象<select id="weekly-student-select" class="mt-1 block rounded-lg border border-emerald-200 bg-white px-3 py-2 font-normal"><option value="">全班平均</option></select></label></div><div id="weekly-growth-chart" class="mt-4"></div></section>
           <div class="mt-5 overflow-x-auto"><table class="w-full min-w-[1180px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">出席狀況</th><th class="p-3">學習項目</th><th class="p-3">資訊生活</th><th class="p-3">演算流程</th><th class="p-3">程式設計</th><th class="p-3">運算思維</th><th class="p-3">累計時間</th><th class="p-3">更新時間</th></tr></thead><tbody id="progress-body"></tbody></table></div>
         </section>
       </section>
@@ -99,7 +100,7 @@
     const deriveFromStudentId = value => { const studentId = String(value || '').trim(); if (!/^15[12]\d{4}$/.test(studentId)) return null; const suffix = studentId.slice(-4); const classRoom = `7${suffix.slice(0, 2)}`; if (!classes.includes(classRoom)) return null; return { studentId, classRoom, seatNo: String(Number(suffix.slice(2))), gender: studentId[2] === '1' ? '男' : '女' }; };
     const studentEmail = studentId => `${studentId}@${window.SCHOOL_APP.studentEmailDomain}`;
     let app, auth, db, unsubscribeRoster, unsubscribeProgress, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
-    let activeProgressClass = classes[0], activeRosterClass = classes[0], activeLiveClass = classes[0], activeMissionClass = classes[0], selectedAttendanceDate = taipeiDateKey();
+    let activeProgressClass = classes[0], activeRosterClass = classes[0], activeLiveClass = classes[0], activeMissionClass = classes[0], selectedAttendanceDate = taipeiDateKey(), selectedWeeklyStudentId = '';
     let selectedStampUnit = stampUnits[0][0], selectedFlowchartUnit = flowchartUnits[0][0];
     let classroomEndpoint = String(classroomConfig.endpoint || '').trim(), classroomCourses = [], classroomAssignments = [], selectedClassroomCourse = null, selectedClassroomAssignment = null;
     let liveClassroomCourse = null, liveClassroomAssignments = [], liveAssignmentWork = null;
@@ -109,6 +110,44 @@
     function teacherTaskCheck(row, task, unitId) { const progress = row.data.teacherProgress?.[term] || {}; const key = `${task}-${unitId}`; if (progress.taskCompletions?.[key]?.status === 'approved') return true; return unitId === '1' && (progress.taskCompletions?.[task]?.status === 'approved' || Object.entries(progress.liveChecks || {}).some(([legacyKey, value]) => legacyKey.indexOf(`${task}_`) === 0 && value?.status === 'approved')); }
     function taskCategoryCounts(row) { return { info: stampUnits.filter(([unit]) => Boolean(certificateForUnit(row, unit))).length, flowchart: taskUnitIds.filter(unit => Boolean(flowchartForUnit(row, unit))).length, programming: taskUnitIds.filter(unit => teacherTaskCheck(row, 'programming', unit)).length, thinking: taskUnitIds.filter(unit => teacherTaskCheck(row, 'thinking', unit)).length }; }
     function completedTasks(row) { const counts = taskCategoryCounts(row); return counts.info + counts.flowchart + counts.programming + counts.thinking; }
+    const timestampMs = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0; };
+    function weekDateKey(dateKey, weeksBefore) { const [year, month, day] = String(dateKey).split('-').map(Number); const date = new Date(Date.UTC(year, month - 1, day - (weeksBefore * 7))); return date.toISOString().slice(0, 10); }
+    function dateEndMs(dateKey) { return new Date(`${dateKey}T23:59:59+08:00`).getTime(); }
+    function taskCheckByDate(row, task, unitId, cutoffMs) {
+      const progress = row.data.teacherProgress?.[term] || {}; const key = `${task}-${unitId}`;
+      const events = Object.values(progress.taskHistory?.[key] || {}).filter(item => timestampMs(item?.reviewedAt) && timestampMs(item.reviewedAt) <= cutoffMs).sort((a, b) => timestampMs(b.reviewedAt) - timestampMs(a.reviewedAt));
+      if (events.length) return events[0].status === 'approved';
+      const current = progress.taskCompletions?.[key];
+      if (timestampMs(current?.reviewedAt) && timestampMs(current.reviewedAt) <= cutoffMs) return current.status === 'approved';
+      if (unitId !== '1') return false;
+      const legacy = progress.taskCompletions?.[task] || Object.entries(progress.liveChecks || {}).find(([legacyKey, item]) => legacyKey.indexOf(`${task}_`) === 0 && item?.status === 'approved')?.[1];
+      return legacy?.status === 'approved' && timestampMs(legacy.reviewedAt) <= cutoffMs;
+    }
+    function taskCategoryCountsByDate(row, cutoffMs) {
+      const termData = row.data.terms?.[term] || {}; const certificateSource = termData.certificates || row.data.certificates || {}; const certificatesAt = Array.isArray(certificateSource) ? certificateSource : Object.entries(certificateSource).map(([id, value]) => ({ id, ...(value || {}) }));
+      const hasCertificate = unit => certificatesAt.some(item => (item?.chapterKey === unit || item?.id === `infolife-${unit}` || item?.id === `security-${unit}`) && timestampMs(item?.awardedAt || item?.issuedAt) <= cutoffMs);
+      const hasFlowchart = unit => { const item = termData.workflow?.flowcharts?.[unit]; return Boolean(item && timestampMs(item.completedAt || item.exportedAt || item.updatedAt) <= cutoffMs); };
+      return { info: stampUnits.filter(([unit]) => hasCertificate(unit)).length, flowchart: taskUnitIds.filter(hasFlowchart).length, programming: taskUnitIds.filter(unit => taskCheckByDate(row, 'programming', unit, cutoffMs)).length, thinking: taskUnitIds.filter(unit => taskCheckByDate(row, 'thinking', unit, cutoffMs)).length };
+    }
+    function renderWeeklyGrowth(rows) {
+      const selector = $('weekly-student-select'); if (!selector) return;
+      const existingOptions = rows.map(row => `<option value="${escapeHtml(row.profile.studentId)}">${escapeHtml(row.profile.seatNo)} 號 ${escapeHtml(row.profile.name || row.profile.studentId)}</option>`).join('');
+      selector.innerHTML = `<option value="">全班平均</option>${existingOptions}`;
+      if (!rows.some(row => row.profile.studentId === selectedWeeklyStudentId)) selectedWeeklyStudentId = '';
+      selector.value = selectedWeeklyStudentId;
+      const selectedRows = selectedWeeklyStudentId ? rows.filter(row => row.profile.studentId === selectedWeeklyStudentId) : rows;
+      const points = Array.from({ length: 8 }, (_, index) => { const key = weekDateKey(selectedAttendanceDate, 7 - index); const cutoffMs = dateEndMs(key); const total = selectedRows.reduce((sum, row) => { const counts = taskCategoryCountsByDate(row, cutoffMs); return sum + counts.info + counts.flowchart + counts.programming + counts.thinking; }, 0); return { key, value: selectedRows.length ? total / selectedRows.length : 0 }; });
+      const target = selectedWeeklyStudentId ? rows.find(row => row.profile.studentId === selectedWeeklyStudentId) : null;
+      $('weekly-growth-note').textContent = `${target ? `${target.profile.name || target.profile.studentId}同學` : `${activeProgressClass} 班平均`}｜截至 ${selectedAttendanceDate}，每點為該週截止日的累計完成項目（滿分 32）。`;
+      const chart = $('weekly-growth-chart'); const width = 760, height = 220, left = 44, right = 18, top = 18, bottom = 38, plotWidth = width - left - right, plotHeight = height - top - bottom;
+      const x = index => left + (plotWidth * index / (points.length - 1)); const y = value => top + plotHeight - (Math.max(0, Math.min(totalTasks, value)) / totalTasks * plotHeight);
+      const polyline = points.map((point, index) => `${x(index)},${y(point.value)}`).join(' ');
+      const grid = [0, 8, 16, 24, 32].map(value => `<g><line x1="${left}" x2="${width - right}" y1="${y(value)}" y2="${y(value)}" stroke="#cbd5e1" stroke-width="1"/><text x="${left - 8}" y="${y(value) + 4}" text-anchor="end" fill="#64748b" font-size="11">${value}</text></g>`).join('');
+      const labels = points.map((point, index) => `<text x="${x(index)}" y="${height - 12}" text-anchor="middle" fill="#64748b" font-size="10">${point.key.slice(5).replace('-', '/')}</text>`).join('');
+      const dots = points.map((point, index) => `<circle cx="${x(index)}" cy="${y(point.value)}" r="4" fill="#059669"><title>${point.key}：${point.value.toFixed(1)} / 32</title></circle>`).join('');
+      chart.innerHTML = `<svg viewBox="0 0 ${width} ${height}" class="h-auto w-full" role="img" aria-label="每週累計完成項目成長曲線，最高 32 項"><title>每週累計完成項目成長曲線</title>${grid}<polyline points="${polyline}" fill="none" stroke="#059669" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${dots}${labels}</svg>`;
+      selector.onchange = event => { selectedWeeklyStudentId = event.target.value; renderWeeklyGrowth(rows); };
+    }
     function usageSeconds(row) { return Math.max(0, Number(row.data.terms?.[term]?.usage?.totalActiveSeconds) || 0); }
     function formatUsage(seconds) { const totalSeconds = Math.round(Math.max(0, Number(seconds) || 0)); const hours = Math.floor(totalSeconds / 3600); const minutes = Math.floor((totalSeconds % 3600) / 60); return hours ? `${hours} 小時 ${minutes} 分` : `${minutes} 分`; }
     function certificates(row) { const source = row.data.terms?.[term]?.certificates || row.data.certificates || []; return Array.isArray(source) ? source : Object.values(source || {}); }
@@ -223,7 +262,9 @@
       try {
         const update = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
         update[`teacherProgress.${term}.liveChecks.${liveReviewKey(task)}`] = { status, reviewedAt: new Date().toISOString(), reviewedBy: teacherEmail };
-        update[`teacherProgress.${term}.taskCompletions.${task}-${selectedFlowchartUnit}`] = { status, reviewedAt: new Date().toISOString(), reviewedBy: teacherEmail, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
+        const reviewedAt = new Date().toISOString(); const completionKey = `${task}-${selectedFlowchartUnit}`;
+        update[`teacherProgress.${term}.taskCompletions.${completionKey}`] = { status, reviewedAt, reviewedBy: teacherEmail, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
+        update[`teacherProgress.${term}.taskHistory.${completionKey}.event_${Date.now()}`] = { status, reviewedAt, reviewedBy: teacherEmail, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
         await db.collection('users').doc(row.id).update(update);
         message.textContent = status === 'approved' ? '已核定通關。' : '已標示為需要補件。';
       } catch (error) { console.error(error); message.textContent = '儲存失敗，請確認教師權限。'; }
@@ -403,6 +444,7 @@
       $('average-time').textContent = rows.length ? formatUsage(usageTotal / rows.length) : '0 分';
       $('progress-note').textContent = `${classRoom} 班名冊共 ${rows.length} 位；本學期已開始 ${startedCount} 位；${selectedAttendanceDate} 出席 ${presentCount} 位`;
       $('progress-summary').textContent = rows.length ? `出席率 ${Math.round(presentCount / rows.length * 100)}%` : '此班尚未建立名冊';
+      renderWeeklyGrowth(rows);
       $('progress-body').innerHTML = rows.length ? rows.map(row => { const counts = taskCategoryCounts(row); const completed = counts.info + counts.flowchart + counts.programming + counts.thinking; const attendance = row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt; const attendanceCell = attendance ? `<span class="font-bold text-emerald-700">已登入 ${formatAttendanceTime(attendance)}</span>` : '<span class="font-bold text-rose-600">未登入</span>'; const status = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>'; const countCell = value => row.hasStarted ? `<span class="font-bold text-slate-700">${value} / 8</span>` : '<span class="text-slate-400">—</span>'; const updatedCell = row.hasStarted ? escapeHtml(formatDate(row.data.updatedAt)) : '—'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}</td><td class="p-3">${attendanceCell}</td><td class="p-3 font-bold text-violet-700">${status}</td><td class="p-3">${countCell(counts.info)}</td><td class="p-3">${countCell(counts.flowchart)}</td><td class="p-3">${countCell(counts.programming)}</td><td class="p-3">${countCell(counts.thinking)}</td><td class="p-3 font-bold text-slate-600">${formatUsage(usageSeconds(row))}</td><td class="p-3 text-xs text-slate-500">${updatedCell}</td></tr>`; }).join('') : '<tr><td colspan="11" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
     }
 
