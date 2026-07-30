@@ -138,12 +138,22 @@ function attachments_(attachments) {
   return (attachments || []).map(function(attachment) {
     if (attachment.driveFile && attachment.driveFile.driveFile) {
       const driveFile = attachment.driveFile.driveFile;
-      return { name: driveFile.title || 'Google Drive 附件', url: driveFile.alternateLink || '' };
+      const name = driveFile.title || 'Google Drive 附件';
+      // alternateLink 偶爾未回傳，仍可用 Drive 檔案 ID 建立教師可開啟的連結。
+      const url = driveFile.alternateLink || (driveFile.id ? 'https://drive.google.com/open?id=' + encodeURIComponent(driveFile.id) : '');
+      return { name: name, url: url, kind: attachmentKind_(name) };
     }
-    if (attachment.link) return { name: attachment.link.title || attachment.link.url || '連結附件', url: attachment.link.url || '' };
-    if (attachment.youTubeVideo) return { name: attachment.youTubeVideo.title || 'YouTube 影片', url: attachment.youTubeVideo.alternateLink || '' };
-    return { name: '附件', url: '' };
+    if (attachment.link) { const name = attachment.link.title || attachment.link.url || '連結附件'; return { name: name, url: attachment.link.url || '', kind: attachmentKind_(name) }; }
+    if (attachment.youTubeVideo) return { name: attachment.youTubeVideo.title || 'YouTube 影片', url: attachment.youTubeVideo.alternateLink || '', kind: 'video' };
+    return { name: '附件', url: '', kind: '' };
   });
+}
+
+function attachmentKind_(name) {
+  const value = String(name || '').toLowerCase();
+  if (/\.png(?:$|[?#])/.test(value)) return 'image';
+  if (/\.mp4(?:$|[?#])/.test(value)) return 'video';
+  return '';
 }
 
 function respond_(event, payload) {
