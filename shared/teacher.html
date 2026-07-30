@@ -37,7 +37,7 @@
       </nav>
 
       <section id="mission-tab" class="tab-panel">
-        <section class="rounded-2xl bg-white p-6 shadow-sm"><div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-violet-600">MISSION OVERVIEW</p><h2 class="text-lg font-black">全班任務儀表板</h2><p id="mission-note" class="mt-1 text-sm text-slate-500">綠色框線代表學生目前正在上課頁面；四格顯示各任務目前累積進度。</p></div><div id="mission-summary" class="rounded-xl bg-violet-50 px-4 py-2 text-sm font-bold text-violet-800">正在讀取名冊…</div></div><div id="mission-class-buttons" class="mt-5 flex flex-wrap gap-2" aria-label="選擇任務儀表板班級"></div><div id="mission-cards" class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div></section>
+        <section class="rounded-2xl bg-white p-6 shadow-sm"><div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-violet-600">MISSION OVERVIEW</p><h2 class="text-lg font-black">全班任務儀表板</h2><p id="mission-note" class="mt-1 text-sm text-slate-500">跟隨作業檢核的班級與當節任務設定；綠色框線代表學生目前正在上課頁面。</p></div><div id="mission-summary" class="rounded-xl bg-violet-50 px-4 py-2 text-sm font-bold text-violet-800">正在讀取名冊…</div></div><div id="mission-cards" class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"></div></section>
       </section>
 
       <section id="live-tab" class="tab-panel hidden">
@@ -100,7 +100,7 @@
     const deriveFromStudentId = value => { const studentId = String(value || '').trim(); if (!/^15[12]\d{4}$/.test(studentId)) return null; const suffix = studentId.slice(-4); const classRoom = `7${suffix.slice(0, 2)}`; if (!classes.includes(classRoom)) return null; return { studentId, classRoom, seatNo: String(Number(suffix.slice(2))), gender: studentId[2] === '1' ? '男' : '女' }; };
     const studentEmail = studentId => `${studentId}@${window.SCHOOL_APP.studentEmailDomain}`;
     let app, auth, db, unsubscribeRoster, unsubscribeProgress, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
-    let activeProgressClass = classes[0], activeRosterClass = classes[0], activeLiveClass = classes[0], activeMissionClass = classes[0], selectedAttendanceDate = taipeiDateKey(), selectedWeeklyStudentId = '';
+    let activeProgressClass = classes[0], activeRosterClass = classes[0], activeLiveClass = classes[0], selectedAttendanceDate = taipeiDateKey(), selectedWeeklyStudentId = '';
     let selectedStampUnit = stampUnits[0][0], selectedFlowchartUnit = flowchartUnits[0][0];
     let classroomEndpoint = String(classroomConfig.endpoint || '').trim(), classroomCourses = [], classroomAssignments = [], selectedClassroomCourse = null, selectedClassroomAssignment = null;
     let liveClassroomCourse = null, liveClassroomAssignments = [], liveAssignmentWork = null;
@@ -229,17 +229,17 @@
     }
     function missionTile(label, tone, value, complete) {
       const style = complete ? tone : 'border-slate-100 bg-slate-50 text-slate-400';
-      return `<div class="rounded-xl border p-2 ${style}"><p class="text-[11px] font-black">${label}</p><p class="mt-1 text-xs font-bold">${value}</p></div>`;
+      return `<div class="rounded-lg border p-1.5 ${style}"><p class="text-[10px] font-black">${label}</p><p class="mt-0.5 text-[10px] font-bold">${value}</p></div>`;
     }
     function renderMissionDashboard() {
       const container = $('mission-cards'); if (!container) return;
-      const rows = mergedProgress().filter(row => row.profile.classRoom === activeMissionClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
+      const rows = mergedProgress().filter(row => row.profile.classRoom === activeLiveClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
       const inClassCount = rows.filter(isCurrentlyInClass).length;
       const stampLabel = stampUnits.find(item => item[0] === selectedStampUnit)?.[1] || '尚未指定集章單元';
       const flowLabel = flowchartUnits.find(item => item[0] === selectedFlowchartUnit)?.[1] || '尚未指定流程圖單元';
       const assignmentLabel = liveAssignmentWork?.title || '尚未指定 Classroom 作業';
       const stateLabel = state => ({ approved: '已完成', pending: '待檢核', revision: '需補件', empty: '尚未完成' }[state] || '尚未完成');
-      $('mission-note').textContent = `${activeMissionClass} 班｜集章：${stampLabel}｜流程圖：${flowLabel}｜作業：${assignmentLabel}。綠色框線代表學生目前正在上課頁面。`;
+      $('mission-note').textContent = `${activeLiveClass} 班｜集章：${stampLabel}｜流程圖：${flowLabel}｜作業：${assignmentLabel}。綠色框線代表學生目前正在上課頁面。`;
       $('mission-summary').textContent = rows.length ? `共 ${rows.length} 人 · 上課中 ${inClassCount} 人` : '此班尚未建立名冊';
       container.innerHTML = rows.length ? rows.map(row => {
         const stamp = certificateForUnit(row, selectedStampUnit);
@@ -247,7 +247,7 @@
         const thinkingState = classroomTaskState(row, 'thinking');
         const programmingState = classroomTaskState(row, 'programming');
         const loginClass = isCurrentlyInClass(row) ? 'border-2 border-emerald-400 bg-emerald-50/40 shadow-sm' : 'border border-slate-200 bg-white';
-        return `<article class="rounded-2xl p-4 ${loginClass}"><p class="truncate text-center text-base font-black text-slate-800">${escapeHtml(row.profile.name || '未命名')}</p><div class="mt-4 grid grid-cols-2 gap-2">${missionTile('資訊生活', 'border-indigo-200 bg-indigo-50 text-indigo-800', stamp ? '已完成' : '尚未完成', Boolean(stamp))}${missionTile('運算思維', 'border-emerald-200 bg-emerald-50 text-emerald-800', stateLabel(thinkingState), thinkingState === 'approved')}${missionTile('程式設計', 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800', stateLabel(programmingState), programmingState === 'approved')}${missionTile('演算流程', 'border-amber-200 bg-amber-50 text-amber-800', flowchart ? '已完成' : '尚未完成', Boolean(flowchart))}</div></article>`;
+        return `<article class="rounded-xl p-2 ${loginClass}"><p class="truncate text-center text-sm font-black text-slate-800">${escapeHtml(row.profile.name || '未命名')}</p><div class="mt-2 grid grid-cols-2 gap-1">${missionTile('資訊生活', 'border-indigo-200 bg-indigo-50 text-indigo-800', stamp ? '已完成' : '尚未完成', Boolean(stamp))}${missionTile('運算思維', 'border-emerald-200 bg-emerald-50 text-emerald-800', stateLabel(thinkingState), thinkingState === 'approved')}${missionTile('程式設計', 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800', stateLabel(programmingState), programmingState === 'approved')}${missionTile('演算流程', 'border-amber-200 bg-amber-50 text-amber-800', flowchart ? '已完成' : '尚未完成', Boolean(flowchart))}</div></article>`;
       }).join('') : '<p class="col-span-full rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-400">此班尚未建立名冊。</p>';
     }
     function manageLiveStudent(studentId) {
@@ -357,7 +357,7 @@
     async function autoSelectLiveClassroomCourse() {
       if (!classroomCourses.length) return;
       const course = classroomCourseForClass(activeLiveClass);
-      if (!course) { liveClassroomCourse = null; liveClassroomAssignments = []; liveAssignmentWork = null; liveSubmissions = new Map(); renderLiveClassroomAssignments(); renderLiveDashboard(); $('live-classroom-course-label').textContent = `${activeLiveClass} 班找不到對應課程`; setLiveClassroomNote(`找不到名稱含「${activeLiveClass}」的 Classroom 課程。`, true); return; }
+      if (!course) { liveClassroomCourse = null; liveClassroomAssignments = []; liveAssignmentWork = null; liveSubmissions = new Map(); renderLiveClassroomAssignments(); renderLiveDashboard(); renderMissionDashboard(); $('live-classroom-course-label').textContent = `${activeLiveClass} 班找不到對應課程`; setLiveClassroomNote(`找不到名稱含「${activeLiveClass}」的 Classroom 課程。`, true); return; }
       $('live-classroom-course-label').textContent = `${course.name}${course.section ? `｜${course.section}` : ''}`;
       if (liveClassroomCourse?.id !== course.id) await selectLiveClassroomCourse(course.id);
     }
@@ -373,7 +373,8 @@
     }
     async function selectLiveClassroomCourse(courseId) {
       liveClassroomCourse = classroomCourses.find(course => course.id === courseId) || null; liveClassroomAssignments = []; liveAssignmentWork = null; liveSubmissions = new Map();
-      if (!liveClassroomCourse) { renderLiveClassroomAssignments(); renderLiveDashboard(); return; }
+      if (!liveClassroomCourse) { renderLiveClassroomAssignments(); renderLiveDashboard(); renderMissionDashboard(); return; }
+      renderMissionDashboard();
       setLiveClassroomNote('正在讀取這門課的作業…');
       try { liveClassroomAssignments = (await classroomRequest('assignments', { courseId })).assignments || []; renderLiveClassroomAssignments(); setLiveClassroomNote(`已讀取 ${liveClassroomAssignments.length} 份作業。請指定本節課要檢核的作業。`); }
       catch (error) { setLiveClassroomNote(error.message, true); }
@@ -487,8 +488,8 @@
     async function importRoster() { const lines = $('roster-import').value.split(/\r?\n/).map(line => line.trim()).filter(Boolean); const parsed = []; const invalid = []; lines.forEach((line, index) => { const [id, ...nameParts] = line.split(/[,，]/); const derived = deriveFromStudentId(id); const name = nameParts.join(',').trim(); if (!derived || !name) invalid.push(index + 1); else parsed.push({ ...derived, name }); }); if (!parsed.length) { $('import-message').textContent = '請輸入至少一筆正確的「學號,姓名」資料。'; return; } if (invalid.length && !confirm(`第 ${invalid.join('、')} 行格式不正確，將略過。是否繼續匯入其餘 ${parsed.length} 位學生？`)) return; $('import-message').textContent = '正在寫入名冊…'; try { const batch = db.batch(); parsed.forEach(row => batch.set(db.collection('rosters').doc(row.studentId), { ...row, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })); await batch.commit(); $('import-message').textContent = `已匯入或更新 ${parsed.length} 位學生。`; $('roster-import').value = ''; } catch (error) { console.error(error); $('import-message').textContent = '匯入失敗，請確認教師權限與網路。'; } }
     function subscribeData() { unsubscribeRoster?.(); unsubscribeProgress?.(); unsubscribeRoster = db.collection('rosters').onSnapshot(snapshot => { rosterRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); refreshAll(); }, () => { $('roster-note').textContent = '無法讀取名冊，請確認 Firestore Rules。'; }); unsubscribeProgress = db.collection('users').onSnapshot(snapshot => { progressRows = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })); refreshAll(); }, () => { $('progress-note').textContent = '無法讀取學習進度，請確認 Firestore Rules。'; }); }
     function showDashboard() { if (!$('dashboard-view').classList.contains('hidden')) return; $('login-view').classList.add('hidden'); $('dashboard-view').classList.remove('hidden'); subscribeData(); }
-    function classButtons(containerId, type) { const active = type === 'progress' ? activeProgressClass : (type === 'live' ? activeLiveClass : (type === 'mission' ? activeMissionClass : activeRosterClass)); const activeClass = type === 'progress' ? 'bg-emerald-600 text-white' : (type === 'live' ? 'bg-amber-500 text-white' : (type === 'mission' ? 'bg-violet-600 text-white' : 'bg-indigo-600 text-white')); $(containerId).innerHTML = classes.map(value => `<button data-class="${value}" class="class-button rounded-lg px-3 py-2 text-sm font-bold ${value === active ? activeClass : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${value}</button>`).join(''); $(containerId).querySelectorAll('.class-button').forEach(button => button.addEventListener('click', () => { if (type === 'progress') activeProgressClass = button.dataset.class; else if (type === 'live') activeLiveClass = button.dataset.class; else if (type === 'mission') activeMissionClass = button.dataset.class; else activeRosterClass = button.dataset.class; populateClasses(); refreshAll(); if (type === 'live') autoSelectLiveClassroomCourse(); })); }
-    function populateClasses() { classButtons('mission-class-buttons', 'mission'); classButtons('live-class-buttons', 'live'); classButtons('progress-class-buttons', 'progress'); classButtons('roster-class-buttons', 'roster'); }
+    function classButtons(containerId, type) { const active = type === 'progress' ? activeProgressClass : (type === 'live' ? activeLiveClass : activeRosterClass); const activeClass = type === 'progress' ? 'bg-emerald-600 text-white' : (type === 'live' ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white'); $(containerId).innerHTML = classes.map(value => `<button data-class="${value}" class="class-button rounded-lg px-3 py-2 text-sm font-bold ${value === active ? activeClass : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${value}</button>`).join(''); $(containerId).querySelectorAll('.class-button').forEach(button => button.addEventListener('click', () => { if (type === 'progress') activeProgressClass = button.dataset.class; else if (type === 'live') activeLiveClass = button.dataset.class; else activeRosterClass = button.dataset.class; populateClasses(); refreshAll(); if (type === 'live') autoSelectLiveClassroomCourse(); })); }
+    function populateClasses() { classButtons('live-class-buttons', 'live'); classButtons('progress-class-buttons', 'progress'); classButtons('roster-class-buttons', 'roster'); }
     $('live-classroom-load').addEventListener('click', loadLiveClassroomCourses);
     $('live-assignment-work').addEventListener('change', event => selectLiveAssignment(event.target.value));
     $('live-evidence-refresh').addEventListener('click', refreshLiveEvidence);
