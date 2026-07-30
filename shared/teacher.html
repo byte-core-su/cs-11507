@@ -52,7 +52,7 @@
       <section id="classroom-tab" class="tab-panel hidden">
         <section class="rounded-2xl bg-white p-6 shadow-sm">
           <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-indigo-600">GOOGLE CLASSROOM</p><h2 class="text-lg font-black">作業繳交看板</h2><p class="mt-1 max-w-2xl text-sm text-slate-500">唯讀顯示 Classroom 的課程、作業與繳交狀態；不會修改 Classroom 或學生資料。</p></div><button id="classroom-refresh" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">更新課程</button></div>
-          <div class="mt-5 rounded-xl bg-slate-50 p-4"><label class="block text-sm font-bold text-slate-700">Apps Script Web App 網址<input id="classroom-endpoint" type="url" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono text-xs outline-none focus:ring-2 focus:ring-indigo-500" placeholder="https://script.google.com/macros/s/.../exec"></label><div class="mt-3 flex flex-wrap items-center gap-3"><button id="classroom-save-endpoint" class="rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-50">儲存連線設定</button><a id="classroom-authorize" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 hover:bg-amber-100" target="_blank" rel="noopener">Google 授權</a><span id="classroom-message" class="text-sm text-slate-500">尚未設定 Classroom 連線。</span></div></div>
+          <div class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 p-4"><a id="classroom-authorize" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 hover:bg-amber-100" target="_blank" rel="noopener">Google 授權</a><span id="classroom-message" class="text-sm text-slate-500">正在載入 Classroom 連線…</span></div>
           <div class="mt-6"><h3 class="font-black">課程</h3><div id="classroom-courses" class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><p class="text-sm text-slate-400">設定連線後按「更新課程」。</p></div></div>
           <section id="classroom-workspace" class="mt-7 hidden border-t border-slate-200 pt-6"><div class="flex flex-wrap items-end justify-between gap-3"><div><p id="classroom-selected-course" class="font-black text-indigo-700"></p><h3 class="mt-1 text-lg font-black">作業與繳交狀態</h3></div><div id="classroom-assignment-select" class="flex flex-wrap gap-2"></div></div><p id="classroom-submission-note" class="mt-3 text-sm text-slate-500"></p><div class="mt-4 overflow-x-auto"><table class="w-full min-w-[760px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">繳交狀態</th><th class="p-3">最後更新</th><th class="p-3">附件</th></tr></thead><tbody id="classroom-submissions"></tbody></table></div></section>
         </section>
@@ -72,7 +72,6 @@
     const termLabel = `${term} · ${term.endsWith('-1') ? '上學期' : '下學期'}`;
     const teacherEmail = 'jimwang@mail.qfm.kh.edu.tw';
     const classroomConfig = window.LEARNING_CLASSROOM_CONFIG || {};
-    const classroomStorageKey = 'learning-platform.classroom.endpoint.v1';
     const totalTasks = 24;
     const classes = Array.from({ length: 11 }, (_, i) => `7${String(i + 1).padStart(2, '0')}`);
     const thinkingChallenges = ['重排積木', '寶箱開鎖', '畢業手鍊', '彙整遊戲卡', '班級出遊', '夜市射氣球', '團隊攀岩', '誰的帽子'];
@@ -88,7 +87,6 @@
     let app, auth, db, unsubscribeRoster, unsubscribeProgress, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
     let activeProgressClass = classes[0], activeRosterClass = classes[0], selectedAttendanceDate = taipeiDateKey();
     let classroomEndpoint = String(classroomConfig.endpoint || '').trim(), classroomCourses = [], classroomAssignments = [], selectedClassroomCourse = null, selectedClassroomAssignment = null;
-    try { classroomEndpoint = localStorage.getItem(classroomStorageKey) || classroomEndpoint; } catch (_) {}
 
     function setLoginMessage(text, error = false) { $('login-message').textContent = text; $('login-message').className = `mt-4 text-sm ${error ? 'text-rose-600' : 'text-slate-500'}`; }
     function completedTasks(row) { return Object.values(row.data.terms?.[term]?.tasks || {}).filter(Boolean).length; }
@@ -114,7 +112,6 @@
     function setClassroomMessage(text, error = false) { $('classroom-message').textContent = text; $('classroom-message').className = `text-sm ${error ? 'text-rose-600' : 'text-slate-500'}`; }
     function updateClassroomConnection() {
       const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
-      $('classroom-endpoint').value = classroomEndpoint;
       $('classroom-refresh').disabled = !endpoint;
       $('classroom-refresh').classList.toggle('opacity-50', !endpoint);
       $('classroom-authorize').classList.toggle('hidden', !endpoint);
@@ -133,7 +130,7 @@
         const script = document.createElement('script');
         const cleanup = () => { clearTimeout(timer); script.remove(); delete window[callback]; };
         const timer = setTimeout(() => { cleanup(); reject(new Error('Classroom 回應逾時，請確認部署網址與 Google 授權。')); }, 15000);
-        window[callback] = payload => { cleanup(); payload?.status === 'success' ? resolve(payload) : reject(new Error(payload?.message || 'Classroom 讀取失敗。')); };
+        window[callback] = payload => { cleanup(); if (payload?.status === 'success') return resolve(payload); const message = payload?.message === 'Classroom is not defined' ? 'Classroom 服務仍在使用舊版部署，請重新部署本專案更新後的 Apps Script。' : (payload?.message || 'Classroom 讀取失敗。'); reject(new Error(message)); };
         script.onerror = () => { cleanup(); reject(new Error('無法載入 Classroom 服務，請確認 Web App /exec 網址。')); };
         script.src = url.toString();
         document.head.appendChild(script);
@@ -259,13 +256,6 @@
     function showDashboard() { if (!$('dashboard-view').classList.contains('hidden')) return; $('login-view').classList.add('hidden'); $('dashboard-view').classList.remove('hidden'); subscribeData(); }
     function classButtons(containerId, type) { const active = type === 'progress' ? activeProgressClass : activeRosterClass; $(containerId).innerHTML = classes.map(value => `<button data-class="${value}" class="class-button rounded-lg px-3 py-2 text-sm font-bold ${value === active ? (type === 'progress' ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white') : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${value}</button>`).join(''); $(containerId).querySelectorAll('.class-button').forEach(button => button.addEventListener('click', () => { if (type === 'progress') activeProgressClass = button.dataset.class; else activeRosterClass = button.dataset.class; populateClasses(); refreshAll(); })); }
     function populateClasses() { classButtons('progress-class-buttons', 'progress'); classButtons('roster-class-buttons', 'roster'); }
-    $('classroom-save-endpoint').addEventListener('click', () => {
-      const endpoint = normalizedClassroomEndpoint($('classroom-endpoint').value);
-      if (!endpoint) { setClassroomMessage('請輸入有效的 HTTPS Web App /exec 網址。', true); return; }
-      classroomEndpoint = endpoint;
-      try { localStorage.setItem(classroomStorageKey, endpoint); } catch (_) {}
-      updateClassroomConnection();
-    });
     $('classroom-refresh').addEventListener('click', loadClassroomCourses);
     $('close-modal').addEventListener('click', closeModal); $('modal').addEventListener('click', event => { if (event.target === $('modal')) closeModal(); });
     document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'progress' ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white') : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); }));
