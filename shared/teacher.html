@@ -144,7 +144,7 @@
       const rows = mergedProgress().filter(row => row.profile.classRoom === activeLiveClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
       const imageSubmitted = rows.filter(row => Boolean(liveSubmissionFor(row, 'thinking'))).length;
       const videoSubmitted = rows.filter(row => Boolean(liveSubmissionFor(row, 'programming'))).length;
-      const diagnostic = liveEvidenceDiagnostics ? `<p class="mt-2 text-xs text-slate-500">Classroom 回傳 ${liveEvidenceDiagnostics.submissions} 位學生、${liveEvidenceDiagnostics.attachments} 個原始附件；辨識 PNG ${liveEvidenceDiagnostics.images} 個、MP4 ${liveEvidenceDiagnostics.videos} 個；成功對應 ${activeLiveClass} 班 ${liveEvidenceDiagnostics.matched} 位學生。</p>` : '<p class="mt-2 text-xs text-slate-400">選定作業後會顯示 Classroom 附件讀取診斷。</p>';
+      const diagnostic = liveEvidenceDiagnostics ? `<p class="mt-2 text-xs text-slate-500">Classroom 回傳 ${liveEvidenceDiagnostics.submissions} 位學生、${liveEvidenceDiagnostics.attachments} 個原始附件；辨識圖片 ${liveEvidenceDiagnostics.images} 個、影片 ${liveEvidenceDiagnostics.videos} 個；成功對應 ${activeLiveClass} 班 ${liveEvidenceDiagnostics.matched} 位學生。${liveEvidenceDiagnostics.unknown ? `<br>未辨識附件：${escapeHtml(liveEvidenceDiagnostics.unknown)}` : ''}</p>` : '<p class="mt-2 text-xs text-slate-400">選定作業後會顯示 Classroom 附件讀取診斷。</p>';
       $('live-evidence-summary').innerHTML = `<article class="rounded-xl border border-emerald-100 bg-white px-4 py-3"><p class="text-xs font-bold text-emerald-600">運算思維 · PNG 圖片</p><p class="mt-1 text-lg font-black text-slate-800">圖片繳交數 <span class="text-emerald-700">${imageSubmitted}</span> / ${rows.length}</p></article><article class="rounded-xl border border-fuchsia-100 bg-white px-4 py-3"><p class="text-xs font-bold text-fuchsia-600">程式設計 · MP4 影片</p><p class="mt-1 text-lg font-black text-slate-800">影片繳交數 <span class="text-fuchsia-700">${videoSubmitted}</span> / ${rows.length}</p></article><div class="sm:col-span-2">${diagnostic}</div>`;
       const cards = rows.map(row => {
         const stamp = certificateForUnit(row, selectedStampUnit);
@@ -313,7 +313,8 @@
           attachments: allAttachments.length,
           images: allAttachments.filter(item => attachmentType(item) === 'image').length,
           videos: allAttachments.filter(item => attachmentType(item) === 'video').length,
-          matched: submissions.filter(item => activeStudentIds.has(item.studentId)).length
+          matched: submissions.filter(item => activeStudentIds.has(item.studentId)).length,
+          unknown: allAttachments.filter(item => !attachmentType(item)).map(item => item.mimeType || item.source || item.name || '未知格式').slice(0, 4).join('、')
         };
         setLiveClassroomNote(`附件已更新：「${liveAssignmentWork.title}」。PNG 會列為圖片，MP4 會列為影片。`); renderLiveDashboard();
       } catch (error) { setLiveClassroomNote(error.message, true); }
