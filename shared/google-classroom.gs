@@ -186,7 +186,7 @@ function driveFileMetadataMap_(attachments) {
 }
 
 function driveFileIdFromAttachment_(attachment) {
-  const driveId = attachment && attachment.driveFile && attachment.driveFile.driveFile && attachment.driveFile.driveFile.id;
+  const driveId = attachment && attachment.driveFile && attachment.driveFile.id;
   if (driveId) return driveId;
   const url = attachment && attachment.link && attachment.link.url;
   const value = String(url || '');
@@ -198,8 +198,8 @@ function driveFileIdFromAttachment_(attachment) {
 
 function attachments_(attachments, driveFiles) {
   return (attachments || []).map(function(attachment) {
-    if (attachment.driveFile && attachment.driveFile.driveFile) {
-      const driveFile = attachment.driveFile.driveFile;
+    if (attachment.driveFile) {
+      const driveFile = attachment.driveFile;
       const metadata = (driveFiles && driveFiles[driveFile.id]) || {};
       const name = metadata.name || driveFile.title || 'Google Drive 附件';
       // alternateLink 偶爾未回傳，仍可用 Drive 檔案 ID 建立教師可開啟的連結。
