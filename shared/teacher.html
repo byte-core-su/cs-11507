@@ -174,7 +174,9 @@
     }
     const activePresenceWindowMs = 4 * 60 * 1000;
     function isCurrentlyInClass(row) {
-      const lastSeenAt = row.data.terms?.[term]?.presence?.lastSeenAt;
+      const presence = row.data.terms?.[term]?.presence || {};
+      if (presence.isActive === false) return false;
+      const lastSeenAt = presence.lastSeenAt;
       const lastSeen = lastSeenAt?.toDate?.() || (lastSeenAt ? new Date(lastSeenAt) : null);
       return Boolean(lastSeen && !Number.isNaN(lastSeen.getTime()) && Date.now() - lastSeen.getTime() <= activePresenceWindowMs);
     }
