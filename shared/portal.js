@@ -12,7 +12,22 @@ const taipeiDay = () => {
   return `${parts.year}-${parts.month}-${parts.day}`;
 };
 const courseList = config.courses.map(([title,description,href,icon,background]) => ({title,description,href,icon,background}));
-const teacherTasks = (config.teacherTasks || []).map(([id,label,rule]) => ({id,label,rule:rule || {}}));
+const unitFromLabel = label => { const text = String(label || ''); return text.match(/：\s*((?:\d-\d)|CH\d)/)?.[1] || (text.includes('第一章') ? 'CH1' : (text.includes('第二章') ? 'CH2' : '')); };
+const teacherTasks = (config.taskGroups || []).flatMap(([group, tasks], index) => {
+  const unitNumber = String(index + 1);
+  const info = tasks.find(([, label]) => String(label).startsWith('資訊')) || ['', '資訊生活'];
+  const programming = tasks.find(([, label]) => String(label).startsWith('Scratch')) || ['', '程式設計'];
+  const thinking = tasks.find(([, label]) => String(label).startsWith('運算思維')) || ['', '運算思維'];
+  const programmingTitle = String(programming[1]).replace(/^Scratch 程式設計[：:]\s*/, '');
+  const flowchartTitle = config.flowchartUnits?.[index] || programmingTitle;
+  return [
+    { id: `info-life-${unitNumber}`, group, label: info[1], rule: { source: 'certificate', unit: unitFromLabel(info[1]) } },
+    { id: `flowchart-${unitNumber}`, group, label: `演算流程：${flowchartTitle}`, rule: { source: 'flowchart', unit: unitNumber } },
+    { id: `programming-${unitNumber}`, group, label: `程式設計：${programmingTitle}`, rule: { source: 'teacher-check', task: `programming-${unitNumber}` } },
+    { id: `thinking-${unitNumber}`, group, label: thinking[1], rule: { source: 'teacher-check', task: `thinking-${unitNumber}` } }
+  ];
+});
+const taskGroups = (config.taskGroups || []).map(([title]) => ({ title, tasks: teacherTasks.filter(task => task.group === title) }));
 const total = teacherTasks.length;
 let auth, db, user, profile, termProgress = {}, teacherProgress = {}, stop = () => {}, isFinishingInitialSetup = false;
 
@@ -122,7 +137,7 @@ function showPortal() {
   const eggName = egg ? String(egg[1] || '課間小遊戲').replace(/^課間小遊戲[：:]\s*/, '') : '';
   const easterEggCard = egg && config.courseGridColumns ? `<a class="course-card easter-egg-card" href="${esc(egg[0])}" title="${esc(eggName)}" aria-label="${esc(eggName)}"><span class="easter-egg-icon" aria-hidden="true">${esc(egg[2] || '✨')}</span><span class="easter-egg-name">${esc(eggName)}</span></a>` : '';
   const easterEgg = egg && !config.courseGridColumns ? `<p style="margin:14px 2px 0;text-align:right"><a href="${esc(egg[0])}" style="color:#94a3b8;font-size:12px;font-weight:700;text-decoration:none" title="課程彩蛋">${esc(egg[2] || '✨')} ${esc(egg[1])} ↗</a></p>` : '';
-  const cardsTasks = `<article class="portal-card task-card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;border-bottom:1px solid #e2e8f0;padding-bottom:12px"><b style="color:#4f46e5">任務完成紀錄</b><span class="muted" style="font-size:12px;font-weight:800">已完成 ${completed} / ${total}</span></div>${teacherTasks.map(task => { const done = isCompleted(task); return `<div class="task-item" style="justify-content:space-between;align-items:center;border-bottom:1px solid #f1f5f9"><span>${esc(task.label)}</span><b style="white-space:nowrap;color:${done ? '#059669' : '#94a3b8'}">${done ? '已完成' : '尚未完成'}</b></div>`; }).join('')}<p class="muted" style="margin:14px 0 0;font-size:12px;line-height:1.6">資訊生活與演算流程由系統記錄；運算思維與程式設計須由教師檢核附件後標記完成。</p></article>`;
+  const cardsTasks = taskGroups.map((group, index) => { const done = group.tasks.filter(isCompleted).length; return `<article class="portal-card task-card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;border-bottom:1px solid #e2e8f0;padding-bottom:12px"><b style="color:${colors[index]}">${esc(group.title)}</b><span class="muted" style="font-size:12px;font-weight:800">${done} / ${group.tasks.length}</span></div>${group.tasks.map(task => { const done = isCompleted(task); return `<div class="task-item" style="justify-content:space-between;align-items:center;border-bottom:1px solid #f1f5f9"><span>${esc(task.label)}</span><b style="white-space:nowrap;color:${done ? '#059669' : '#94a3b8'}">${done ? '已完成' : '尚未完成'}</b></div>`; }).join('')}</article>`; }).join('') + '<p class="muted" style="grid-column:1/-1;margin:0;font-size:12px;line-height:1.6">資訊生活與演算流程由系統記錄；運算思維與程式設計須由教師檢核附件後標記完成。</p>';
   const progressPercent = total ? Math.round(completed / total * 100) : 0;
   shell(`<main class="portal-wrap"><header style="margin-bottom:34px;border-radius:28px;background:linear-gradient(135deg,#4338ca,#7c3aed);padding:30px;color:#fff;box-shadow:0 18px 32px #4f46e533"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:24px;align-items:end"><div><p class="portal-term">${esc(config.termLabel)} · LEARNING PORTAL</p><h1 style="margin:10px 0 5px;font-size:30px">資訊科技學習平台</h1><p style="margin:0;color:#e0e7ff">${esc(profile.name || '同學')} · ${esc(profile.studentId)}</p></div><div style="min-width:220px"><div style="display:flex;justify-content:space-between;font-size:14px"><span>本學期任務</span><b>${completed} / ${total}</b></div><div class="progress" style="margin-top:12px"><span style="width:${progressPercent}%"></span></div></div></div></header><section><p style="margin:0;color:#4f46e5;font-size:12px;font-weight:900;letter-spacing:.16em">COURSE CENTER</p><h2 style="margin:6px 0 18px">選擇課程開始學習</h2><div class="course-grid${config.courseGridColumns === 3 ? ' course-grid--three' : ''}">${cards}${easterEggCard}</div>${easterEgg}</section><section style="margin-top:42px"><p style="margin:0;color:#4f46e5;font-size:12px;font-weight:900;letter-spacing:.16em">MY PROGRESS</p><h2 style="margin:6px 0 6px">本學期任務進度</h2><p class="muted" style="margin:0 0 18px;font-size:14px">系統與教師確認紀錄</p><div class="task-grid">${cardsTasks}</div></section></main>`);
 }
