@@ -37,7 +37,7 @@
       </nav>
 
       <section id="mission-tab" class="tab-panel">
-        <section class="rounded-2xl bg-white p-6 shadow-sm"><div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-violet-600">MISSION OVERVIEW</p><h2 class="text-lg font-black">全班任務儀表板</h2><p id="mission-note" class="mt-1 text-sm text-slate-500">綠色框線代表學生本學期已登入；四格顯示各任務目前累積進度。</p></div><div id="mission-summary" class="rounded-xl bg-violet-50 px-4 py-2 text-sm font-bold text-violet-800">正在讀取名冊…</div></div><div id="mission-class-buttons" class="mt-5 flex flex-wrap gap-2" aria-label="選擇任務儀表板班級"></div><div id="mission-cards" class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div></section>
+        <section class="rounded-2xl bg-white p-6 shadow-sm"><div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-violet-600">MISSION OVERVIEW</p><h2 class="text-lg font-black">全班任務儀表板</h2><p id="mission-note" class="mt-1 text-sm text-slate-500">綠色框線代表學生目前正在上課頁面；四格顯示各任務目前累積進度。</p></div><div id="mission-summary" class="rounded-xl bg-violet-50 px-4 py-2 text-sm font-bold text-violet-800">正在讀取名冊…</div></div><div id="mission-class-buttons" class="mt-5 flex flex-wrap gap-2" aria-label="選擇任務儀表板班級"></div><div id="mission-cards" class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div></section>
       </section>
 
       <section id="live-tab" class="tab-panel hidden">
@@ -111,7 +111,7 @@
     function latestTermActivity(data) {
       const termData = data?.terms?.[term] || {};
       const attendance = Object.values(termData.attendance || {}).map(item => item?.loginAt);
-      const values = [data?.updatedAt, termData.updatedAt, termData.startedAt, ...attendance].filter(Boolean);
+      const values = [data?.updatedAt, termData.updatedAt, termData.startedAt, termData.presence?.lastSeenAt, ...attendance].filter(Boolean);
       const timestamp = value => value?.toMillis?.() ?? value?.toDate?.()?.getTime?.() ?? new Date(value).getTime();
       return values.sort((a, b) => timestamp(b) - timestamp(a))[0] || null;
     }
@@ -172,9 +172,11 @@
       }).join('') : '<p class="col-span-full rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-400">此班尚未建立名冊。</p>';
       container.querySelectorAll('[data-live-student]').forEach(button => button.addEventListener('click', () => manageLiveStudent(button.dataset.liveStudent)));
     }
-    function hasTermLogin(row) {
-      const termData = row.data.terms?.[term] || {};
-      return row.hasStarted || Boolean(termData.startedAt) || Object.values(termData.attendance || {}).some(item => item?.loginAt);
+    const activePresenceWindowMs = 4 * 60 * 1000;
+    function isCurrentlyInClass(row) {
+      const lastSeenAt = row.data.terms?.[term]?.presence?.lastSeenAt;
+      const lastSeen = lastSeenAt?.toDate?.() || (lastSeenAt ? new Date(lastSeenAt) : null);
+      return Boolean(lastSeen && !Number.isNaN(lastSeen.getTime()) && Date.now() - lastSeen.getTime() <= activePresenceWindowMs);
     }
     function approvedProgramCount(row) {
       return Object.entries(row.data.teacherProgress?.[term]?.liveChecks || {}).filter(([key, value]) => key.indexOf('programming') === 0 && value?.status === 'approved').length;
@@ -186,15 +188,15 @@
     function renderMissionDashboard() {
       const container = $('mission-cards'); if (!container) return;
       const rows = mergedProgress().filter(row => row.profile.classRoom === activeMissionClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
-      const loggedIn = rows.filter(hasTermLogin).length;
-      $('mission-note').textContent = `${activeMissionClass} 班｜綠色框線代表學生本學期已登入；四格為目前累積任務進度。`;
-      $('mission-summary').textContent = rows.length ? `共 ${rows.length} 人 · 已登入 ${loggedIn} 人` : '此班尚未建立名冊';
+      const inClassCount = rows.filter(isCurrentlyInClass).length;
+      $('mission-note').textContent = `${activeMissionClass} 班｜綠色框線代表目前正在上課頁面；離開或停止活動約 4 分鐘後會恢復一般框線。`;
+      $('mission-summary').textContent = rows.length ? `共 ${rows.length} 人 · 上課中 ${inClassCount} 人` : '此班尚未建立名冊';
       container.innerHTML = rows.length ? rows.map(row => {
         const stampCount = certificates(row).length;
         const thinkingCount = completedChallenges(row).length;
         const programCount = approvedProgramCount(row);
         const flowCount = Object.keys(row.data.terms?.[term]?.workflow?.flowcharts || {}).length;
-        const loginClass = hasTermLogin(row) ? 'border-2 border-emerald-400 bg-emerald-50/40 shadow-sm' : 'border border-slate-200 bg-white';
+        const loginClass = isCurrentlyInClass(row) ? 'border-2 border-emerald-400 bg-emerald-50/40 shadow-sm' : 'border border-slate-200 bg-white';
         return `<article class="rounded-2xl p-4 ${loginClass}"><p class="truncate text-center text-base font-black text-slate-800">${escapeHtml(row.profile.name || '未命名')}</p><div class="mt-4 grid grid-cols-2 gap-2">${missionTile('測驗集章', 'border-indigo-200 bg-indigo-50 text-indigo-800', `${stampCount} / 8`, stampCount > 0)}${missionTile('運算思維', 'border-emerald-200 bg-emerald-50 text-emerald-800', `${thinkingCount} / 8`, thinkingCount > 0)}${missionTile('程式設計', 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800', programCount ? `${programCount} 件已核定` : '尚未核定', programCount > 0)}${missionTile('演算流程', 'border-amber-200 bg-amber-50 text-amber-800', `${flowCount} / 8`, flowCount > 0)}</div></article>`;
       }).join('') : '<p class="col-span-full rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-400">此班尚未建立名冊。</p>';
     }

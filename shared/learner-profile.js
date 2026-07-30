@@ -78,4 +78,11 @@
     normalize,
     deriveFromStudentId
   });
+
+  // This module runs on every learner page that already loads this shared file.
+  // It records a short-lived presence signal without changing learning progress.
+  if (app?.isFirebaseConfigured?.()) {
+    const sourceUrl = global.document.currentScript?.src || global.location.href;
+    import(new URL('presence.js', sourceUrl).href).catch(error => console.warn('Unable to start class presence:', error));
+  }
 })(window);
