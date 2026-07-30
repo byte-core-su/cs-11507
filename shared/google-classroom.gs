@@ -8,12 +8,18 @@
 const TEACHER_EMAIL = 'jimwang@mail.qfm.kh.edu.tw';
 const CLASSROOM_API_ROOT = 'https://classroom.googleapis.com/v1/';
 
+// 提供給 Apps Script 編輯器直接執行，用來觸發或確認 Classroom 權限。
+function authorizeClassroom() {
+  requireTeacher_();
+  classroomGet_('courses', { teacherId: 'me', courseStates: 'ACTIVE', pageSize: 1 });
+}
+
 function doGet(event) {
   const action = String((event && event.parameter && event.parameter.action) || '').trim();
   try {
     requireTeacher_();
     if (action === 'auth') {
-      classroomGet_('courses', { teacherId: 'me', courseStates: 'ACTIVE', pageSize: 1 });
+      authorizeClassroom();
       return HtmlService.createHtmlOutput('<!doctype html><html><body style="font-family:system-ui;padding:2rem"><h2>Classroom 授權完成</h2><p>可以關閉此分頁，回到教師後台按「更新資料」。</p></body></html>');
     }
     if (action === 'courses') return respond_(event, { status: 'success', courses: getCourses_() });
