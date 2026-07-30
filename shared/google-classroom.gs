@@ -164,7 +164,7 @@ function driveFileMetadataMap_(attachments) {
   const ids = [];
   const seen = {};
   (attachments || []).forEach(function(attachment) {
-    const id = attachment && attachment.driveFile && attachment.driveFile.driveFile && attachment.driveFile.driveFile.id;
+    const id = driveFileIdFromAttachment_(attachment);
     if (id && !seen[id]) { seen[id] = true; ids.push(id); }
   });
   if (!ids.length) return {};
@@ -185,6 +185,17 @@ function driveFileMetadataMap_(attachments) {
   return files;
 }
 
+function driveFileIdFromAttachment_(attachment) {
+  const driveId = attachment && attachment.driveFile && attachment.driveFile.driveFile && attachment.driveFile.driveFile.id;
+  if (driveId) return driveId;
+  const url = attachment && attachment.link && attachment.link.url;
+  const value = String(url || '');
+  const pathMatch = value.match(/\/d\/([A-Za-z0-9_-]+)/);
+  if (pathMatch) return pathMatch[1];
+  const queryMatch = value.match(/[?&]id=([A-Za-z0-9_-]+)/);
+  return queryMatch ? queryMatch[1] : '';
+}
+
 function attachments_(attachments, driveFiles) {
   return (attachments || []).map(function(attachment) {
     if (attachment.driveFile && attachment.driveFile.driveFile) {
@@ -193,18 +204,24 @@ function attachments_(attachments, driveFiles) {
       const name = metadata.name || driveFile.title || 'Google Drive 附件';
       // alternateLink 偶爾未回傳，仍可用 Drive 檔案 ID 建立教師可開啟的連結。
       const url = metadata.webViewLink || driveFile.alternateLink || (driveFile.id ? 'https://drive.google.com/open?id=' + encodeURIComponent(driveFile.id) : '');
-      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || '') };
+      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || ''), mimeType: metadata.mimeType || '', source: 'driveFile' };
     }
-    if (attachment.link) { const name = attachment.link.title || attachment.link.url || '連結附件'; return { name: name, url: attachment.link.url || '', kind: attachmentKind_(name) }; }
-    if (attachment.youTubeVideo) return { name: attachment.youTubeVideo.title || 'YouTube 影片', url: attachment.youTubeVideo.alternateLink || '', kind: 'video' };
-    return { name: '附件', url: '', kind: '' };
+    if (attachment.link) {
+      const driveId = driveFileIdFromAttachment_(attachment);
+      const metadata = (driveFiles && driveFiles[driveId]) || {};
+      const name = metadata.name || attachment.link.title || attachment.link.url || '連結附件';
+      const url = metadata.webViewLink || attachment.link.url || '';
+      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || ''), mimeType: metadata.mimeType || '', source: 'link' };
+    }
+    if (attachment.youTubeVideo) return { name: attachment.youTubeVideo.title || 'YouTube 影片', url: attachment.youTubeVideo.alternateLink || '', kind: 'video', mimeType: 'video/youtube', source: 'youtube' };
+    return { name: '附件', url: '', kind: '', mimeType: '', source: 'unknown' };
   });
 }
 
 function attachmentKind_(name, mimeType) {
   const value = String(name || '').toLowerCase();
-  if (mimeType === 'image/png') return 'image';
-  if (mimeType === 'video/mp4') return 'video';
+  if (mimeType === 'image/png' || mimeType.indexOf('image/') === 0) return 'image';
+  if (mimeType === 'video/mp4' || mimeType.indexOf('video/') === 0) return 'video';
   if (/\.png(?:$|[?#])/.test(value)) return 'image';
   if (/\.mp4(?:$|[?#])/.test(value)) return 'video';
   return '';
