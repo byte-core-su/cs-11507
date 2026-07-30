@@ -30,14 +30,19 @@
       </header>
 
       <nav class="mb-6 flex gap-2 rounded-2xl bg-white p-2 shadow-sm" aria-label="教師功能">
-        <button data-tab="live" class="tab-button flex-1 rounded-xl bg-amber-500 px-4 py-3 font-bold text-white">即時儀表板</button>
+        <button data-tab="mission" class="tab-button flex-1 rounded-xl bg-violet-600 px-4 py-3 font-bold text-white">任務儀表板</button>
+        <button data-tab="live" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">作業檢核</button>
         <button data-tab="progress" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">學習進度</button>
         <button data-tab="roster" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">學生帳號</button>
       </nav>
 
-      <section id="live-tab" class="tab-panel">
+      <section id="mission-tab" class="tab-panel">
+        <section class="rounded-2xl bg-white p-6 shadow-sm"><div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-violet-600">MISSION OVERVIEW</p><h2 class="text-lg font-black">全班任務儀表板</h2><p id="mission-note" class="mt-1 text-sm text-slate-500">綠色框線代表學生本學期已登入；四格顯示各任務目前累積進度。</p></div><div id="mission-summary" class="rounded-xl bg-violet-50 px-4 py-2 text-sm font-bold text-violet-800">正在讀取名冊…</div></div><div id="mission-class-buttons" class="mt-5 flex flex-wrap gap-2" aria-label="選擇任務儀表板班級"></div><div id="mission-cards" class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div></section>
+      </section>
+
+      <section id="live-tab" class="tab-panel hidden">
         <section class="rounded-2xl bg-white p-6 shadow-sm">
-          <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-amber-600">LIVE CLASSROOM</p><h2 class="text-lg font-black">上課即時儀表板</h2><p id="live-note" class="mt-1 text-sm text-slate-500">從學生的本學期資料即時更新；點選學生小卡可進行教師核定。</p></div><div id="live-summary" class="rounded-xl bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800">正在讀取名冊…</div></div>
+          <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-amber-600">CLASSROOM REVIEW</p><h2 class="text-lg font-black">作業檢核</h2><p id="live-note" class="mt-1 text-sm text-slate-500">讀取指定作業的附件，開啟學生作品後由教師核定通關或標示補件。</p></div><div id="live-summary" class="rounded-xl bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800">正在讀取名冊…</div></div>
           <div class="mt-5 grid gap-4 lg:grid-cols-3"><label class="block text-sm font-bold text-slate-600">集章指定單元<select id="live-stamp-unit" class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-normal"></select></label><label class="block text-sm font-bold text-slate-600">流程圖指定單元<select id="live-flowchart-unit" class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-normal"></select></label><div class="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500"><b class="text-slate-700">任務顏色</b><br><span class="text-indigo-700">■ 集章</span>　<span class="text-emerald-700">■ 運算思維</span>　<span class="text-fuchsia-700">■ 程式設計</span>　<span class="text-amber-700">■ 流程圖</span><br>亮色為已完成／已核定；淡色為尚未完成或待檢核。</div></div>
           <div class="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-xs font-black tracking-[.14em] text-indigo-600">CLASSROOM EVIDENCE</p><p id="live-classroom-note" class="mt-1 text-sm text-slate-600">指定一份作業後，系統會自動讀取附件：PNG 作為運算思維、MP4 作為程式設計。</p></div><button id="live-classroom-load" class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">讀取對應課程</button></div><div class="mt-4 grid gap-3 md:grid-cols-2"><div><p class="text-sm font-bold text-slate-600">目前班級對應課程</p><p id="live-classroom-course-label" class="mt-1 rounded-xl border border-indigo-100 bg-white px-3 py-2 text-sm font-bold text-indigo-800">尚未讀取課程</p></div><label class="text-sm font-bold text-slate-600">指定本節課作業<select id="live-assignment-work" class="mt-1 w-full rounded-xl border border-indigo-100 bg-white px-3 py-2 font-normal"><option>請先讀取對應課程</option></select></label></div><div id="live-evidence-summary" class="mt-3 grid gap-3 sm:grid-cols-2"><div class="rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-400">圖片繳交數：—</div><div class="rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-400">影片繳交數：—</div></div><button id="live-evidence-refresh" class="mt-3 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">重新讀取這份作業的附件</button></div>
           <div id="live-class-buttons" class="mt-5 flex flex-wrap gap-2" aria-label="選擇儀表板班級"></div>
@@ -93,7 +98,7 @@
     const deriveFromStudentId = value => { const studentId = String(value || '').trim(); if (!/^15[12]\d{4}$/.test(studentId)) return null; const suffix = studentId.slice(-4); const classRoom = `7${suffix.slice(0, 2)}`; if (!classes.includes(classRoom)) return null; return { studentId, classRoom, seatNo: String(Number(suffix.slice(2))), gender: studentId[2] === '1' ? '男' : '女' }; };
     const studentEmail = studentId => `${studentId}@${window.SCHOOL_APP.studentEmailDomain}`;
     let app, auth, db, unsubscribeRoster, unsubscribeProgress, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
-    let activeProgressClass = classes[0], activeRosterClass = classes[0], activeLiveClass = classes[0], selectedAttendanceDate = taipeiDateKey();
+    let activeProgressClass = classes[0], activeRosterClass = classes[0], activeLiveClass = classes[0], activeMissionClass = classes[0], selectedAttendanceDate = taipeiDateKey();
     let selectedStampUnit = stampUnits[0][0], selectedFlowchartUnit = flowchartUnits[0][0];
     let classroomEndpoint = String(classroomConfig.endpoint || '').trim(), classroomCourses = [], classroomAssignments = [], selectedClassroomCourse = null, selectedClassroomAssignment = null;
     let liveClassroomCourse = null, liveClassroomAssignments = [], liveAssignmentWork = null;
@@ -112,7 +117,7 @@
     }
     function openModal(kicker, title, meta, content) { $('modal-kicker').textContent = kicker; $('modal-title').textContent = title; $('modal-meta').textContent = meta; $('modal-content').innerHTML = content; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); }
     function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; }
-    function refreshAll() { renderRoster(); renderProgress(); renderLiveDashboard(); }
+    function refreshAll() { renderRoster(); renderProgress(); renderLiveDashboard(); renderMissionDashboard(); }
     function certificateForUnit(row, chapterKey) {
       const source = row.data.terms?.[term]?.certificates || row.data.certificates || {};
       const entries = Array.isArray(source) ? source : Object.entries(source).map(([id, value]) => ({ id, ...(value || {}) }));
@@ -166,6 +171,32 @@
         return `<button data-live-student="${escapeHtml(row.profile.studentId)}" class="relative min-h-64 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-1 hover:border-amber-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-amber-400"><div class="flex items-start justify-between gap-2"><div class="flex items-center gap-3"><span class="grid h-12 w-12 place-items-center rounded-2xl bg-slate-800 text-lg font-black text-white">${escapeHtml(row.profile.seatNo)}</span><div><p class="font-black">${escapeHtml(row.profile.name || '未命名')}</p><p class="font-mono text-xs text-slate-500">${escapeHtml(row.profile.studentId)}</p></div></div>${leader ? '<span class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-800">★ 目前領先</span>' : ''}</div><div class="mt-4 grid grid-cols-2 gap-2 text-xs">${taskBadge('集章', 'indigo', stampState, stamp ? stamp.chapterTitle || stampLabel : '')}${taskBadge('運算思維', 'emerald', thinkingState, thinkingState === 'approved' ? '教師已核定' : (thinkingSubmission ? `已讀到 ${thinkingSubmission.attachments.length} 個附件` : '尚無附件'))}${taskBadge('程式設計', 'fuchsia', programmingState, programmingState === 'approved' ? '教師已核定' : (programmingSubmission ? `已讀到 ${programmingSubmission.attachments.length} 個附件` : '尚無附件'))}${taskBadge('流程圖', 'amber', flowState, flowchart ? flowchart.title || flowLabel : '')}</div><div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs"><span class="font-bold text-slate-500">已完成 <b class="text-slate-800">${score} / 4</b></span><span class="font-bold text-amber-700">點此查看附件並核定 →</span></div></button>`;
       }).join('') : '<p class="col-span-full rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-400">此班尚未建立名冊。</p>';
       container.querySelectorAll('[data-live-student]').forEach(button => button.addEventListener('click', () => manageLiveStudent(button.dataset.liveStudent)));
+    }
+    function hasTermLogin(row) {
+      const termData = row.data.terms?.[term] || {};
+      return row.hasStarted || Boolean(termData.startedAt) || Object.values(termData.attendance || {}).some(item => item?.loginAt);
+    }
+    function approvedProgramCount(row) {
+      return Object.entries(row.data.teacherProgress?.[term]?.liveChecks || {}).filter(([key, value]) => key.indexOf('programming') === 0 && value?.status === 'approved').length;
+    }
+    function missionTile(label, tone, value, complete) {
+      const style = complete ? tone : 'border-slate-100 bg-slate-50 text-slate-400';
+      return `<div class="rounded-xl border p-2 ${style}"><p class="text-[11px] font-black">${label}</p><p class="mt-1 text-xs font-bold">${value}</p></div>`;
+    }
+    function renderMissionDashboard() {
+      const container = $('mission-cards'); if (!container) return;
+      const rows = mergedProgress().filter(row => row.profile.classRoom === activeMissionClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
+      const loggedIn = rows.filter(hasTermLogin).length;
+      $('mission-note').textContent = `${activeMissionClass} 班｜綠色框線代表學生本學期已登入；四格為目前累積任務進度。`;
+      $('mission-summary').textContent = rows.length ? `共 ${rows.length} 人 · 已登入 ${loggedIn} 人` : '此班尚未建立名冊';
+      container.innerHTML = rows.length ? rows.map(row => {
+        const stampCount = certificates(row).length;
+        const thinkingCount = completedChallenges(row).length;
+        const programCount = approvedProgramCount(row);
+        const flowCount = Object.keys(row.data.terms?.[term]?.workflow?.flowcharts || {}).length;
+        const loginClass = hasTermLogin(row) ? 'border-2 border-emerald-400 bg-emerald-50/40 shadow-sm' : 'border border-slate-200 bg-white';
+        return `<article class="rounded-2xl p-4 ${loginClass}"><p class="truncate text-center text-base font-black text-slate-800">${escapeHtml(row.profile.name || '未命名')}</p><div class="mt-4 grid grid-cols-2 gap-2">${missionTile('測驗集章', 'border-indigo-200 bg-indigo-50 text-indigo-800', `${stampCount} / 8`, stampCount > 0)}${missionTile('運算思維', 'border-emerald-200 bg-emerald-50 text-emerald-800', `${thinkingCount} / 8`, thinkingCount > 0)}${missionTile('程式設計', 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800', programCount ? `${programCount} 件已核定` : '尚未核定', programCount > 0)}${missionTile('演算流程', 'border-amber-200 bg-amber-50 text-amber-800', `${flowCount} / 8`, flowCount > 0)}</div></article>`;
+      }).join('') : '<p class="col-span-full rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-400">此班尚未建立名冊。</p>';
     }
     function manageLiveStudent(studentId) {
       const row = mergedProgress().find(item => item.profile.studentId === studentId); if (!row) return;
@@ -400,13 +431,13 @@
     async function importRoster() { const lines = $('roster-import').value.split(/\r?\n/).map(line => line.trim()).filter(Boolean); const parsed = []; const invalid = []; lines.forEach((line, index) => { const [id, ...nameParts] = line.split(/[,，]/); const derived = deriveFromStudentId(id); const name = nameParts.join(',').trim(); if (!derived || !name) invalid.push(index + 1); else parsed.push({ ...derived, name }); }); if (!parsed.length) { $('import-message').textContent = '請輸入至少一筆正確的「學號,姓名」資料。'; return; } if (invalid.length && !confirm(`第 ${invalid.join('、')} 行格式不正確，將略過。是否繼續匯入其餘 ${parsed.length} 位學生？`)) return; $('import-message').textContent = '正在寫入名冊…'; try { const batch = db.batch(); parsed.forEach(row => batch.set(db.collection('rosters').doc(row.studentId), { ...row, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })); await batch.commit(); $('import-message').textContent = `已匯入或更新 ${parsed.length} 位學生。`; $('roster-import').value = ''; } catch (error) { console.error(error); $('import-message').textContent = '匯入失敗，請確認教師權限與網路。'; } }
     function subscribeData() { unsubscribeRoster?.(); unsubscribeProgress?.(); unsubscribeRoster = db.collection('rosters').onSnapshot(snapshot => { rosterRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); refreshAll(); }, () => { $('roster-note').textContent = '無法讀取名冊，請確認 Firestore Rules。'; }); unsubscribeProgress = db.collection('users').onSnapshot(snapshot => { progressRows = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })); refreshAll(); }, () => { $('progress-note').textContent = '無法讀取學習進度，請確認 Firestore Rules。'; }); }
     function showDashboard() { if (!$('dashboard-view').classList.contains('hidden')) return; $('login-view').classList.add('hidden'); $('dashboard-view').classList.remove('hidden'); subscribeData(); }
-    function classButtons(containerId, type) { const active = type === 'progress' ? activeProgressClass : (type === 'live' ? activeLiveClass : activeRosterClass); const activeClass = type === 'progress' ? 'bg-emerald-600 text-white' : (type === 'live' ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white'); $(containerId).innerHTML = classes.map(value => `<button data-class="${value}" class="class-button rounded-lg px-3 py-2 text-sm font-bold ${value === active ? activeClass : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${value}</button>`).join(''); $(containerId).querySelectorAll('.class-button').forEach(button => button.addEventListener('click', () => { if (type === 'progress') activeProgressClass = button.dataset.class; else if (type === 'live') activeLiveClass = button.dataset.class; else activeRosterClass = button.dataset.class; populateClasses(); refreshAll(); if (type === 'live') autoSelectLiveClassroomCourse(); })); }
-    function populateClasses() { classButtons('live-class-buttons', 'live'); classButtons('progress-class-buttons', 'progress'); classButtons('roster-class-buttons', 'roster'); }
+    function classButtons(containerId, type) { const active = type === 'progress' ? activeProgressClass : (type === 'live' ? activeLiveClass : (type === 'mission' ? activeMissionClass : activeRosterClass)); const activeClass = type === 'progress' ? 'bg-emerald-600 text-white' : (type === 'live' ? 'bg-amber-500 text-white' : (type === 'mission' ? 'bg-violet-600 text-white' : 'bg-indigo-600 text-white')); $(containerId).innerHTML = classes.map(value => `<button data-class="${value}" class="class-button rounded-lg px-3 py-2 text-sm font-bold ${value === active ? activeClass : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${value}</button>`).join(''); $(containerId).querySelectorAll('.class-button').forEach(button => button.addEventListener('click', () => { if (type === 'progress') activeProgressClass = button.dataset.class; else if (type === 'live') activeLiveClass = button.dataset.class; else if (type === 'mission') activeMissionClass = button.dataset.class; else activeRosterClass = button.dataset.class; populateClasses(); refreshAll(); if (type === 'live') autoSelectLiveClassroomCourse(); })); }
+    function populateClasses() { classButtons('mission-class-buttons', 'mission'); classButtons('live-class-buttons', 'live'); classButtons('progress-class-buttons', 'progress'); classButtons('roster-class-buttons', 'roster'); }
     $('live-classroom-load').addEventListener('click', loadLiveClassroomCourses);
     $('live-assignment-work').addEventListener('change', event => selectLiveAssignment(event.target.value));
     $('live-evidence-refresh').addEventListener('click', refreshLiveEvidence);
     $('close-modal').addEventListener('click', closeModal); $('modal').addEventListener('click', event => { if (event.target === $('modal')) closeModal(); });
-    document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'live' ? 'bg-amber-500 text-white' : (target === 'progress' ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white')) : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); }));
+    document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'mission' ? 'bg-violet-600 text-white' : (target === 'live' ? 'bg-amber-500 text-white' : (target === 'progress' ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white'))) : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); }));
     $('import-roster').addEventListener('click', importRoster);
     $('attendance-date').value = selectedAttendanceDate;
     $('attendance-date').addEventListener('change', event => { selectedAttendanceDate = event.target.value || taipeiDateKey(); renderProgress(); });
