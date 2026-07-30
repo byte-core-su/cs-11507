@@ -124,7 +124,9 @@ function listStudents_(courseId) {
 }
 
 function studentIdFromEmail_(email) {
-  const match = String(email || '').match(/^qfm(15[12]\d{4})@mail\.qfm\.kh\.edu\.tw$/i);
+  // Classroom 可能使用校務信箱 qfm1510101@…，也可能使用平台登入帳號
+  // 1510101@students.jimwang-4b0ca.firebaseapp.com；兩者皆以學號對應名冊。
+  const match = String(email || '').match(/(15[12]\d{4})/);
   return match ? match[1] : '';
 }
 
