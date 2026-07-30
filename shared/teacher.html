@@ -235,15 +235,19 @@
       const container = $('mission-cards'); if (!container) return;
       const rows = mergedProgress().filter(row => row.profile.classRoom === activeMissionClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
       const inClassCount = rows.filter(isCurrentlyInClass).length;
-      $('mission-note').textContent = `${activeMissionClass} 班｜綠色框線代表目前正在上課頁面；離開或停止活動約 4 分鐘後會恢復一般框線。`;
+      const stampLabel = stampUnits.find(item => item[0] === selectedStampUnit)?.[1] || '尚未指定集章單元';
+      const flowLabel = flowchartUnits.find(item => item[0] === selectedFlowchartUnit)?.[1] || '尚未指定流程圖單元';
+      const assignmentLabel = liveAssignmentWork?.title || '尚未指定 Classroom 作業';
+      const stateLabel = state => ({ approved: '已完成', pending: '待檢核', revision: '需補件', empty: '尚未完成' }[state] || '尚未完成');
+      $('mission-note').textContent = `${activeMissionClass} 班｜集章：${stampLabel}｜流程圖：${flowLabel}｜作業：${assignmentLabel}。綠色框線代表學生目前正在上課頁面。`;
       $('mission-summary').textContent = rows.length ? `共 ${rows.length} 人 · 上課中 ${inClassCount} 人` : '此班尚未建立名冊';
       container.innerHTML = rows.length ? rows.map(row => {
-        const stampCount = certificates(row).length;
-        const thinkingCount = completedChallenges(row).length;
-        const programCount = approvedProgramCount(row);
-        const flowCount = Object.keys(row.data.terms?.[term]?.workflow?.flowcharts || {}).length;
+        const stamp = certificateForUnit(row, selectedStampUnit);
+        const flowchart = flowchartForUnit(row, selectedFlowchartUnit);
+        const thinkingState = classroomTaskState(row, 'thinking');
+        const programmingState = classroomTaskState(row, 'programming');
         const loginClass = isCurrentlyInClass(row) ? 'border-2 border-emerald-400 bg-emerald-50/40 shadow-sm' : 'border border-slate-200 bg-white';
-        return `<article class="rounded-2xl p-4 ${loginClass}"><p class="truncate text-center text-base font-black text-slate-800">${escapeHtml(row.profile.name || '未命名')}</p><div class="mt-4 grid grid-cols-2 gap-2">${missionTile('測驗集章', 'border-indigo-200 bg-indigo-50 text-indigo-800', `${stampCount} / 8`, stampCount > 0)}${missionTile('運算思維', 'border-emerald-200 bg-emerald-50 text-emerald-800', `${thinkingCount} / 8`, thinkingCount > 0)}${missionTile('程式設計', 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800', programCount ? `${programCount} 件已核定` : '尚未核定', programCount > 0)}${missionTile('演算流程', 'border-amber-200 bg-amber-50 text-amber-800', `${flowCount} / 8`, flowCount > 0)}</div></article>`;
+        return `<article class="rounded-2xl p-4 ${loginClass}"><p class="truncate text-center text-base font-black text-slate-800">${escapeHtml(row.profile.name || '未命名')}</p><div class="mt-4 grid grid-cols-2 gap-2">${missionTile('資訊生活', 'border-indigo-200 bg-indigo-50 text-indigo-800', stamp ? '已完成' : '尚未完成', Boolean(stamp))}${missionTile('運算思維', 'border-emerald-200 bg-emerald-50 text-emerald-800', stateLabel(thinkingState), thinkingState === 'approved')}${missionTile('程式設計', 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800', stateLabel(programmingState), programmingState === 'approved')}${missionTile('演算流程', 'border-amber-200 bg-amber-50 text-amber-800', flowchart ? '已完成' : '尚未完成', Boolean(flowchart))}</div></article>`;
       }).join('') : '<p class="col-span-full rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-400">此班尚未建立名冊。</p>';
     }
     function manageLiveStudent(studentId) {
@@ -376,7 +380,7 @@
     }
     function selectLiveAssignment(workId) {
       liveAssignmentWork = liveClassroomAssignments.find(item => item.id === workId) || null;
-      liveSubmissions = new Map(); renderLiveDashboard();
+      liveSubmissions = new Map(); renderLiveDashboard(); renderMissionDashboard();
       if (liveAssignmentWork) refreshLiveEvidence();
     }
     async function refreshLiveEvidence() {
@@ -386,7 +390,7 @@
         const response = await classroomRequest('submissions', { courseId: liveClassroomCourse.id, courseWorkId: liveAssignmentWork.id });
         const submissions = response.submissions || [];
         liveSubmissions = new Map(submissions.map(item => [item.studentId, item]));
-        setLiveClassroomNote(`附件已更新：「${liveAssignmentWork.title}」。PNG 會列為圖片，MP4 會列為影片。`); renderLiveDashboard();
+        setLiveClassroomNote(`附件已更新：「${liveAssignmentWork.title}」。PNG 會列為圖片，MP4 會列為影片。`); renderLiveDashboard(); renderMissionDashboard();
       } catch (error) { setLiveClassroomNote(error.message, true); }
       finally { $('live-evidence-refresh').disabled = false; }
     }
@@ -495,8 +499,8 @@
     $('attendance-date').addEventListener('change', event => { selectedAttendanceDate = event.target.value || taipeiDateKey(); renderProgress(); });
     $('live-stamp-unit').innerHTML = stampUnits.map(item => `<option value="${escapeHtml(item[0])}">${escapeHtml(item[1])}</option>`).join('');
     $('live-flowchart-unit').innerHTML = flowchartUnits.map(item => `<option value="${escapeHtml(item[0])}">${escapeHtml(item[1])}</option>`).join('');
-    $('live-stamp-unit').addEventListener('change', event => { selectedStampUnit = event.target.value; renderLiveDashboard(); });
-    $('live-flowchart-unit').addEventListener('change', event => { selectedFlowchartUnit = event.target.value; renderLiveDashboard(); });
+    $('live-stamp-unit').addEventListener('change', event => { selectedStampUnit = event.target.value; renderLiveDashboard(); renderMissionDashboard(); });
+    $('live-flowchart-unit').addEventListener('change', event => { selectedFlowchartUnit = event.target.value; renderLiveDashboard(); renderMissionDashboard(); });
     $('logout-button').addEventListener('click', async () => { unsubscribeRoster?.(); unsubscribeProgress?.(); await auth.signOut(); location.reload(); });
     $('login-form').addEventListener('submit', async event => { event.preventDefault(); if (!auth) return; const email = $('teacher-email').value.trim(); try { setLoginMessage('正在登入…'); const credential = await auth.signInWithEmailAndPassword(email, $('teacher-password').value); if (credential.user.email !== teacherEmail) { await auth.signOut(); throw new Error('not-teacher'); } showDashboard(); } catch (error) { console.error(error); setLoginMessage('登入失敗，請確認教師帳號、密碼與 Firestore Rules。', true); } });
     if (!config || !window.firebase) { setLoginMessage('Firebase 設定尚未完成，無法使用教師端。', true); return; }
