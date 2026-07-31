@@ -113,15 +113,16 @@
     const timestampMs = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0; };
     function weekDateKey(dateKey, weeksBefore) { const [year, month, day] = String(dateKey).split('-').map(Number); const date = new Date(Date.UTC(year, month - 1, day - (weeksBefore * 7))); return date.toISOString().slice(0, 10); }
     function dateEndMs(dateKey) { return new Date(`${dateKey}T23:59:59+08:00`).getTime(); }
+    function taskCompletedAt(item) { return item?.completedAt || item?.submittedAt || item?.reviewedAt; }
     function taskCheckByDate(row, task, unitId, cutoffMs) {
       const progress = row.data.teacherProgress?.[term] || {}; const key = `${task}-${unitId}`;
-      const events = Object.values(progress.taskHistory?.[key] || {}).filter(item => timestampMs(item?.reviewedAt) && timestampMs(item.reviewedAt) <= cutoffMs).sort((a, b) => timestampMs(b.reviewedAt) - timestampMs(a.reviewedAt));
+      const events = Object.values(progress.taskHistory?.[key] || {}).filter(item => timestampMs(taskCompletedAt(item)) && timestampMs(taskCompletedAt(item)) <= cutoffMs).sort((a, b) => timestampMs(b.reviewedAt) - timestampMs(a.reviewedAt));
       if (events.length) return events[0].status === 'approved';
       const current = progress.taskCompletions?.[key];
-      if (timestampMs(current?.reviewedAt) && timestampMs(current.reviewedAt) <= cutoffMs) return current.status === 'approved';
+      if (timestampMs(taskCompletedAt(current)) && timestampMs(taskCompletedAt(current)) <= cutoffMs) return current.status === 'approved';
       if (unitId !== '1') return false;
       const legacy = progress.taskCompletions?.[task] || Object.entries(progress.liveChecks || {}).find(([legacyKey, item]) => legacyKey.indexOf(`${task}_`) === 0 && item?.status === 'approved')?.[1];
-      return legacy?.status === 'approved' && timestampMs(legacy.reviewedAt) <= cutoffMs;
+      return legacy?.status === 'approved' && timestampMs(taskCompletedAt(legacy)) <= cutoffMs;
     }
     function taskCategoryCountsByDate(row, cutoffMs) {
       const termData = row.data.terms?.[term] || {}; const certificateSource = termData.certificates || row.data.certificates || {}; const certificatesAt = Array.isArray(certificateSource) ? certificateSource : Object.entries(certificateSource).map(([id, value]) => ({ id, ...(value || {}) }));
@@ -262,17 +263,22 @@
       openModal('即時儀表板', `${row.profile.name || '學生'}的任務檢核`, `${row.profile.classRoom} 班 ${row.profile.seatNo} 號 · ${row.profile.studentId}`, `<div class="space-y-3 text-sm"><div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-600"><b>檢核方式</b><ol class="mt-1 list-decimal space-y-1 pl-5 text-xs"><li>按下附件按鈕，在新分頁查看學生作品。</li><li>確認後回到此視窗，按「查看後，核定通關」。</li><li>不符合要求時按「需要補件」。</li></ol></div><div class="rounded-xl bg-indigo-50 p-3"><b>集章</b><p class="mt-1 text-indigo-800">${stamp ? `已完成：${escapeHtml(stamp.chapterTitle || stampUnits.find(item => item[0] === selectedStampUnit)?.[1])}` : '尚未完成指定單元'}</p></div><div class="rounded-xl bg-amber-50 p-3"><b>流程圖</b><p class="mt-1 text-amber-800">${flowchart ? `已留下完成紀錄：${escapeHtml(flowchart.title || '')}<br><span class="text-xs">${escapeHtml(formatDate(flowchart.completedAt || flowchart.exportedAt))}</span>` : '尚未留下指定單元的完成紀錄'}</p></div><div class="rounded-xl bg-emerald-50 p-3"><b>運算思維：${statusText(thinking)}</b><p class="mt-1 text-emerald-800">${escapeHtml(liveAssignmentWork?.title || '請先指定 Classroom 作業')} · 僅顯示 PNG</p>${attachmentLinks(thinkingSubmission, '圖片')}${reviewButtons('thinking', Boolean(thinkingSubmission), 'bg-emerald-600')}</div><div class="rounded-xl bg-fuchsia-50 p-3"><b>程式設計：${statusText(programming)}</b><p class="mt-1 text-fuchsia-800">${escapeHtml(liveAssignmentWork?.title || '請先指定 Classroom 作業')} · 僅顯示 MP4</p>${attachmentLinks(programmingSubmission, '影片')}${reviewButtons('programming', Boolean(programmingSubmission), 'bg-fuchsia-600')}</div><p id="live-review-message" class="text-xs text-slate-500"></p></div>`);
       document.querySelectorAll('[data-live-review]').forEach(button => button.addEventListener('click', () => saveLiveReview(row, button.dataset.liveReview, button.dataset.liveStatus)));
     }
+    function submissionCompletedAt(row, task) {
+      const submission = liveSubmissionFor(row, task);
+      const attachmentDates = (submission?.attachments || []).map(item => item?.createdAt).filter(value => timestampMs(value)).sort((a, b) => timestampMs(a) - timestampMs(b));
+      return attachmentDates[0] || submission?.updateTime || new Date().toISOString();
+    }
     async function saveLiveReview(row, task, status) {
       if (!row.id) { $('live-review-message').textContent = '這位學生尚未登入建立學習資料，暫時無法寫入教師核定。'; return; }
       const message = $('live-review-message'); message.textContent = '正在儲存核定結果…';
       try {
         const update = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-        update[`teacherProgress.${term}.liveChecks.${liveReviewKey(task)}`] = { status, reviewedAt: new Date().toISOString(), reviewedBy: teacherEmail };
-        const reviewedAt = new Date().toISOString(); const completionKey = `${task}-${selectedFlowchartUnit}`;
-        update[`teacherProgress.${term}.taskCompletions.${completionKey}`] = { status, reviewedAt, reviewedBy: teacherEmail, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
-        update[`teacherProgress.${term}.taskHistory.${completionKey}.event_${Date.now()}`] = { status, reviewedAt, reviewedBy: teacherEmail, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
+        const reviewedAt = new Date().toISOString(); const completedAt = submissionCompletedAt(row, task); const completionKey = `${task}-${selectedFlowchartUnit}`;
+        update[`teacherProgress.${term}.liveChecks.${liveReviewKey(task)}`] = { status, completedAt, reviewedAt, reviewedBy: teacherEmail };
+        update[`teacherProgress.${term}.taskCompletions.${completionKey}`] = { status, completedAt, reviewedAt, reviewedBy: teacherEmail, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
+        update[`teacherProgress.${term}.taskHistory.${completionKey}.event_${Date.now()}`] = { status, completedAt, reviewedAt, reviewedBy: teacherEmail, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
         await db.collection('users').doc(row.id).update(update);
-        message.textContent = status === 'approved' ? '已核定通關。' : '已標示為需要補件。';
+        message.textContent = status === 'approved' ? `已核定通關；成長紀錄採附件上傳時間：${formatDate(completedAt)}。` : '已標示為需要補件。';
       } catch (error) { console.error(error); message.textContent = '儲存失敗，請確認教師權限。'; }
     }
 
@@ -417,7 +423,7 @@
     function attachmentLinks(submission, expectedType) {
       const list = submission?.attachments || [];
       const icon = expectedType === '圖片' ? '🖼️' : '🎬';
-      return list.length ? `<div class="mt-3 space-y-2">${list.map((item, index) => { const url = safeExternalUrl(item.url); return url ? `<a target="_blank" rel="noopener" href="${escapeHtml(url)}" class="flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-white px-3 py-3 text-left text-indigo-800 shadow-sm transition hover:border-indigo-400 hover:bg-indigo-50"><span><b>${icon} 開啟${expectedType}附件供檢核</b><span class="mt-1 block text-xs font-normal text-slate-500">${escapeHtml(item.name || `附件 ${index + 1}`)}</span></span><span class="font-black">↗</span></a>` : `<span class="block rounded-xl bg-white px-3 py-2 text-xs text-slate-500">${escapeHtml(item.name || '附件')}</span>`; }).join('')}</div>` : '<p class="mt-2 rounded-lg bg-white/70 p-2 text-xs text-slate-500">尚未讀到附件；請回到儀表板按「重新讀取兩份作業的附件」。</p>';
+      return list.length ? `<div class="mt-3 space-y-2">${list.map((item, index) => { const url = safeExternalUrl(item.url); const createdAt = item.createdAt ? ` · 上傳：${formatDate(item.createdAt)}` : ''; return url ? `<a target="_blank" rel="noopener" href="${escapeHtml(url)}" class="flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-white px-3 py-3 text-left text-indigo-800 shadow-sm transition hover:border-indigo-400 hover:bg-indigo-50"><span><b>${icon} 開啟${expectedType}附件供檢核</b><span class="mt-1 block text-xs font-normal text-slate-500">${escapeHtml(item.name || `附件 ${index + 1}`)}${escapeHtml(createdAt)}</span></span><span class="font-black">↗</span></a>` : `<span class="block rounded-xl bg-white px-3 py-2 text-xs text-slate-500">${escapeHtml(item.name || '附件')}${escapeHtml(createdAt)}</span>`; }).join('')}</div>` : '<p class="mt-2 rounded-lg bg-white/70 p-2 text-xs text-slate-500">尚未讀到附件；請回到儀表板按「重新讀取兩份作業的附件」。</p>';
     }
 
     function renderRoster() {
