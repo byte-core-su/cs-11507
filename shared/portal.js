@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-import { EmailAuthProvider, getAuth, linkWithCredential, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { EmailAuthProvider, browserSessionPersistence, getAuth, linkWithCredential, onAuthStateChanged, setPersistence, signInAnonymously, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, doc, getDoc, onSnapshot, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 const app = window.SCHOOL_APP;
@@ -163,4 +163,9 @@ async function loadStudent(currentUser) {
   stop();
   stop = onSnapshot(doc(db,'users',user.uid), snap => { const data = snap.data() || {}; termProgress=data.terms?.[app.currentTermId] || {}; teacherProgress=data.teacherProgress?.[app.currentTermId] || {}; showPortal(); });
 }
-const firebaseApp=initializeApp(app.firebaseConfig); auth=getAuth(firebaseApp); db=getFirestore(firebaseApp); onAuthStateChanged(auth,current=>{if(current?.email && !isFinishingInitialSetup) loadStudent(current).catch(()=>showLogin('資料載入失敗，請重新登入。',true)); else if (!current && !document.getElementById('initial-code-setup')) showLogin();});
+const firebaseApp=initializeApp(app.firebaseConfig); auth=getAuth(firebaseApp); db=getFirestore(firebaseApp);
+setPersistence(auth, browserSessionPersistence).catch(error => {
+  console.error('Unable to set student session persistence.', error);
+}).finally(() => {
+  onAuthStateChanged(auth,current=>{if(current?.email && !isFinishingInitialSetup) loadStudent(current).catch(()=>showLogin('資料載入失敗，請重新登入。',true)); else if (!current && !document.getElementById('initial-code-setup')) showLogin();});
+});
