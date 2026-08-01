@@ -7,10 +7,6 @@ window.TERM_PORTAL_CONFIG = Object.freeze({
     ['演算法與流程圖', '演算法與流程圖實作。', 'project.html', '🗺️', 'linear-gradient(135deg,#10b981,#059669)'],
     ['5016B 專題實作', 'Arduino 與智慧控制專題，另含音樂創作補充單元。', '5016b.html', '🤖', 'linear-gradient(135deg,#f97316,#ef4444)']
   ],
-  preCourse: [
-    ['校務 Gmail 與 Classroom 登入', '確認校務帳號，登入 Classroom。', '../../stu_gmail_login.html', '🔐'],
-    ['帳號與密碼輸入練習', '先練習輸入信箱、密碼與 Scratch 帳號。', '../../stu_gmail_practise.html', '⌨️']
-  ],
   courseGridColumns: 3,
   easterEgg: ['line.html', '課間小遊戲：一筆畫解謎', '✏️'],
   flowchartUnits: ['5-1-1 小狗散步遊戲', '5-1-2 賽馬遊戲', '5-1-3 水族箱遊戲', '5-1-4 打擊魔鬼遊戲', '5-1-A 企鵝漫步', '5-1-B 動物大遷徙', '5-1-C 養魚遊戲', '5-1-D 獵殺魔鬼'],

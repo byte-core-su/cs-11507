@@ -7,10 +7,6 @@ window.TERM_PORTAL_CONFIG = Object.freeze({
     ['園遊會數位規劃', '從資料蒐集到成果發表。', 'project.html', '🎪', 'linear-gradient(135deg,#10b981,#0f766e)'],
     ['5016B 專題實作', '硬體模擬與系統整合。', '5016b.html', '🚇', 'linear-gradient(135deg,#0ea5e9,#2563eb)']
   ],
-  preCourse: [
-    ['校務 Gmail 與 Classroom 登入', '確認校務帳號，登入 Classroom。', '../../stu_gmail_login.html', '🔐'],
-    ['帳號與密碼輸入練習', '先練習輸入信箱、密碼與 Scratch 帳號。', '../../stu_gmail_practise.html', '⌨️']
-  ],
   courseGridColumns: 3,
   easterEgg: ['snake.html', '課間小遊戲：貪食蛇', '🐍'],
   flowchartUnits: ['2-2-3 動畫實作', '2-3-1 循序結構', '2-3-2 選擇結構', '2-3-3 重複結構', '2-3-3 密碼驗證', '2-4-1 畫正方形', '2-4-2 畫擴散方形', '2-4-3 畫旋轉正方形'],

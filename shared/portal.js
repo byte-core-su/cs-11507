@@ -12,7 +12,7 @@ const taipeiDay = () => {
   return `${parts.year}-${parts.month}-${parts.day}`;
 };
 const courseList = config.courses.map(([title,description,href,icon,background]) => ({title,description,href,icon,background}));
-const preparationList = (config.preCourse || []).map(([title,description,href,icon]) => ({title,description,href,icon}));
+const preparationList = [];
 const unitFromLabel = label => { const text = String(label || ''); return text.match(/：\s*((?:\d-\d)|CH\d)/)?.[1] || (text.includes('第一章') ? 'CH1' : (text.includes('第二章') ? 'CH2' : '')); };
 const teacherTasks = (config.taskGroups || []).flatMap(([group, tasks], index) => {
   const unitNumber = String(index + 1);
