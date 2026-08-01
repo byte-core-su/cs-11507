@@ -28,7 +28,7 @@
     const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[char]));
     function show(step) { [1,2,3,4].forEach(number => byId(`step-${number}`).classList.toggle('hidden', number !== step)); }
     function updateGenerate() { const id = byId('student-id').value.replace(/\D/g, ''); byId('student-id').value = id; byId('generate').disabled = !validId(id); byId('error').textContent = id && !validId(id) ? '請輸入目前學生使用的七碼學號，例如 1512026。' : ''; }
-    function generate() { studentId = byId('student-id').value; if (!validId(studentId)) return; prompts = [`qfm${studentId}@mail.qfm.kh.edu.tw`, `Whereisqfm${studentId}`, `qfm${studentId}`]; byId('confirm-id').textContent = `學號：${studentId}`; show(2); }
+    function generate() { studentId = byId('student-id').value; if (!validId(studentId)) return; prompts = [`qfm${studentId}@mail.qfm.kh.edu.tw`, `Hereisqfm${studentId}`, `qfm${studentId}`]; byId('confirm-id').textContent = `學號：${studentId}`; show(2); }
     function start() { level = 0; index = 0; correct = 0; wrong = 0; timeLeft = 180; show(3); updatePrompt(); byId('typing-input').focus(); clearInterval(timer); timer = setInterval(() => { timeLeft -= 1; updateTimer(); if (timeLeft <= 0) finish(); }, 1000); }
     function updateTimer() { byId('timer').textContent = `剩餘時間：${Math.max(0, timeLeft)} 秒`; }
     function updatePrompt() { const text = prompts[level] || ''; byId('prompt').innerHTML = [...text].map((char, position) => `<span class="${position < index ? 'done' : (position === index ? 'current' : '')}">${escapeHtml(char)}</span>`).join(''); byId('stats').textContent = `已輸入 ${correct + wrong} 字元｜正確 ${correct}｜錯誤 ${wrong}`; updateTimer(); renderKeyboard(); }
