@@ -15,6 +15,7 @@
 - `users/{uid}.terms.{termId}`：該學期任務、證書與成績。
 - `users/{uid}.terms.{termId}.attendance.{YYYY-MM-DD}`：學生當日登入時間；教師可依日期查詢出席。
 - `users/{uid}.terms.{termId}.usage`：本學期有效使用秒數與每次上課紀錄。登入會建立紀錄；頁面可見時每 2 分鐘累積，離開或關閉頁面則以最後活動時間結束該次紀錄。
+- 學生登入僅保留在目前瀏覽器頁籤的工作階段；關閉頁籤後重新開啟入口網，必須再次輸入驗證碼。
 - `users/{uid}.teacherProgress.{termId}`：該學期教師核定資料。
 - `users/{uid}.teacherProgress.{termId}.taskCompletions`：運算思維與程式設計由教師檢核 Classroom 附件後，依指定單元寫入的完成紀錄；`completedAt` 使用附件上傳日期，`reviewedAt` 保留教師核定日期。學生入口只能讀取，不能自行勾選或修改。
 - `users/{uid}.teacherProgress.{termId}.taskHistory`：每次附件檢核的歷史事件，供教師端依週回看 32 項任務的成長曲線；曲線以 `completedAt`（附件上傳日期）計算。
