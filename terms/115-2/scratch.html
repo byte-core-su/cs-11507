@@ -171,6 +171,7 @@
             const [referenceModalOpen, setReferenceModalOpen] = useState(false);
             const [goalCheckModalOpen, setGoalCheckModalOpen] = useState(false);
             const [goalQuestionIndex, setGoalQuestionIndex] = useState(0);
+            const [goalQuestions, setGoalQuestions] = useState([]);
             const [goalCheckFeedback, setGoalCheckFeedback] = useState('');
             const [coachModalOpen, setCoachModalOpen] = useState(false);
             const [mermaidModalOpen, setMermaidModalOpen] = useState(false);
@@ -604,19 +605,33 @@
             const coachResultFor = unit => unit ? (coachResults[unit.id] || flowchartRecords[unit.id]?.coachResult || null) : null;
             const coachPassed = unit => Boolean(unit && (Number(coachResultFor(unit)?.score) >= 85 || flowchartRecords[unit.id]?.exportedAt));
             const goalCheckPassed = unit => Boolean(unit && flowchartRecords[unit.id]?.goalCheckAt);
+            const shuffleItems = items => {
+                const copy = [...items];
+                for (let index = copy.length - 1; index > 0; index -= 1) {
+                    const target = Math.floor(Math.random() * (index + 1));
+                    [copy[index], copy[target]] = [copy[target], copy[index]];
+                }
+                return copy;
+            };
+            const shuffledGoalQuestions = unit => shuffleItems(coachLessonFor(unit)?.goalQuiz || []).map(question => {
+                const options = shuffleItems(question.options.map((text, index) => ({ text, correct: index === question.answer })));
+                return { ...question, options: options.map(item => item.text), answer: options.findIndex(item => item.correct) };
+            });
             const openGoalCheck = () => {
                 if (!selectedUnit || !referenceReads[selectedUnit.id]) return;
                 setGoalQuestionIndex(0);
+                setGoalQuestions(shuffledGoalQuestions(selectedUnit));
                 setGoalCheckFeedback('先完成三題「本單元學習重點確認」，全對後才會開放流程圖教練。');
                 setGoalCheckModalOpen(true);
             };
             const answerGoalCheck = answerIndex => {
                 if (!selectedUnit) return;
-                const questions = coachLessonFor(selectedUnit)?.goalQuiz || [];
+                const questions = goalQuestions;
                 const question = questions[goalQuestionIndex];
                 if (!question) return;
                 if (answerIndex !== question.answer) {
                     setGoalQuestionIndex(0);
+                    setGoalQuestions(shuffledGoalQuestions(selectedUnit));
                     setGoalCheckFeedback(`這一題要回看「${question.focus}」。三題需要連續全對，請從第一題再試一次。`);
                     return;
                 }
@@ -1072,7 +1087,7 @@
                         )}
 
                         {goalCheckModalOpen && selectedUnit && (() => {
-                            const question = coachLessonFor(selectedUnit)?.goalQuiz?.[goalQuestionIndex];
+                            const question = goalQuestions[goalQuestionIndex];
                             if (!question) return null;
                             return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
                                 <section className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
