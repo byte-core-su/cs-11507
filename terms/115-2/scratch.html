@@ -74,6 +74,7 @@
         let records = {};
         let firebaseUser = null;
         let db = null;
+        let saveQueue = Promise.resolve();
         let ready;
         window.FlowchartProgress = new Promise(resolve => { ready = resolve; });
         const storageKeyFor = user => `${storageKey}.${user?.uid || 'guest'}`;
@@ -104,9 +105,13 @@
         window.saveFlowchartProgress = async (unitId, record) => {
             records = { ...records, [unitId]: record };
             storeLocal();
-            if (firebaseUser && db) await setDoc(doc(db, 'users', firebaseUser.uid), {
-                terms: { [SCHOOL_APP.currentTermId]: { workflow: { flowcharts: records }, updatedAt: new Date().toISOString() } }
-            }, { merge: true });
+            const recordsToSave = records;
+            if (firebaseUser && db) {
+                saveQueue = saveQueue.catch(() => {}).then(() => setDoc(doc(db, 'users', firebaseUser.uid), {
+                    terms: { [SCHOOL_APP.currentTermId]: { workflow: { flowcharts: recordsToSave }, updatedAt: new Date().toISOString() } }
+                }, { merge: true }));
+                await saveQueue;
+            }
             return records;
         };
     </script>
@@ -165,9 +170,10 @@
             const [referenceModalOpen, setReferenceModalOpen] = useState(false);
             const [coachModalOpen, setCoachModalOpen] = useState(false);
             const [mermaidModalOpen, setMermaidModalOpen] = useState(false);
-            const [coachStepIndex, setCoachStepIndex] = useState(0);
+            const [coachRound, setCoachRound] = useState(0);
+            const [coachChoices, setCoachChoices] = useState([]);
             const [coachFeedback, setCoachFeedback] = useState('');
-            const [coachPassedUnits, setCoachPassedUnits] = useState({});
+            const [coachResults, setCoachResults] = useState({});
             const [generatingMermaid, setGeneratingMermaid] = useState(false);
             const [referenceReads, setReferenceReads] = useState(() => Object.fromEntries(Array.from({ length: 8 }, (_, index) => {
                 const id = index + 1;
@@ -487,31 +493,45 @@
                 setMermaidModalOpen(false);
             };
 
-            const coachPassed = unit => Boolean(unit && (coachPassedUnits[unit.id] || flowchartRecords[unit.id]?.exportedAt));
+            const coachBlueprint = unit => {
+                const standards = Array.from({ length: 4 }, (_, index) => unit.details[index] || `完成第 ${index + 1} 個程式動作`);
+                const prompts = ['程式開始後，第一個應安排的動作是什麼？', '完成前一步後，下一個穩定流程應是什麼？', '主要動作執行時，應如何延續流程？', '最後應如何完成這段程式流程？'];
+                return standards.map((standard, index) => ({
+                    prompt: prompts[index],
+                    options: [
+                        { route: '標準路線', label: standard, flowStep: standard, score: 25, feedback: '教練：這是標準流程，能讓程式穩定往下一步執行。' },
+                        { route: '修正路線', label: `先略過「${standard}」，稍後再補回`, flowStep: `略過「${standard}」後回頭補做`, score: 18, feedback: '教練：這條路仍可修正，但流程會多一次回頭處理。' },
+                        { route: '風險路線', label: `第 ${index + 1} 步先停止目前流程，再重新檢查`, flowStep: `第 ${index + 1} 步暫停流程並重新檢查後繼續`, score: 8, feedback: '教練：這會讓程式中斷，需要額外的恢復步驟。' }
+                    ]
+                }));
+            };
+            const coachResultFor = unit => unit ? (coachResults[unit.id] || flowchartRecords[unit.id]?.coachResult || null) : null;
+            const coachPassed = unit => Boolean(unit && (Number(coachResultFor(unit)?.score) >= 85 || flowchartRecords[unit.id]?.exportedAt));
             const openFlowchartCoach = () => {
                 if (!selectedUnit || !referenceReads[selectedUnit.id]) return;
-                const alreadyCompleted = coachPassed(selectedUnit);
-                setCoachStepIndex(alreadyCompleted ? selectedUnit.details.length : 0);
-                setCoachFeedback(alreadyCompleted ? '教練：這個單元的流程圖已完成，可以直接查看 Mermaid code。' : `教練：先想想看，${selectedUnit.description}`);
+                setCoachRound(0);
+                setCoachChoices([]);
+                setCoachFeedback(`教練：我們會走完四個不同的流程決策。每一個選擇都會保留在你的流程圖裡。`);
                 setCoachModalOpen(true);
             };
-            const answerCoach = step => {
+            const answerCoach = option => {
                 if (!selectedUnit) return;
-                const expected = selectedUnit.details[coachStepIndex];
-                if (step !== expected) {
-                    setCoachFeedback('教練：再想一下，程式要依照實際執行的先後順序安排。');
+                const nextChoices = [...coachChoices, option];
+                if (nextChoices.length >= 4) {
+                    const score = nextChoices.reduce((total, item) => total + item.score, 0);
+                    const result = { score, choices: nextChoices.map(item => ({ route: item.route, label: item.label, flowStep: item.flowStep, score: item.score })), completedAt: new Date().toISOString() };
+                    setCoachResults(current => ({ ...current, [selectedUnit.id]: result }));
+                    setFlowSteps(result.choices.map(item => item.flowStep).join('\n'));
+                    setOrderedFlowSteps(result.choices.map(item => item.flowStep));
+                    const record = { ...(flowchartRecords[selectedUnit.id] || {}), steps: result.choices.map(item => item.flowStep).join('\n'), title: selectedUnit.title, coachResult: result };
+                    window.saveFlowchartProgress(selectedUnit.id, record).then(setFlowchartRecords).catch(error => console.error(error));
+                    setCoachRound(4);
+                    setCoachFeedback(score >= 85 ? `教練：本次得分 ${score} 分，已達通關標準！` : `教練：本次得分 ${score} 分，未達 85 分；可以再次闖關刷新分數。`);
                     return;
                 }
-                const nextIndex = coachStepIndex + 1;
-                if (nextIndex >= selectedUnit.details.length) {
-                    setCoachPassedUnits(current => ({ ...current, [selectedUnit.id]: true }));
-                    setFlowSteps(selectedUnit.details.join('\n'));
-                    setOrderedFlowSteps([...selectedUnit.details]);
-                    setCoachFeedback('教練：完全正確！現在可以產生 Mermaid code，這會記錄為本單元流程圖通關。');
-                    return;
-                }
-                setCoachStepIndex(nextIndex);
-                setCoachFeedback(`教練：答對了！接著做完「${expected}」後，下一步是什麼？`);
+                setCoachChoices(nextChoices);
+                setCoachRound(nextChoices.length);
+                setCoachFeedback(`教練：你選擇了「${option.route}」。${option.feedback}`);
             };
 
             const exportFlowchartMarkdown = async (providedSteps = null) => {
@@ -521,7 +541,8 @@
                 const nodes = steps.map((step, index) => `  step${index + 1}[${step.replace(/[\[\]{}()"']/g, '')}]`);
                 const links = steps.map((_, index) => index === 0 ? '  start --> step1' : `  step${index} --> step${index + 1}`);
                 links.push(`  step${steps.length} --> end`);
-                const markdown = [`# ${selectedUnit.title}｜流程圖`, '', '## 題目說明', selectedUnit.description, '', '## 流程步驟', ...steps.map((step, index) => `${index + 1}. ${step}`), '', '## Mermaid', '```mermaid', 'flowchart TD', '  start([開始])', ...nodes, ...links, '  end([結束])', '```', '', '請將本檔案中的 Mermaid 區塊貼到 mermaid.ai 產生流程圖。'].join('\n');
+                const coachResult = coachResultFor(selectedUnit);
+                const markdown = [`# ${selectedUnit.title}｜流程圖`, '', '## 題目說明', selectedUnit.description, ...(coachResult ? ['', '## 流程圖教練成績', `${coachResult.score} / 100 分`, ...coachResult.choices.map((choice, index) => `${index + 1}. ${choice.route}：${choice.label}`)] : []), '', '## 流程步驟', ...steps.map((step, index) => `${index + 1}. ${step}`), '', '## Mermaid', '```mermaid', 'flowchart TD', '  start([開始])', ...nodes, ...links, '  end([結束])', '```', '', '請將本檔案中的 Mermaid 區塊貼到 mermaid.ai 產生流程圖。'].join('\n');
                 const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -530,7 +551,7 @@
                 link.click();
                 URL.revokeObjectURL(url);
                 try {
-                    const record = { steps: steps.join('\n'), exportedAt: new Date().toISOString(), title: selectedUnit.title };
+                    const record = { steps: steps.join('\n'), exportedAt: new Date().toISOString(), title: selectedUnit.title, coachResult: coachResultFor(selectedUnit) || null };
                     const records = await window.saveFlowchartProgress(selectedUnit.id, record);
                     setFlowchartRecords(records);
                     setFlowchartMessage('Mermaid code 已下載，流程圖任務已通關；請貼入 Mermaid AI 確認流程圖。');
@@ -552,11 +573,15 @@
             };
 
             const generateMermaidCode = async () => {
-                if (!selectedUnit || !coachPassed(selectedUnit) || generatingMermaid) return;
+                const result = coachResultFor(selectedUnit);
+                if (!selectedUnit || Number(result?.score) < 85 || generatingMermaid) return;
                 setGeneratingMermaid(true);
                 setFlowchartMessage('正在產生 Mermaid code…');
-                await exportFlowchartMarkdown(selectedUnit.details);
-                setGeneratingMermaid(false);
+                try {
+                    await exportFlowchartMarkdown(result.choices.map(item => item.flowStep));
+                } finally {
+                    setGeneratingMermaid(false);
+                }
             };
 
             const startQuiz = () => {
@@ -923,7 +948,11 @@
                             <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
                                 <section className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
                                     <header className="flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 text-white"><div><p className="text-xs font-black tracking-[.18em] text-emerald-100">FLOWCHART COACH</p><h2 className="mt-1 text-xl font-black">流程圖教練</h2></div><button type="button" onClick={() => setCoachModalOpen(false)} className="rounded-xl bg-white/15 p-2 hover:bg-white/25" aria-label="關閉"><Icons.X className="h-6 w-6" /></button></header>
-                                    <div className="p-6"><p className="text-xs font-black tracking-[.14em] text-emerald-700">第 {Math.min(coachStepIndex + 1, selectedUnit.details.length)} / {selectedUnit.details.length} 步</p><div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold leading-7 text-emerald-900"><span className="mr-2">🧭</span>{coachStepIndex >= selectedUnit.details.length ? '教練：你已完成整個流程，現在可以產生 Mermaid code。' : (coachStepIndex === 0 ? '教練：程式開始執行時，第一個步驟是什麼？' : `教練：做完「${selectedUnit.details[coachStepIndex - 1]}」後，下一步是什麼？`)}</div><div className="mt-4 grid gap-2">{selectedUnit.details.map((step, index) => <button key={step} type="button" disabled={index < coachStepIndex || coachStepIndex >= selectedUnit.details.length} onClick={() => answerCoach(step)} className={`rounded-xl border px-4 py-3 text-left text-sm font-bold transition ${index < coachStepIndex ? 'cursor-default border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-400 hover:bg-emerald-50'}`}>{index < coachStepIndex ? '✓ ' : ''}{step}</button>)}</div><p className={`mt-4 rounded-xl p-3 text-sm font-bold ${coachFeedback.includes('完全正確') || coachFeedback.includes('答對') || coachFeedback.includes('已完成') ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{coachFeedback}</p><div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => setCoachModalOpen(false)} className="rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100">稍後再說</button>{coachPassed(selectedUnit) && <button type="button" onClick={() => { setCoachModalOpen(false); setMermaidModalOpen(true); }} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700">前往產生 Mermaid code →</button>}</div></div>
+                                    <div className="p-6">
+                                        {coachRound < 4 ? <><p className="text-xs font-black tracking-[.14em] text-emerald-700">決策 {coachRound + 1} / 4</p><div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold leading-7 text-emerald-900"><span className="mr-2">🧭</span>{coachBlueprint(selectedUnit)[coachRound].prompt}</div><p className="mt-3 text-xs font-bold text-slate-500">三條路線都能繼續走完流程，但會影響最後的得分與 Mermaid 流程圖。</p><div className="mt-4 grid gap-2">{coachBlueprint(selectedUnit)[coachRound].options.map(option => <button key={option.route} type="button" onClick={() => answerCoach(option)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50"><span className="block text-xs font-black text-emerald-600">{option.route}</span><span className="mt-1 block">{option.label}</span></button>)}</div></> : <div className={`rounded-3xl border-2 p-6 text-center ${Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-emerald-50' : 'border-slate-200 bg-slate-50'}`}><p className="text-xs font-black tracking-[.2em] text-amber-700">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'FLOWCHART PASS CERTIFICATE' : 'FLOWCHART COACH RESULT'}</p><div className="mx-auto mt-4 grid h-24 w-24 place-items-center rounded-full border-4 border-amber-300 bg-white text-3xl font-black text-amber-600 shadow-sm">{coachResultFor(selectedUnit)?.score}</div><h3 className="mt-4 text-2xl font-black text-slate-800">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '流程圖教練通關證明' : '本次流程圖教練結果'}</h3><p className="mt-2 text-sm font-bold text-slate-600">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '達到 85 分通關標準，已取得產生 Mermaid code 的資格。' : '未達 85 分通關標準；再次闖關可依新路線刷新分數。'}</p><p className="mt-3 text-xs font-bold text-slate-500">完成時間：{coachResultFor(selectedUnit)?.completedAt ? new Date(coachResultFor(selectedUnit).completedAt).toLocaleString('zh-TW') : '—'}</p></div>}
+                                        <p className={`mt-4 rounded-xl p-3 text-sm font-bold ${coachFeedback.includes('得分') || coachFeedback.includes('標準') || coachFeedback.includes('修正') ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{coachFeedback}</p>
+                                        <div className="mt-5 flex flex-wrap justify-end gap-3"><button type="button" onClick={() => setCoachModalOpen(false)} className="rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100">稍後再說</button>{coachRound >= 4 && <button type="button" onClick={openFlowchartCoach} className="rounded-xl border border-emerald-300 bg-white px-5 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-50">再次闖關，刷新分數</button>}{coachRound >= 4 && Number(coachResultFor(selectedUnit)?.score) >= 85 && <button type="button" onClick={() => { setCoachModalOpen(false); setMermaidModalOpen(true); }} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700">前往產生 Mermaid code →</button>}</div>
+                                    </div>
                                 </section>
                             </div>
                         )}
