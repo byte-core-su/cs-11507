@@ -550,6 +550,7 @@
 
         const { SCHOOL_APP, LearnerProfile } = window;
         const storageKey = SCHOOL_APP.storageKeys.flowchartProgress;
+        const studentStorageKey = LearnerProfile.studentStorageKey(storageKey);
         const fields = ['title', 'input', 'steps', 'decision', 'output'];
         let firebaseUser = null;
         let db = null;
@@ -590,7 +591,7 @@
         }
         async function save(data, code) {
             const record = { ...data, mermaid: code, completedAt: new Date().toISOString() };
-            LearnerProfile.writeTermStorage(storageKey, record);
+            LearnerProfile.writeTermStorage(studentStorageKey, record);
             if (firebaseUser && db) await setDoc(doc(db, 'users', firebaseUser.uid), { terms: { [SCHOOL_APP.currentTermId]: { workflow: { flowchart: record }, updatedAt: new Date().toISOString() } } }, { merge: true });
             status(true);
             window.dispatchEvent(new CustomEvent('flowchart:completed', { detail: record }));
@@ -611,7 +612,7 @@
         element('generate-flowchart').addEventListener('click', generate);
         element('clear-flowchart').addEventListener('click', () => { fillForm({}); element('mermaid-preview').innerHTML = '<p class="pt-20 text-sm text-slate-400">填寫左側內容後，這裡會顯示你的流程圖。</p>'; element('flowchart-preview-title').textContent = '尚未建立流程圖'; message('已清除編輯內容。'); });
         window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'neutral' });
-        const local = LearnerProfile.readTermStorage(storageKey, null);
+        const local = LearnerProfile.readTermStorage(studentStorageKey, null);
         if (local?.completedAt) { fillForm(local); render(local).then(() => { status(true); message('已載入此裝置的流程圖。'); }); }
         if (SCHOOL_APP.isFirebaseConfigured()) {
             const app = getApps().length ? getApp() : initializeApp(SCHOOL_APP.firebaseConfig);

@@ -1481,9 +1481,9 @@
         function openCourseDetail(unitId) {
             if (window.LearnerProfile && window.SCHOOL_APP) {
                 const storageKey = window.SCHOOL_APP.storageKeys.elevatorUnits;
-                const opened = window.LearnerProfile.readTermStorage(storageKey, {});
+                const opened = window.LearnerProfile.readStudentTermStorage(storageKey, {});
                 opened[unitId] = true;
-                window.LearnerProfile.writeTermStorage(storageKey, opened);
+                window.LearnerProfile.writeStudentTermStorage(storageKey, opened);
             }
             const data = courseData[unitId];
             if (!data) return;

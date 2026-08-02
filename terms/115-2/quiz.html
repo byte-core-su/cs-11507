@@ -291,7 +291,7 @@
 
             <div id="record-submission-area" class="mb-6 p-4 bg-purple-900/30 border border-purple-500/50 rounded-xl hidden-screen">
                 <h3 class="text-yellow-400 font-bold mb-2">🎉 恭喜！您的分數進入前十名！</h3>
-                <p class="text-xs text-slate-300 mb-3">請輸入學號登錄英雄榜 (限7位數且15開頭)</p>
+                <p class="text-xs text-slate-300 mb-3">英雄榜會使用目前登入的學生帳號</p>
                 <div class="flex space-x-2">
                     <input type="text" id="student-id-input" placeholder="例如: 1512345" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-center font-mono focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400">
                     <button onclick="submitScoreToLeaderboard()" id="submit-score-btn" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold transition-colors shrink-0">登錄</button>
@@ -651,8 +651,10 @@
             document.getElementById('record-submission-area').classList.add('hidden-screen');
             document.getElementById('submission-success').classList.add('hidden-screen');
             document.getElementById('submit-score-btn').disabled = false;
-            document.getElementById('student-id-input').value = '';
-            document.getElementById('student-id-input').disabled = false;
+            const profile = window.LearningProfile?.get?.() || {};
+            const studentInput = document.getElementById('student-id-input');
+            studentInput.value = window.LearningProfile?.isComplete?.(profile) ? profile.studentId : '';
+            studentInput.disabled = true;
             
             showScreen('quiz');
             loadQuestion();
@@ -935,15 +937,18 @@
 
             const inputElement = document.getElementById('student-id-input');
             const errorElement = document.getElementById('submission-error');
-            const studentId = inputElement.value.trim();
-
-            // 驗證：必須是 7 位數數字，且以 15 開頭
-            const isValid = window.LearnerProfile
+            const profile = window.LearningProfile?.get?.() || {};
+            const currentUser = firebase.auth().currentUser;
+            const signedInId = String(currentUser?.email || '').split('@')[0];
+            const studentId = window.LearningProfile?.isComplete?.(profile) ? profile.studentId : '';
+            // Do not let a shared device or a manually edited field attribute a
+            // score to a different student than the Firebase-authenticated user.
+            const isValid = Boolean(currentUser && studentId === signedInId && (window.LearnerProfile
                 ? window.LearnerProfile.isValidStudentId(studentId)
-                : /^15[12]\d{4}$/.test(studentId);
+                : /^15[12]\d{4}$/.test(studentId)));
 
             if (!isValid) {
-                errorElement.textContent = "學號格式錯誤！請輸入 7 位數字且需以 15 開頭。";
+                errorElement.textContent = "找不到目前登入學生身分，請返回入口重新登入後再試。";
                 errorElement.classList.remove('hidden-screen');
                 return;
             }
@@ -971,7 +976,7 @@
                 errorElement.classList.remove('hidden-screen');
                 btn.disabled = false;
                 btn.textContent = "登錄";
-                inputElement.disabled = false;
+                inputElement.disabled = true;
             }
         }
 

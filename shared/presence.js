@@ -13,9 +13,11 @@ let isNewSession = false;
 let lastRecordedAt = 0;
 
 function currentStudentId() {
-  const savedId = window.LearnerProfile?.readLocalProfile?.()?.studentId;
   const emailId = String(currentUser?.email || '').split('@')[0];
-  const studentId = savedId || emailId;
+  const savedId = window.LearnerProfile?.readLocalProfile?.()?.studentId;
+  // Firebase Auth is authoritative.  The page-local profile is only a
+  // fallback while the portal is finishing its initial load.
+  const studentId = appSettings?.studentIdPattern?.test(emailId) ? emailId : savedId;
   return appSettings?.studentIdPattern?.test(studentId) ? studentId : '';
 }
 

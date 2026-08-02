@@ -450,9 +450,9 @@
             const handleUnitClick = (unit) => {
                 if (window.LearnerProfile && window.SCHOOL_APP) {
                     const storageKey = window.SCHOOL_APP.storageKeys.scratchUnits;
-                    const unlocked = window.LearnerProfile.readTermStorage(storageKey, {});
+                    const unlocked = window.LearnerProfile.readStudentTermStorage(storageKey, {});
                     unlocked[unit.id] = true;
-                    window.LearnerProfile.writeTermStorage(storageKey, unlocked);
+                    window.LearnerProfile.writeStudentTermStorage(storageKey, unlocked);
                 }
                 setSelectedUnit(unit);
                 setIsVideoPlaying(false);

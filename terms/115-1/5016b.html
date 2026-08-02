@@ -883,16 +883,10 @@
             }
         }
 
-        const openedUnitStorageKey = '5016b-project.115-1.opened-units.v1';
-        const legacyOpenedUnitStorageKey = '5016b-project.opened-units.v1';
+        const openedUnitStorageKey = window.LearnerProfile.studentStorageKey(window.SCHOOL_APP.storageKeys.elevatorUnits);
         let openedUnitIds = (() => {
             try {
-                const legacy = localStorage.getItem(legacyOpenedUnitStorageKey);
-                const saved = JSON.parse(localStorage.getItem(openedUnitStorageKey) || legacy || '[]');
-                if (!localStorage.getItem(openedUnitStorageKey) && legacy) {
-                    localStorage.setItem(openedUnitStorageKey, JSON.stringify(saved));
-                    localStorage.removeItem(legacyOpenedUnitStorageKey);
-                }
+                const saved = window.LearnerProfile.readTermStorage(openedUnitStorageKey, []);
                 return Array.isArray(saved) ? saved.filter(Number.isInteger) : [];
             } catch {
                 return [];
@@ -910,7 +904,7 @@
         function markUnitOpened(unitId) {
             if (!openedUnitIds.includes(Number(unitId))) {
                 openedUnitIds.push(Number(unitId));
-                localStorage.setItem(openedUnitStorageKey, JSON.stringify(openedUnitIds));
+                window.LearnerProfile.writeTermStorage(openedUnitStorageKey, openedUnitIds);
             }
             renderOpenedUnitProgress();
         }
