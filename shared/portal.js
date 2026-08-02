@@ -7,6 +7,7 @@ const config = window.TERM_PORTAL_CONFIG;
 const root = document.getElementById('portal-root');
 const colors = ['#4f46e5','#0284c7','#db2777','#059669','#7c3aed','#ea580c','#0f766e','#e11d48'];
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+const duplicateLoginNotice = new URLSearchParams(window.location.search).get('duplicateLogin') === '1';
 const taipeiDay = () => {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts().filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
   return `${parts.year}-${parts.month}-${parts.day}`;
@@ -161,16 +162,18 @@ async function loadStudent(currentUser) {
     await signOut(auth);
     throw error;
   }
-  window.dispatchEvent(new Event('portal:authenticated'));
   const now = new Date();
   if (auth.currentUser?.uid !== currentUser.uid) return;
+  const remoteSessionId = window.LearnerProfile?.rotateRemoteSessionId?.() || '';
   await setDoc(doc(db,'users',user.uid), {
     studentId:id,
     profile,
     identity:{provider:'student-email',studentId:id},
+    activeSession:{id:remoteSessionId,startedAt:now},
     updatedAt:now,
     terms:{[app.currentTermId]:{startedAt:now,updatedAt:now,attendance:{[taipeiDay()]:{loginAt:now}}}}
   }, {merge:true});
+  window.dispatchEvent(new Event('portal:authenticated'));
   stop();
   stop = onSnapshot(doc(db,'users',user.uid), snap => { const data = snap.data() || {}; termProgress=data.terms?.[app.currentTermId] || {}; teacherProgress=data.teacherProgress?.[app.currentTermId] || {}; showPortal(); });
 }
@@ -178,5 +181,5 @@ const firebaseApp=initializeApp(app.firebaseConfig); auth=getAuth(firebaseApp); 
 setPersistence(auth, browserSessionPersistence).catch(error => {
   console.error('Unable to set student session persistence.', error);
 }).finally(() => {
-  onAuthStateChanged(auth,current=>{if(current?.email && !isFinishingInitialSetup) loadStudent(current).catch(error=>showLogin(error?.message === 'browser-student-lock' ? `此瀏覽器目前正在使用學號 ${error.activeStudentId || '其他學生'}。請先關閉該學生的所有課程分頁後再登入。` : '資料載入失敗，請重新登入。',true)); else if (!current && !document.getElementById('initial-code-setup')) showLogin();});
+  onAuthStateChanged(auth,current=>{if(current?.email && !isFinishingInitialSetup) loadStudent(current).catch(error=>showLogin(error?.message === 'browser-student-lock' ? `此瀏覽器目前正在使用學號 ${error.activeStudentId || '其他學生'}。請先關閉該學生的所有課程分頁後再登入。` : '資料載入失敗，請重新登入。',true)); else if (!current && !document.getElementById('initial-code-setup')) showLogin(duplicateLoginNotice ? '此帳號已在其他裝置登入，為保護學習紀錄，請重新登入後再使用。' : '', duplicateLoginNotice);});
 });

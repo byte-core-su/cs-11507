@@ -1,16 +1,19 @@
 /* Lightweight, shared "currently in class" signal for the teacher dashboard. */
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-import { deleteField, doc, getFirestore, increment, serverTimestamp, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { deleteField, doc, getFirestore, increment, onSnapshot, serverTimestamp, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 const appSettings = window.SCHOOL_APP;
 const heartbeatIntervalMs = 2 * 60 * 1000;
 const sessionKey = `learning-platform.${appSettings?.currentTermId || 'term'}.usage-session.v1`;
 let currentUser = null;
 let firestore = null;
+let authInstance = null;
 let sessionId = '';
 let isNewSession = false;
 let lastRecordedAt = 0;
+let stopRemoteSessionWatch = () => {};
+let duplicateLoginDetected = false;
 
 function currentStudentId() {
   const emailId = String(currentUser?.email || '').split('@')[0];
@@ -34,6 +37,27 @@ function getSessionId() {
     try { window.sessionStorage.setItem(sessionKey, JSON.stringify({ id: sessionId })); } catch (_) { /* Keep the in-memory ID. */ }
   }
   return sessionId;
+}
+
+async function handleDuplicateLogin() {
+  if (duplicateLoginDetected) return;
+  duplicateLoginDetected = true;
+  try {
+    window.LearnerProfile?.endSession?.();
+    if (authInstance) await signOut(authInstance);
+  } catch (_) { /* The redirect still protects this page. */ }
+  const root = appSettings?.rootPath || './';
+  window.location.replace(`${root}index.html?duplicateLogin=1`);
+}
+
+function watchRemoteSession() {
+  stopRemoteSessionWatch();
+  if (!currentUser || !firestore || !window.LearnerProfile?.hasActiveSession?.()) return;
+  stopRemoteSessionWatch = onSnapshot(doc(firestore, 'users', currentUser.uid), snapshot => {
+    const remoteId = snapshot.data()?.activeSession?.id;
+    const localId = window.LearnerProfile?.getRemoteSessionId?.();
+    if (remoteId && localId && remoteId !== localId) handleDuplicateLogin();
+  }, error => console.warn('Unable to verify single-login session:', error));
 }
 
 async function recordClassActivity({ closing = false } = {}) {
@@ -81,12 +105,19 @@ async function recordClassActivity({ closing = false } = {}) {
 if (appSettings?.isFirebaseConfigured?.()) {
   const firebaseApp = getApps().length ? getApp() : initializeApp(appSettings.firebaseConfig);
   const auth = getAuth(firebaseApp);
+  authInstance = auth;
   firestore = getFirestore(firebaseApp);
   onAuthStateChanged(auth, user => {
     currentUser = user;
-    if (user) recordClassActivity();
+    if (user) {
+      recordClassActivity();
+      watchRemoteSession();
+    } else {
+      stopRemoteSessionWatch();
+      stopRemoteSessionWatch = () => {};
+    }
   });
-  window.addEventListener('portal:authenticated', () => recordClassActivity());
+  window.addEventListener('portal:authenticated', () => { recordClassActivity(); watchRemoteSession(); });
   window.addEventListener('focus', () => recordClassActivity());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') recordClassActivity();

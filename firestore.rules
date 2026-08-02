@@ -51,6 +51,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['studentId', 'score', 'timestamp'])
         && request.resource.data.studentId is string
         && request.resource.data.studentId.matches('^15[0-9]{5}$')
+        && request.auth.token.email == request.resource.data.studentId + '@students.jimwang-4b0ca.firebaseapp.com'
         && request.resource.data.score is int
         && request.resource.data.score >= 0
         && request.resource.data.score <= 200000;
