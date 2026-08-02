@@ -77,6 +77,8 @@ rosters/{studentId}
 
 名冊是儀表板的人數基準。學生尚未繳交、尚未登入時，仍應可列在教師端；但「教師核定」要寫入 `users/{uid}`，因此學生至少要曾登入一次，建立自己的使用者文件。
 
+流程圖的瀏覽器快取必須以「學期＋Firebase UID」作為鍵，例如 `flowchart-workshop.115-1.progress.v1.{uid}`。不可只用學期作為鍵，否則同一台電腦更換學生登入時，會誤讀前一位學生的本機通關紀錄。
+
 ### 4.2 學生使用者文件
 
 ```text
@@ -299,4 +301,3 @@ https://www.googleapis.com/auth/script.external_request
 - `pagehide` 不能保證每次都完成網路寫入，因此上課中狀態採「離開事件 + 最後心跳時間」雙重判斷。
 - 目前只辨識圖片與影片。若新專案要收 PDF、Scratch 分享連結或 Google 文件，可擴充 `attachmentKind_()` 與 `attachmentType()`，並為每種檔案建立獨立任務規則。
 - 若需要教師可核定「尚未登入平台」的學生，應改成以 `studentId` 為鍵的教師進度集合，或建立受控的伺服器端寫入流程；目前架構刻意只允許在學生自己的 `users/{uid}` 上寫入。
-
