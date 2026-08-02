@@ -581,19 +581,25 @@
             const referenceForConcept = concept => window.FlowchartCoachData?.references?.[concept] || '流程圖參考文件：請辨認這個積木在流程中的角色。';
             const coachBlueprint = unit => {
                 const lesson = coachLessonFor(unit);
-                if (lesson?.rounds?.length) return lesson.rounds.map(entry => ({
+                if (lesson?.rounds?.length) return lesson.rounds.map((entry, roundIndex) => ({
                     prompt: entry.prompt,
                     concept: entry.concept,
                     reference: referenceForConcept(entry.concept),
-                    options: entry.options.map((choice, index) => ({
+                    options: entry.options.map((choice, index) => {
+                        const rule = window.FlowchartCoachData?.scoring?.[unit.id]?.[roundIndex];
+                        const score = rule ? Math.max(0, rule.weight - (rule.deductions[index] || 0)) : choice.score;
+                        return {
                         route: `方案 ${String.fromCharCode(65 + index)}`,
                         label: choice.text,
                         flowStep: choice.text,
-                        score: choice.score,
+                        score,
+                        weight: rule?.weight || choice.score,
+                        critical: Boolean(rule?.criticalOptions?.includes(index)),
                         feedback: `教練：${choice.note}`,
                         concept: entry.concept,
                         reference: referenceForConcept(entry.concept)
-                    }))
+                        };
+                    })
                 }));
                 const standards = Array.from({ length: 4 }, (_, index) => unit.flowchartSteps?.[index] || unit.details[index] || `完成第 ${index + 1} 個程式動作`);
                 return standards.map((standard, index) => ({ prompt: `流程圖中，哪個安排最符合第 ${index + 1} 個程式重點？`, concept: 'process', reference: referenceForConcept('process'), options: [
@@ -659,15 +665,17 @@
                 if (!selectedUnit) return;
                 const nextChoices = [...coachChoices, option];
                 if (nextChoices.length >= 4) {
-                    const score = nextChoices.reduce((total, item) => total + item.score, 0);
-                    const result = { score, choices: nextChoices.map(item => ({ route: item.route, label: item.label, flowStep: item.flowStep, score: item.score, concept: item.concept })), completedAt: new Date().toISOString() };
+                    const rawScore = nextChoices.reduce((total, item) => total + item.score, 0);
+                    const hasCriticalIssue = nextChoices.some(item => item.critical);
+                    const score = hasCriticalIssue ? Math.min(rawScore, 84) : rawScore;
+                    const result = { score, rawScore, hasCriticalIssue, choices: nextChoices.map(item => ({ route: item.route, label: item.label, flowStep: item.flowStep, score: item.score, weight: item.weight, critical: item.critical, concept: item.concept })), completedAt: new Date().toISOString() };
                     setCoachResults(current => ({ ...current, [selectedUnit.id]: result }));
                     setFlowSteps(result.choices.map(item => item.flowStep).join('\n'));
                     setOrderedFlowSteps(result.choices.map(item => item.flowStep));
                     const record = { ...(flowchartRecords[selectedUnit.id] || {}), steps: (selectedUnit.flowchartSteps || result.choices.map(item => item.flowStep)).join('\n'), title: selectedUnit.title, coachResult: result, source: 'hint-code-flowchart' };
                     window.saveFlowchartProgress(selectedUnit.id, record).then(setFlowchartRecords).catch(error => console.error(error));
                     setCoachRound(4);
-                    setCoachFeedback(score >= 85 ? `教練：本次得分 ${score} 分，已達通關標準！` : `教練：本次得分 ${score} 分，未達 85 分；可以再次闖關刷新分數。`);
+                    setCoachFeedback(score >= 85 ? `教練：本次得分 ${score} 分，核心任務條件完整，已達通關標準！` : (hasCriticalIssue ? `教練：本次得分 ${score} 分；有一項核心任務條件未成立，因此不能通關。` : `教練：本次得分 ${score} 分，未達 85 分；可以再次闖關刷新分數。`));
                     return;
                 }
                 setCoachChoices(nextChoices);
@@ -683,7 +691,7 @@
                 const sourceMermaid = selectedUnit.flowchartMermaid || ['flowchart TD', '  start([開始])', ...steps.map((step, index) => `  step${index + 1}[${step.replace(/[\[\]{}()"']/g, '')}]`), ...steps.map((_, index) => index === 0 ? '  start --> step1' : `  step${index} --> step${index + 1}`), `  step${steps.length} --> end`, '  end([結束])'].join('\n');
                 const coachTrail = coachResult ? ['  subgraph coachTrail[本次教練選擇]', '    coachStart([開始討論])', ...coachResult.choices.map((choice, index) => `    coach${index + 1}[${choice.route}：${choice.label.replace(/[\[\]{}()"']/g, '')}]`), ...coachResult.choices.map((_, index) => index === 0 ? '    coachStart --> coach1' : `    coach${index} --> coach${index + 1}`), `    coach${coachResult.choices.length} --> coachEnd([完成討論])`, '  end'].join('\n') : '';
                 const mermaidCode = [sourceMermaid, coachTrail].filter(Boolean).join('\n');
-                const markdown = [`# ${selectedUnit.title}｜流程圖`, '', '## 題目說明', selectedUnit.description, ...(coachResult ? ['', '## 流程圖教練成績', `${coachResult.score} / 100 分`, ...coachResult.choices.map((choice, index) => `${index + 1}. ${choice.route}：${choice.label}`)] : []), '', '## 程式結構重點', ...steps.map((step, index) => `${index + 1}. ${step}`), '', '## Mermaid', '```mermaid', mermaidCode, '```', '', '本 Mermaid 依照本關「解題提示挑戰」的積木結構整理；請貼到 mermaid.ai 產生流程圖。'].join('\n');
+                const markdown = [`# ${selectedUnit.title}｜流程圖`, '', '## 題目說明', selectedUnit.description, ...(coachResult ? ['', '## 流程圖教練成績', `${coachResult.score} / 100 分${coachResult.hasCriticalIssue ? '（核心任務條件未成立）' : ''}`, ...coachResult.choices.map((choice, index) => `${index + 1}. ${choice.route}：${choice.label}（${choice.score} / ${choice.weight || choice.score} 分${choice.critical ? '；核心條件' : ''}）`)] : []), '', '## 程式結構重點', ...steps.map((step, index) => `${index + 1}. ${step}`), '', '## Mermaid', '```mermaid', mermaidCode, '```', '', '本 Mermaid 依照本關「解題提示挑戰」的積木結構整理；請貼到 mermaid.ai 產生流程圖。'].join('\n');
                 const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
