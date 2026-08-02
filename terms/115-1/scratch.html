@@ -176,7 +176,7 @@
             const shuffledFlowSteps = unit => {
                 const completed = flowchartRecords[unit.id]?.steps?.split(/\r?\n/).map(step => step.trim()).filter(Boolean);
                 if (completed?.length) return completed;
-                return shuffleArray(unit.details);
+                return shuffleArray(unit.flowchartSteps || unit.details);
             };
 
             useEffect(() => {
@@ -213,6 +213,13 @@
                         "結合移動與造型切換的動畫設計",
                         "角色初始位置（座標）設定"
                     ],
+                    flowchartSteps: [
+                        "綠旗開始：設定角色的初始座標與造型",
+                        "廣播開始動畫的訊息",
+                        "角色接收訊息後，依序說出對話並等待",
+                        "重複執行：移動角色、切換下一個造型、等待",
+                        "完成本段角色動畫"
+                    ],
                     projectLink: "https://scratch.mit.edu/projects/1311944607",
                     uploadLinks: [
                         "imgs/2-2-3(1).png",
@@ -239,6 +246,13 @@
                         "加法與除法計算(數學運算積木)",
                         "將文字與計算結果合併顯示(字串組合積木)"
                     ],
+                    flowchartSteps: [
+                        "綠旗開始，準備計算三筆成績的平均",
+                        "依序詢問三筆成績，並把答覆存入變數",
+                        "將三筆成績相加",
+                        "將總分除以 3，存入平均分數變數",
+                        "組合文字與平均分數，說出計算結果"
+                    ],
                     projectLink: "https://scratch.mit.edu/projects/1311945397",
                     uploadLinks: [
                         "imgs/2-3-1.png"
@@ -264,6 +278,13 @@
                         "將文字與最終計算結果合併(字串組合積木的應用)",
                         "根據成績高低判斷並說出「及格」或「不及格」(「如果⋯那麼⋯否則」條件判斷)"
                     ],
+                    flowchartSteps: [
+                        "綠旗開始，依序取得作業、測驗與平時成績",
+                        "將每一筆成績存入對應變數",
+                        "依權重計算總成績",
+                        "判斷總成績是否達到及格標準",
+                        "顯示總成績與「及格」或「不及格」結果"
+                    ],
                     projectLink: "https://scratch.mit.edu/projects/1311945438",
                     uploadLinks: [
                         "imgs/2-3-2.png"
@@ -288,6 +309,13 @@
                         "根據輸入的數字決定計算次數(「重複執行」迴圈積木)",
                         "讓數字依序遞增並將每次的數值加總(變數改變與數學累加)",
                         "讓數字依序遞增並將每次的數值連續相乘(變數改變與數學運算)"
+                    ],
+                    flowchartSteps: [
+                        "綠旗開始：將計數、總和與乘積設為初始值",
+                        "詢問使用者要計算到哪一個數字 N",
+                        "重複執行直到計數超過 N",
+                        "在迴圈中更新總和或乘積，並讓計數加 1",
+                        "顯示最後的計算結果"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311945515",
                     uploadLinks: [
@@ -315,6 +343,13 @@
                         "記錄輸入錯誤的次數並重新要求輸入(變數數值遞增)",
                         "根據最終結果判定登入成功或帳號鎖定(「如果⋯那麼⋯否則」條件判斷)"
                     ],
+                    flowchartSteps: [
+                        "綠旗開始：設定正確密碼，並將錯誤次數設為 0",
+                        "重複詢問密碼，直到密碼正確或錯誤達 3 次",
+                        "判斷輸入密碼是否正確",
+                        "若錯誤，讓錯誤次數加 1 後再次詢問",
+                        "結束後顯示登入成功或帳號鎖定"
+                    ],
                     projectLink: "https://scratch.mit.edu/projects/1311945472",
                     uploadLinks: [
                         "imgs/2-3-3(3).png"
@@ -339,6 +374,13 @@
                         "設定角色繪圖的起始位置與面朝方向(座標與方向)",
                         "控制角色移動固定長度與旋轉特定角度(移動與右轉)",
                         "運用迴圈重複繪圖動作並加入延遲以觀察過程(重複與等待)"
+                    ],
+                    flowchartSteps: [
+                        "綠旗開始：清除筆跡，移到起點並設定方向",
+                        "下筆，準備繪圖",
+                        "重複 4 次：移動固定步數後右轉 90 度",
+                        "每畫完一邊可等待片刻觀察過程",
+                        "停筆，完成正方形"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311945612",
                     uploadLinks: [
@@ -365,6 +407,13 @@
                         "在迴圈中不斷遞增變數的數值(變數改變與「重複」迴圈)",
                         "根據變數數值決定移動長度(移動、變數、右轉綜合運用)"
                     ],
+                    flowchartSteps: [
+                        "綠旗開始：清除筆跡，移到起點並設定方向",
+                        "設定線段長度的初始值並下筆",
+                        "重複繪圖：依目前長度移動後右轉 90 度",
+                        "每次迴圈讓線段長度增加固定數值",
+                        "重複足夠次數後停筆，完成擴散方形"
+                    ],
                     projectLink: "https://scratch.mit.edu/projects/1311945906",
                     uploadLinks: [
                         "imgs/2-4-2.png"
@@ -390,6 +439,13 @@
                         "運用外層迴圈讓圖形產生旋轉排列效果(「巢狀迴圈」)",
                         "結合幾何角度計算完成複雜的對稱圖案(次數乘角度等於360度)"
                     ],
+                    flowchartSteps: [
+                        "綠旗開始：清除筆跡，移到起點並設定方向",
+                        "開始外層迴圈，決定要畫幾個旋轉方形",
+                        "在內層迴圈重複 4 次：移動後右轉 90 度，畫出一個正方形",
+                        "每完成一個正方形，依設定角度旋轉方向",
+                        "外層迴圈結束後，完成對稱旋轉圖案"
+                    ],
                     projectLink: "https://scratch.mit.edu/projects/1311946163",
                     uploadLinks: [
                         "imgs/2-4-3.png"
@@ -410,7 +466,7 @@
                 setIsQuizModalOpen(false);
                 setCurrentHintIndex(0); // 重置圖片索引
                 setOrderedFlowSteps(shuffledFlowSteps(unit));
-                setFlowchartMessage(flowchartRecords[unit.id]?.completedAt ? '✓ 已完成本單元流程圖任務。' : '依程式執行的先後，排列本單元的學習重點。');
+                setFlowchartMessage(flowchartRecords[unit.id]?.completedAt ? '✓ 已完成本單元流程圖任務。' : '依解題提示中的程式設計概念，排列實作前的流程圖步驟。');
                 window.scrollTo(0, 0);
             };
 
@@ -440,13 +496,14 @@
 
             const completeFlowchartTask = async () => {
                 if (!selectedUnit) return;
-                const correct = selectedUnit.details.every((step, index) => orderedFlowSteps[index] === step);
+                const flowchartSteps = selectedUnit.flowchartSteps || selectedUnit.details;
+                const correct = flowchartSteps.every((step, index) => orderedFlowSteps[index] === step);
                 if (!correct) {
-                    setFlowchartMessage('順序還不正確，請依程式執行的先後重新排列。');
+                    setFlowchartMessage('順序還不正確，請依解題提示中的程式執行邏輯重新排列。');
                     return;
                 }
                 try {
-                    const record = { steps: selectedUnit.details.join('\n'), completedAt: new Date().toISOString(), title: selectedUnit.title };
+                    const record = { steps: flowchartSteps.join('\n'), completedAt: new Date().toISOString(), title: selectedUnit.title, source: 'hint-code-flowchart' };
                     const records = await window.saveFlowchartProgress(selectedUnit.id, record);
                     setFlowchartRecords(records);
                     setFlowchartMessage('✓ 順序正確！已完成本單元流程圖任務。');
@@ -746,7 +803,7 @@
                                         <div className="lg:col-span-1 space-y-6">
                                             <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
                                                 <div className="flex items-center gap-3"><div className="rounded-lg bg-emerald-100 p-2 text-xl">🗺️</div><div><p className="text-xs font-black tracking-[.16em] text-emerald-700">STEP 1 · FLOWCHART</p><h3 className="font-black text-slate-800">先完成流程圖任務</h3></div></div>
-                                                <p className="mt-4 text-sm leading-6 text-slate-600">依照本單元的學習重點，將下列步驟排成正確的程式執行順序。</p>
+                                                <p className="mt-4 text-sm leading-6 text-slate-600">依照「解題提示挑戰」中的程式設計概念，先排出實作前的流程圖步驟；這不是學習重點的重新排列。</p>
                                                 <div className="mt-3 space-y-2">
                                                     {orderedFlowSteps.map((step, index) => <div key={`${step}-${index}`} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-2 text-sm text-slate-700"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">{index + 1}</span><span className="min-w-0 flex-1 leading-5">{step}</span><div className="flex gap-1"><button type="button" onClick={() => moveFlowStep(index, -1)} disabled={index === 0} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="上移">↑</button><button type="button" onClick={() => moveFlowStep(index, 1)} disabled={index === orderedFlowSteps.length - 1} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="下移">↓</button></div></div>)}
                                                 </div>
@@ -762,16 +819,15 @@
                                                     </div>
                                                     <h3 className="font-bold text-slate-800">範例程式碼</h3>
                                                 </div>
-                                                <p className="text-sm text-slate-500 mb-4">
-                                                    點擊下方按鈕前往 Scratch 官網查看本單元的原始程式碼專案。
-                                                </p>
+                                                <p className="text-sm text-slate-500 mb-2">點擊下方按鈕前往 Scratch 官網查看本單元的原始程式碼專案。</p>
+                                                {!flowchartRecords[selectedUnit.id]?.completedAt && <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">請先完成流程圖任務，範例程式碼才會開放。</p>}
                                                 <a 
                                                     href={selectedUnit.projectLink} 
                                                     target="_blank" 
                                                     rel="noopener noreferrer"
                                                     className={`learning-action-primary w-full text-center py-3 px-4 ${flowchartRecords[selectedUnit.id]?.completedAt ? 'active:transform active:scale-95' : 'pointer-events-none opacity-40'}`}
                                                 >
-                                                    開啟原始程式專案
+                                                    {flowchartRecords[selectedUnit.id]?.completedAt ? '開啟原始程式專案' : '完成流程圖後開放'}
                                                 </a>
                                             </div>
 
