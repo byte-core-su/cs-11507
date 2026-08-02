@@ -40,6 +40,7 @@ async function recordClassActivity({ closing = false } = {}) {
   if (!currentUser || (!closing && document.visibilityState !== 'visible')) return;
   const studentId = currentStudentId();
   if (!studentId || !firestore) return;
+  if (window.LearnerProfile?.checkBrowserStudent && !window.LearnerProfile.checkBrowserStudent(studentId).allowed) return;
   const now = Date.now();
   const elapsedSeconds = lastRecordedAt ? Math.max(0, Math.round((now - lastRecordedAt) / 1000)) : 0;
   lastRecordedAt = now;

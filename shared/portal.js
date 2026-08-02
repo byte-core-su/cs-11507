@@ -120,6 +120,8 @@ function showLogin(message = '', error = false) {
     const id = document.getElementById('portal-id').value.trim();
     const code = document.getElementById('portal-code').value.trim();
     if (!app.studentIdPattern.test(id) || !/^\d{6}$/.test(code)) return showLogin('請輸入正確的 7 位學號與 6 位驗證碼。', true);
+    const browserCheck = window.LearnerProfile?.checkBrowserStudent?.(id);
+    if (browserCheck && !browserCheck.allowed) return showLogin(`此瀏覽器目前正在使用學號 ${browserCheck.activeStudentId}。請先關閉該學生的所有課程分頁後再登入。`, true);
     try {
       const result = await signInOrCreateStudent(id, code);
       if (result?.needsInitialSetup) showInitialSetup(id, code);
@@ -153,7 +155,12 @@ async function loadStudent(currentUser) {
   if (auth.currentUser?.uid !== currentUser.uid) return;
   const rosterData = roster.exists() ? roster.data() : {};
   profile = { ...(rosterData || {}), studentId:id };
-  window.LearnerProfile?.startSession(profile);
+  try {
+    window.LearnerProfile?.startSession(profile);
+  } catch (error) {
+    await signOut(auth);
+    throw error;
+  }
   window.dispatchEvent(new Event('portal:authenticated'));
   const now = new Date();
   if (auth.currentUser?.uid !== currentUser.uid) return;
@@ -171,5 +178,5 @@ const firebaseApp=initializeApp(app.firebaseConfig); auth=getAuth(firebaseApp); 
 setPersistence(auth, browserSessionPersistence).catch(error => {
   console.error('Unable to set student session persistence.', error);
 }).finally(() => {
-  onAuthStateChanged(auth,current=>{if(current?.email && !isFinishingInitialSetup) loadStudent(current).catch(()=>showLogin('資料載入失敗，請重新登入。',true)); else if (!current && !document.getElementById('initial-code-setup')) showLogin();});
+  onAuthStateChanged(auth,current=>{if(current?.email && !isFinishingInitialSetup) loadStudent(current).catch(error=>showLogin(error?.message === 'browser-student-lock' ? `此瀏覽器目前正在使用學號 ${error.activeStudentId || '其他學生'}。請先關閉該學生的所有課程分頁後再登入。` : '資料載入失敗，請重新登入。',true)); else if (!current && !document.getElementById('initial-code-setup')) showLogin();});
 });

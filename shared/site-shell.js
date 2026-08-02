@@ -53,7 +53,8 @@
     const isStudentPage = page !== 'index.html';
     const profile = global.LearnerProfile?.readLocalProfile();
     const hasSession = global.LearnerProfile?.hasActiveSession();
-    if (isStudentPage && !hasSession) {
+    const browserClaim = hasSession ? global.LearnerProfile?.claimBrowserStudent?.(profile?.studentId) : null;
+    if (isStudentPage && (!hasSession || (browserClaim && !browserClaim.allowed))) {
       location.replace(`index.html?next=${encodeURIComponent(page)}`);
       return;
     }
