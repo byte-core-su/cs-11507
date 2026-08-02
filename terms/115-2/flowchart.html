@@ -185,7 +185,7 @@
                 <div id="result-icon" class="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center"></div>
                 <h3 id="result-title" class="text-3xl font-bold mb-3"></h3>
                 <p id="result-message" class="text-lg text-slate-600 mb-8"></p>
-                <button id="retry-btn" class="hidden px-8 py-3 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-700 transition-colors shadow-sm" onclick="startQuiz()">
+                <button id="retry-btn" class="hidden px-8 py-3 bg-slate-800 text-white font-semibold rounded-xl hover:bg-slate-700 transition-colors shadow-sm">
                     再試一次
                 </button>
             </div>
@@ -368,7 +368,9 @@
         let currentQuiz = []; // 存放當次抽出的 5 題
         let currentQuestion = 0;
         let score = 0;
+        let wrongAnswers = 0;
         let hasAnswered = false;
+        const referenceUnit = new URLSearchParams(location.search).get('unit');
 
         // DOM 元素
         const questionTitle = document.getElementById('question-title');
@@ -385,6 +387,7 @@
         function startQuiz() {
             currentQuestion = 0;
             score = 0;
+            wrongAnswers = 0;
             
             // 每次重新開始時，從5個特徵題庫中各隨機抽一題
             currentQuiz = quizBanks.map(bank => {
@@ -458,6 +461,7 @@
                 btnElement.classList.replace('text-slate-700', 'text-green-800');
                 btnElement.innerHTML += ' <span class="float-right text-green-600">✓ 答對了</span>';
             } else {
+                wrongAnswers++;
                 btnElement.classList.replace('border-slate-200', 'border-red-500');
                 btnElement.classList.replace('bg-white', 'bg-red-50');
                 btnElement.classList.replace('text-slate-700', 'text-red-800');
@@ -492,27 +496,38 @@
             const resultMessage = document.getElementById('result-message');
             const retryBtn = document.getElementById('retry-btn');
             
-            if (score >= 3) {
+            const requiresPerfectScore = Boolean(referenceUnit);
+            const passed = requiresPerfectScore ? score === currentQuiz.length : score >= 3;
+            if (passed) {
                 // 通過測驗
                 resultIcon.className = 'w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center bg-green-100 text-green-600';
                 resultIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
-                resultTitle.innerText = '🎉 恭喜過關！';
+                resultTitle.innerText = requiresPerfectScore ? '🎉 全部答對！' : '🎉 恭喜過關！';
                 resultTitle.className = 'text-3xl font-bold mb-3 text-green-600';
-                resultMessage.innerHTML = `您答對了 <strong>${score} / 5</strong> 題。<br>您已經掌握了演算法的重要特徵，下方工具已成功解鎖！`;
+                resultMessage.innerHTML = requiresPerfectScore ? `您答對了 <strong>${score} / ${currentQuiz.length}</strong> 題。<br>已完成流程圖參考文件與隨堂測驗。` : `您答對了 <strong>${score} / 5</strong> 題。<br>您已經掌握了演算法的重要特徵，下方工具已成功解鎖！`;
                 
-                // 顯示下方工具區塊並滾動
-                toolsSection.classList.remove('hidden');
-                setTimeout(() => {
-                    toolsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 500);
+                if (requiresPerfectScore) {
+                    retryBtn.innerText = '完成，返回流程圖任務';
+                    retryBtn.onclick = () => window.completeReferenceQuiz?.();
+                    retryBtn.classList.remove('hidden');
+                } else {
+                    // 顯示下方工具區塊並滾動
+                    toolsSection.classList.remove('hidden');
+                    setTimeout(() => {
+                        toolsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 500);
+                }
                 
             } else {
                 // 未通過測驗
                 resultIcon.className = 'w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center bg-amber-100 text-amber-600';
                 resultIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
-                resultTitle.innerText = '再接再厲！';
+                resultTitle.innerText = requiresPerfectScore ? '需要重新閱讀' : '再接再厲！';
                 resultTitle.className = 'text-3xl font-bold mb-3 text-slate-800';
-                resultMessage.innerHTML = `您只答對了 <strong>${score} / 5</strong> 題。<br>請重新複習上方的特徵，答對 3 題以上才能解鎖工具喔！`;
+                const extraReadingSeconds = wrongAnswers * 10;
+                resultMessage.innerHTML = requiresPerfectScore ? `本次有 <strong>${wrongAnswers}</strong> 題錯誤。<br>請重新閱讀 <strong>${extraReadingSeconds} 秒</strong>後，再挑戰一次。` : `您只答對了 <strong>${score} / 5</strong> 題。<br>請重新複習上方的特徵，答對 3 題以上才能解鎖工具喔！`;
+                retryBtn.innerText = requiresPerfectScore ? `重新閱讀 ${extraReadingSeconds} 秒` : '再試一次';
+                retryBtn.onclick = requiresPerfectScore ? () => window.restartReferenceReading?.(wrongAnswers) : startQuiz;
                 retryBtn.classList.remove('hidden');
             }
         }
@@ -532,7 +547,8 @@
             const button = document.getElementById('reference-reading-complete');
             const message = document.getElementById('reference-reading-message');
             const timer = document.getElementById('reference-reading-timer');
-            const requiredSeconds = 30;
+            const quizSection = document.getElementById('quiz-section');
+            let requiredSeconds = 30;
             let remainingSeconds = requiredSeconds;
             let reachedDocumentEnd = false;
             let timerHandle = null;
@@ -541,8 +557,8 @@
                 const ready = remainingSeconds === 0 && reachedDocumentEnd;
                 button.disabled = !ready;
                 button.className = ready ? 'mt-3 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700' : 'mt-3 rounded-xl bg-slate-300 px-5 py-3 font-bold text-white';
-                button.textContent = ready ? '我已閱讀，返回流程圖任務' : (remainingSeconds > 0 ? '閱讀中…' : '請捲動至文件結尾');
-                if (remainingSeconds === 0 && reachedDocumentEnd) message.textContent = '閱讀完成，現在可以返回流程圖任務。';
+                button.textContent = ready ? '開始流程圖隨堂測驗' : (remainingSeconds > 0 ? '閱讀中…' : '請捲動至文件結尾');
+                if (remainingSeconds === 0 && reachedDocumentEnd) message.textContent = '閱讀完成，請開始流程圖隨堂測驗；必須全部答對才能返回任務。';
                 else if (remainingSeconds === 0) message.textContent = '倒數完成，請繼續捲動至文件結尾。';
                 else message.textContent = `請持續閱讀本份參考文件，倒數 ${remainingSeconds} 秒後即可解鎖。`;
             };
@@ -570,15 +586,33 @@
             document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') resetTimer(); });
             window.addEventListener('pagehide', resetTimer);
             new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) { reachedDocumentEnd = true; update(); } }, { threshold: 0.8 }).observe(end);
-            update();
-            button.addEventListener('click', () => {
-                if (button.disabled) return;
+            window.restartReferenceReading = wrongCount => {
+                const errors = Math.max(1, Number(wrongCount) || 0);
+                requiredSeconds = errors * 10;
+                remainingSeconds = requiredSeconds;
+                reachedDocumentEnd = false;
+                quizSection.classList.add('hidden');
+                message.textContent = `本次有 ${errors} 題錯誤，請重新閱讀 ${requiredSeconds} 秒。`;
+                update();
+                startTimer();
+                documentCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            };
+            window.completeReferenceQuiz = () => {
                 sessionStorage.setItem(`flowchart-reference-read.v2.${SCHOOL_APP.currentTermId}.${unit}`, 'true');
                 if (window.parent !== window) {
                     window.parent.postMessage({ type: 'flowchart-reference-complete', unit }, window.location.origin);
                     return;
                 }
                 location.replace(`scratch.html?unit=${encodeURIComponent(unit)}`);
+            };
+            update();
+            button.addEventListener('click', () => {
+                if (button.disabled) return;
+                quizSection.classList.remove('hidden');
+                const quizDescription = quizSection.querySelector('p.text-slate-500');
+                if (quizDescription) quizDescription.innerHTML = '本次隨堂測驗必須 <span class="text-indigo-600 font-bold text-lg">全部答對</span>；答錯後需依錯題數重新閱讀。';
+                startQuiz();
+                quizSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
         })();
     </script>
