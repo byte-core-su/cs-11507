@@ -6,6 +6,9 @@
 
   const sessionKey = `learning-platform.${app.currentTermId}.session.v1`;
   const profileSessionKey = `learning-platform.${app.currentTermId}.active-profile.v1`;
+  const browserSessionsKey = `learning-platform.${app.academicYearId || 'school'}.student-browser-sessions.v1`;
+  const browserTabKey = 'learning-platform.student-browser-tab.v1';
+  const browserSessionMaxAgeMs = 4 * 60 * 1000;
   const legacyProfileKey = 'learning-platform.profile.v1';
   const normalizeStudentId = value => String(value || '').trim();
   const deriveFromStudentId = value => {
@@ -29,6 +32,53 @@
     const derived = deriveFromStudentId(profile.studentId);
     return Boolean(derived && profile.name && profile.classRoom === derived.classRoom && profile.seatNo === derived.seatNo);
   };
+  function browserTabId() {
+    try {
+      let id = sessionStorage.getItem(browserTabKey);
+      if (!id) {
+        const randomPart = global.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        id = `tab_${randomPart.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+        sessionStorage.setItem(browserTabKey, id);
+      }
+      return id;
+    } catch (_) { return ''; }
+  }
+  function readBrowserSessions() {
+    try {
+      const now = Date.now();
+      const sessions = JSON.parse(localStorage.getItem(browserSessionsKey) || '[]');
+      return Array.isArray(sessions) ? sessions.filter(item => app.studentIdPattern.test(normalizeStudentId(item?.studentId)) && typeof item?.tabId === 'string' && now - Number(item?.lastSeenAt || 0) < browserSessionMaxAgeMs) : [];
+    } catch (_) { return []; }
+  }
+  function writeBrowserSessions(sessions) {
+    try { localStorage.setItem(browserSessionsKey, JSON.stringify(sessions)); } catch (_) { /* Browser storage is optional. */ }
+  }
+  function checkBrowserStudent(studentId) {
+    const id = normalizeStudentId(studentId);
+    if (!app.studentIdPattern.test(id)) return { allowed: false, activeStudentId: '' };
+    const tabId = browserTabId();
+    const foreign = readBrowserSessions().find(item => item.tabId !== tabId && item.studentId !== id);
+    return foreign ? { allowed: false, activeStudentId: foreign.studentId } : { allowed: true, activeStudentId: id };
+  }
+  function claimBrowserStudent(studentId) {
+    const result = checkBrowserStudent(studentId);
+    if (!result.allowed) return result;
+    const tabId = browserTabId();
+    if (!tabId) return result;
+    const sessions = readBrowserSessions().filter(item => item.tabId !== tabId);
+    sessions.push({ tabId, studentId: result.activeStudentId, lastSeenAt: Date.now() });
+    writeBrowserSessions(sessions);
+    return result;
+  }
+  function refreshBrowserStudent() {
+    const profile = readLocalProfile();
+    return profile?.studentId ? claimBrowserStudent(profile.studentId) : { allowed: true, activeStudentId: '' };
+  }
+  function releaseBrowserStudent() {
+    const tabId = browserTabId();
+    if (!tabId) return;
+    writeBrowserSessions(readBrowserSessions().filter(item => item.tabId !== tabId));
+  }
   function readLocalProfile() {
     try {
       // localStorage is shared by every tab on this device.  The active learner
@@ -44,7 +94,14 @@
     return profile;
   }
   function startSession(value) {
-    const profile = saveLocalProfile(value);
+    const profile = normalize(value);
+    const browserClaim = claimBrowserStudent(profile.studentId);
+    if (!browserClaim.allowed) {
+      const error = new Error('browser-student-lock');
+      error.activeStudentId = browserClaim.activeStudentId;
+      throw error;
+    }
+    saveLocalProfile(profile);
     sessionStorage.setItem(sessionKey, profile.studentId);
     // Remove the former shared profile cache so it cannot be mistaken for the
     // active student by an older cached page.
@@ -57,6 +114,7 @@
     return Boolean(profile && app.studentIdPattern.test(profile.studentId) && sessionStorage.getItem(sessionKey) === profile.studentId);
   }
   function endSession() {
+    releaseBrowserStudent();
     sessionStorage.removeItem(sessionKey);
     sessionStorage.removeItem(profileSessionKey);
     localStorage.removeItem(app.storageKeys.learnerProfile);
@@ -84,6 +142,7 @@
     normalizeStudentId, isValidStudentId: value => app.studentIdPattern.test(normalizeStudentId(value)),
     studentEmail: studentId => `${normalizeStudentId(studentId)}@${app.studentEmailDomain}`,
     readLocalProfile, saveLocalProfile, startSession, hasActiveSession, endSession,
+    checkBrowserStudent, claimBrowserStudent, refreshBrowserStudent, releaseBrowserStudent,
     termDocumentPath: uid => `users/${uid}/terms/${app.currentTermId}`,
     readTermStorage, writeTermStorage,
     studentStorageKey, readStudentTermStorage, writeStudentTermStorage
@@ -96,6 +155,10 @@
     normalize,
     deriveFromStudentId
   });
+
+  global.addEventListener('pagehide', releaseBrowserStudent);
+  global.addEventListener('focus', refreshBrowserStudent);
+  global.setInterval(refreshBrowserStudent, 60 * 1000);
 
   // This module runs on every learner page that already loads this shared file.
   // It records a short-lived presence signal without changing learning progress.
