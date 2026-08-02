@@ -528,13 +528,52 @@
             const documentCard = document.getElementById('flowchart-reference-document');
             const end = document.getElementById('reference-reading-end');
             if (!documentCard || !end) return;
-            end.insertAdjacentHTML('afterend', '<div class="mb-10 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-5 text-center"><p id="reference-reading-message" class="text-sm font-bold text-emerald-800">請先捲動並閱讀完本份參考文件。</p><button id="reference-reading-complete" type="button" disabled class="mt-3 rounded-xl bg-slate-300 px-5 py-3 font-bold text-white">閱讀中…</button></div>');
+            end.insertAdjacentHTML('afterend', '<div class="mb-10 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-5 text-center"><p id="reference-reading-message" class="text-sm font-bold text-emerald-800">請持續閱讀本份參考文件，倒數 30 秒後即可解鎖。</p><p id="reference-reading-timer" class="mt-2 text-3xl font-black tabular-nums text-emerald-700">30 秒</p><p class="mt-2 text-xs font-bold text-emerald-700">閱讀期間不可切換分頁、視窗或離開文件，否則倒數會重新開始。</p><button id="reference-reading-complete" type="button" disabled class="mt-3 rounded-xl bg-slate-300 px-5 py-3 font-bold text-white">閱讀中…</button></div>');
             const button = document.getElementById('reference-reading-complete');
             const message = document.getElementById('reference-reading-message');
-            const unlock = () => { button.disabled = false; button.className = 'mt-3 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700'; button.textContent = '我已閱讀，返回流程圖任務'; message.textContent = '已閱讀到文件結尾，現在可以返回此單元的流程圖任務。'; };
-            new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) unlock(); }, { threshold: 0.8 }).observe(end);
+            const timer = document.getElementById('reference-reading-timer');
+            const requiredSeconds = 30;
+            let remainingSeconds = requiredSeconds;
+            let reachedDocumentEnd = false;
+            let timerHandle = null;
+            const update = () => {
+                timer.textContent = remainingSeconds > 0 ? `${remainingSeconds} 秒` : '完成';
+                const ready = remainingSeconds === 0 && reachedDocumentEnd;
+                button.disabled = !ready;
+                button.className = ready ? 'mt-3 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700' : 'mt-3 rounded-xl bg-slate-300 px-5 py-3 font-bold text-white';
+                button.textContent = ready ? '我已閱讀，返回流程圖任務' : (remainingSeconds > 0 ? '閱讀中…' : '請捲動至文件結尾');
+                if (remainingSeconds === 0 && reachedDocumentEnd) message.textContent = '閱讀完成，現在可以返回流程圖任務。';
+                else if (remainingSeconds === 0) message.textContent = '倒數完成，請繼續捲動至文件結尾。';
+                else message.textContent = `請持續閱讀本份參考文件，倒數 ${remainingSeconds} 秒後即可解鎖。`;
+            };
+            const startTimer = () => {
+                if (timerHandle) window.clearInterval(timerHandle);
+                timerHandle = window.setInterval(() => {
+                    if (document.visibilityState !== 'visible') return;
+                    if (remainingSeconds > 0) remainingSeconds -= 1;
+                    update();
+                    if (remainingSeconds === 0) {
+                        window.clearInterval(timerHandle);
+                        timerHandle = null;
+                    }
+                }, 1000);
+            };
+            const resetTimer = () => {
+                remainingSeconds = requiredSeconds;
+                reachedDocumentEnd = false;
+                message.textContent = '偵測到離開流程圖參考文件，倒數已重新開始。';
+                update();
+                startTimer();
+            };
+            startTimer();
+            window.addEventListener('blur', resetTimer);
+            document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') resetTimer(); });
+            window.addEventListener('pagehide', resetTimer);
+            new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) { reachedDocumentEnd = true; update(); } }, { threshold: 0.8 }).observe(end);
+            update();
             button.addEventListener('click', () => {
-                sessionStorage.setItem(`flowchart-reference-read.${SCHOOL_APP.currentTermId}.${unit}`, 'true');
+                if (button.disabled) return;
+                sessionStorage.setItem(`flowchart-reference-read.v2.${SCHOOL_APP.currentTermId}.${unit}`, 'true');
                 if (window.parent !== window) {
                     window.parent.postMessage({ type: 'flowchart-reference-complete', unit }, window.location.origin);
                     return;

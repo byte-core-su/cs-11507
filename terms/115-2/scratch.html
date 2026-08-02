@@ -165,7 +165,7 @@
             const [referenceModalOpen, setReferenceModalOpen] = useState(false);
             const [referenceReads, setReferenceReads] = useState(() => Object.fromEntries(Array.from({ length: 8 }, (_, index) => {
                 const id = index + 1;
-                return [id, sessionStorage.getItem(`flowchart-reference-read.${window.SCHOOL_APP.currentTermId}.${id}`) === 'true'];
+                return [id, sessionStorage.getItem(`flowchart-reference-read.v2.${window.SCHOOL_APP.currentTermId}.${id}`) === 'true'];
             })));
 
             const shuffledFlowSteps = unit => {
@@ -189,7 +189,7 @@
                 const completeReading = event => {
                     if (event.origin !== window.location.origin || event.data?.type !== 'flowchart-reference-complete') return;
                     const unitId = Number(event.data.unit);
-                    sessionStorage.setItem(`flowchart-reference-read.${window.SCHOOL_APP.currentTermId}.${unitId}`, 'true');
+                    sessionStorage.setItem(`flowchart-reference-read.v2.${window.SCHOOL_APP.currentTermId}.${unitId}`, 'true');
                     setReferenceReads(current => ({ ...current, [unitId]: true }));
                     setReferenceModalOpen(false);
                     setFlowchartMessage('已完成流程圖參考文件閱讀，請將題目改寫為流程步驟。');
@@ -442,8 +442,9 @@
                 setSelectedUnit(requestedUnit);
                 setFlowSteps(flowchartRecords[requestedUnit.id]?.steps || '');
                 setOrderedFlowSteps(shuffledFlowSteps(requestedUnit));
-                setFlowchartMessage('已完成流程圖參考文件閱讀，請將題目改寫為流程步驟。');
-                setReferenceReads(current => ({ ...current, [requestedUnit.id]: true }));
+                const referenceRead = sessionStorage.getItem(`flowchart-reference-read.v2.${window.SCHOOL_APP.currentTermId}.${requestedUnit.id}`) === 'true';
+                setFlowchartMessage(referenceRead ? '已完成流程圖參考文件閱讀，請將題目改寫為流程步驟。' : '請先閱讀流程圖參考文件，再把題目整理為步驟。');
+                setReferenceReads(current => ({ ...current, [requestedUnit.id]: referenceRead }));
                 window.history.replaceState({}, '', 'scratch.html');
             }, []);
 
@@ -788,7 +789,7 @@
                                                     {orderedFlowSteps.map((step, index) => <div key={`${step}-${index}`} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-2 text-sm text-slate-700"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">{index + 1}</span><span className="min-w-0 flex-1 leading-5">{step}</span><div className="flex gap-1"><button type="button" onClick={() => moveFlowStep(index, -1)} disabled={index === 0} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="上移">↑</button><button type="button" onClick={() => moveFlowStep(index, 1)} disabled={index === orderedFlowSteps.length - 1} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="下移">↓</button></div></div>)}
                                                 </div>
                                                 <button disabled={!referenceReads[selectedUnit.id]} type="button" onClick={submitFlowchartOrder} className={`mt-3 w-full rounded-lg px-3 py-3 text-sm font-bold text-white shadow-sm ${referenceReads[selectedUnit.id] ? 'bg-emerald-600 hover:bg-emerald-700' : 'cursor-not-allowed bg-slate-300'}`}>檢查排列順序並完成此步驟</button>
-                                                <a href="https://mermaid.ai/web/" target="_blank" rel="noopener noreferrer" className="mt-3 block text-center text-sm font-bold text-emerald-700 hover:underline">開啟 Mermaid AI 貼上程式碼 ↗</a>
+                                                {referenceReads[selectedUnit.id] ? <a href="https://mermaid.ai/web/" target="_blank" rel="noopener noreferrer" className="mt-3 block text-center text-sm font-bold text-emerald-700 hover:underline">開啟 Mermaid AI 貼上程式碼 ↗</a> : <button type="button" disabled className="mt-3 block w-full cursor-not-allowed text-center text-sm font-bold text-slate-400">完成 30 秒參考文件閱讀後解鎖 Mermaid AI</button>}
                                                 <p className={`mt-3 text-xs font-bold ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'text-emerald-700' : 'text-slate-500'}`}>{!referenceReads[selectedUnit.id] ? '請先閱讀並完成流程圖參考文件。' : (flowchartMessage || (flowchartRecords[selectedUnit.id]?.exportedAt ? '✓ 已完成流程圖 Markdown' : '尚未完成流程圖'))}</p>
                                             </section>
                                             
