@@ -249,7 +249,7 @@
                     flowchartMermaid: `flowchart TD
   start([綠旗被點擊]) --> init[定位到 x -190 y -70]
   init --> direction[面朝 90 度]
-  click([角色被點擊]) --> loop{重複 10 次}
+  spriteClick([角色被點擊]) --> loop{重複 10 次}
   loop --> move[移動 10 點] --> costume[造型換成下一個] --> edge[碰到邊緣就反彈] --> loop
   loop --> done([完成本輪移動])`,
                     uploadLinks: [
@@ -283,7 +283,7 @@
                     flowchartMermaid: `flowchart TD
   start([綠旗被點擊]) --> init[定位到 x -200 y 0]
   init --> costume[造型換成 horse-a]
-  click([角色被點擊]) --> race{重複直到碰到終點}
+  spriteClick([角色被點擊]) --> race{重複直到碰到終點}
   race --> move[移動隨機 5 到 20 點] --> next[造型換成下一個] --> wait[等待 0.1 秒] --> race
   race --> stop([停止全部])`,
                     uploadLinks: [
@@ -395,7 +395,7 @@
                     flowchartMermaid: `flowchart TD
   start([綠旗被點擊]) --> init[定位到 x -200 y -140]
   init --> costume[造型換成 penguin2-c]
-  click([角色被點擊]) --> clone[建立自己的分身]
+  spriteClick([角色被點擊]) --> clone[建立自己的分身]
   born([當分身產生]) --> position[定位到 x -200、隨機 y]
   position --> loop{重複直到碰到滑鼠}
   loop --> move[移動 10 點] --> next[造型換成下一個] --> edge[碰到邊緣就反彈] --> loop
@@ -466,8 +466,8 @@
   start([綠旗被點擊]) --> init[定位、設定大小並隱藏]
   init --> clones{重複 10 次建立分身}
   clones --> create[建立自己的分身] --> clones
-  born([當分身產生]) --> style[造型換成隨機 1 到 4]
-  style --> position[定位到隨機位置並隨機轉向] --> show[顯示]
+  born([當分身產生]) --> randomStyle[造型換成隨機 1 到 4]
+  randomStyle --> position[定位到隨機位置並隨機轉向] --> show[顯示]
   show --> moveLoop{重複無限次}
   moveLoop --> move[移動隨機 1 到 5 點] --> edge[碰到邊緣就反彈] --> food{碰到食物？}
   food -- 是 --> broadcast[廣播訊息 消失] --> size[尺寸改變 10] --> moveLoop
@@ -690,8 +690,8 @@
                 const steps = providedSteps || flowSteps.split(/\r?\n/).map(step => step.trim()).filter(Boolean);
                 if (steps.length < 2) { setFlowchartMessage('請將題目描述改寫成至少兩個清楚的流程步驟，每行一個步驟。'); return false; }
                 const coachResult = coachResultFor(selectedUnit);
-                const sourceMermaid = selectedUnit.flowchartMermaid || ['flowchart TD', '  start([開始])', ...steps.map((step, index) => `  step${index + 1}[${step.replace(/[\[\]{}()"']/g, '')}]`), ...steps.map((_, index) => index === 0 ? '  start --> step1' : `  step${index} --> step${index + 1}`), `  step${steps.length} --> end`, '  end([結束])'].join('\n');
-                const coachTrail = coachResult ? ['  subgraph coachTrail[本次教練選擇]', '    coachStart([開始討論])', ...coachResult.choices.map((choice, index) => `    coach${index + 1}[${choice.route}：${choice.label.replace(/[\[\]{}()"']/g, '')}]`), ...coachResult.choices.map((_, index) => index === 0 ? '    coachStart --> coach1' : `    coach${index} --> coach${index + 1}`), `    coach${coachResult.choices.length} --> coachEnd([完成討論])`, '  end'].join('\n') : '';
+                const sourceMermaid = selectedUnit.flowchartMermaid || ['flowchart TD', '  start([開始])', ...steps.map((step, index) => `  step${index + 1}[${step.replace(/[\[\]{}()"']/g, '')}]`), ...steps.map((_, index) => index === 0 ? '  start --> step1' : `  step${index} --> step${index + 1}`), `  step${steps.length} --> finish`, '  finish([結束])'].join('\n');
+                const coachTrail = coachResult ? ['  subgraph coachTrail["本次教練選擇"]', '    coachStart([開始討論])', ...coachResult.choices.map((choice, index) => `    coach${index + 1}[${choice.route}：${choice.label.replace(/[\[\]{}()"']/g, '')}]`), ...coachResult.choices.map((_, index) => index === 0 ? '    coachStart --> coach1' : `    coach${index} --> coach${index + 1}`), `    coach${coachResult.choices.length} --> coachEnd([完成討論])`, '  end'].join('\n') : '';
                 const mermaidCode = [sourceMermaid, coachTrail].filter(Boolean).join('\n');
                 setGeneratedMermaidCode(mermaidCode);
                 try {
