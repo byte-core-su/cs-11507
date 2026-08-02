@@ -5,6 +5,7 @@
   if (!app) return;
 
   const sessionKey = `learning-platform.${app.currentTermId}.session.v1`;
+  const profileSessionKey = `learning-platform.${app.currentTermId}.active-profile.v1`;
   const legacyProfileKey = 'learning-platform.profile.v1';
   const normalizeStudentId = value => String(value || '').trim();
   const deriveFromStudentId = value => {
@@ -30,21 +31,25 @@
   };
   function readLocalProfile() {
     try {
-      const current = localStorage.getItem(app.storageKeys.learnerProfile);
-      const legacy = current ? null : localStorage.getItem(legacyProfileKey);
-      const profile = normalize(JSON.parse(current || legacy || 'null'));
-      if (!current && legacy && profile.studentId) localStorage.setItem(app.storageKeys.learnerProfile, JSON.stringify(profile));
+      // localStorage is shared by every tab on this device.  The active learner
+      // must therefore live in sessionStorage so two students can use separate
+      // tabs without replacing each other's identity.
+      const profile = normalize(JSON.parse(sessionStorage.getItem(profileSessionKey) || 'null'));
       return profile.studentId ? profile : null;
     } catch (_) { return null; }
   }
   function saveLocalProfile(value) {
     const profile = normalize(value);
-    localStorage.setItem(app.storageKeys.learnerProfile, JSON.stringify(profile));
+    sessionStorage.setItem(profileSessionKey, JSON.stringify(profile));
     return profile;
   }
   function startSession(value) {
     const profile = saveLocalProfile(value);
     sessionStorage.setItem(sessionKey, profile.studentId);
+    // Remove the former shared profile cache so it cannot be mistaken for the
+    // active student by an older cached page.
+    localStorage.removeItem(app.storageKeys.learnerProfile);
+    localStorage.removeItem(legacyProfileKey);
     return profile;
   }
   function hasActiveSession() {
@@ -53,7 +58,9 @@
   }
   function endSession() {
     sessionStorage.removeItem(sessionKey);
+    sessionStorage.removeItem(profileSessionKey);
     localStorage.removeItem(app.storageKeys.learnerProfile);
+    localStorage.removeItem(legacyProfileKey);
   }
   function readTermStorage(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch (_) { return fallback; }
@@ -62,13 +69,24 @@
     localStorage.setItem(key, JSON.stringify(value));
     return value;
   }
+  function studentStorageKey(key, studentId) {
+    const id = normalizeStudentId(studentId || readLocalProfile()?.studentId);
+    return `${key}.student.${app.studentIdPattern.test(id) ? id : 'guest'}`;
+  }
+  function readStudentTermStorage(key, fallback, studentId) {
+    return readTermStorage(studentStorageKey(key, studentId), fallback);
+  }
+  function writeStudentTermStorage(key, value, studentId) {
+    return writeTermStorage(studentStorageKey(key, studentId), value);
+  }
 
   global.LearnerProfile = Object.freeze({
     normalizeStudentId, isValidStudentId: value => app.studentIdPattern.test(normalizeStudentId(value)),
     studentEmail: studentId => `${normalizeStudentId(studentId)}@${app.studentEmailDomain}`,
     readLocalProfile, saveLocalProfile, startSession, hasActiveSession, endSession,
     termDocumentPath: uid => `users/${uid}/terms/${app.currentTermId}`,
-    readTermStorage, writeTermStorage
+    readTermStorage, writeTermStorage,
+    studentStorageKey, readStudentTermStorage, writeStudentTermStorage
   });
   global.LearningProfile = Object.freeze({
     get: () => readLocalProfile() || normalize({}),

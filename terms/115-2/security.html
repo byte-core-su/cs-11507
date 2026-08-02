@@ -703,7 +703,7 @@
                 if (!user) return;
                 const profile = window.LearnerProfile?.readLocalProfile();
                 const studentId = profile?.studentId || '';
-                if (!window.LearnerProfile?.isValidStudentId(studentId)) return;
+                if (!window.LearnerProfile?.isValidStudentId(studentId) || String(user.email || '').split('@')[0] !== studentId) return;
                 try {
                     await firebase.firestore(app).collection('users').doc(user.uid).set({
                         studentId,

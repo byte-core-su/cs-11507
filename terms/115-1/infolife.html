@@ -36,6 +36,7 @@
             if (!taskId || !window.LearningProfile.isComplete(profile)) throw new Error('學生資料尚未完成');
 
             const user = await getProgressUser();
+            if (String(user.email || '').split('@')[0] !== profile.studentId) throw new Error('登入帳號與學生資料不一致');
             const progressRef = doc(db, 'users', user.uid);
             const completedAt = formatCompletedAt();
             const certificateId = `infolife-${chapterKey}`;

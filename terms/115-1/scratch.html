@@ -163,14 +163,7 @@
             const [flowchartMessage, setFlowchartMessage] = useState('');
             const [unlockedUnitIds, setUnlockedUnitIds] = useState(() => {
                 try {
-                    const storageKey = 'scratch-programming.115-1.unlocked-units.v1';
-                    const legacyStorageKey = 'scratch-programming.unlocked-units.v1';
-                    const legacy = localStorage.getItem(legacyStorageKey);
-                    const saved = JSON.parse(localStorage.getItem(storageKey) || legacy || '[]');
-                    if (!localStorage.getItem(storageKey) && legacy) {
-                        localStorage.setItem(storageKey, JSON.stringify(saved));
-                        localStorage.removeItem(legacyStorageKey);
-                    }
+                    const saved = LearnerProfile.readStudentTermStorage(SCHOOL_APP.storageKeys.scratchUnits, []);
                     return Array.isArray(saved) ? saved.filter(Number.isInteger) : [];
                 } catch {
                     return [];
@@ -178,7 +171,7 @@
             });
 
             useEffect(() => {
-                localStorage.setItem('scratch-programming.115-1.unlocked-units.v1', JSON.stringify(unlockedUnitIds));
+                LearnerProfile.writeStudentTermStorage(SCHOOL_APP.storageKeys.scratchUnits, unlockedUnitIds);
             }, [unlockedUnitIds]);
 
             const shuffledFlowSteps = unit => {

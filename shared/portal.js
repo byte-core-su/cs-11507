@@ -148,11 +148,15 @@ async function loadStudent(currentUser) {
   const id = currentUser.email?.split('@')[0] || '';
   if (!app.studentIdPattern.test(id)) return;
   const roster = await getDoc(doc(db,'rosters',id));
+  // A delayed read from an earlier authentication state must never initialise
+  // the tab after the student has changed account.
+  if (auth.currentUser?.uid !== currentUser.uid) return;
   const rosterData = roster.exists() ? roster.data() : {};
   profile = { ...(rosterData || {}), studentId:id };
   window.LearnerProfile?.startSession(profile);
   window.dispatchEvent(new Event('portal:authenticated'));
   const now = new Date();
+  if (auth.currentUser?.uid !== currentUser.uid) return;
   await setDoc(doc(db,'users',user.uid), {
     studentId:id,
     profile,
