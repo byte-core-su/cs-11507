@@ -41,4 +41,4 @@
 2. 按「Google 授權」，完成授權後回到教師後台。
 3. 按「更新課程」，選擇課程與作業，確認繳交狀態與附件連結是否顯示。
 
-Classroom 學生帳號會以 `qfm151xxxx@mail.qfm.kh.edu.tw` 格式對應平台學號；不符合此格式的 Classroom 成員會顯示為「未對應」，便於教師檢查名冊。
+Classroom 學生帳號會以 `qfm15xxxxx@mail.qfm.kh.edu.tw` 格式對應平台學號；不符合此格式的 Classroom 成員會顯示為「未對應」，便於教師檢查名冊。
