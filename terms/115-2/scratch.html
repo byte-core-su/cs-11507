@@ -163,6 +163,12 @@
             const [orderedFlowSteps, setOrderedFlowSteps] = useState([]);
             const [flowchartMessage, setFlowchartMessage] = useState('');
             const [referenceModalOpen, setReferenceModalOpen] = useState(false);
+            const [coachModalOpen, setCoachModalOpen] = useState(false);
+            const [mermaidModalOpen, setMermaidModalOpen] = useState(false);
+            const [coachStepIndex, setCoachStepIndex] = useState(0);
+            const [coachFeedback, setCoachFeedback] = useState('');
+            const [coachPassedUnits, setCoachPassedUnits] = useState({});
+            const [generatingMermaid, setGeneratingMermaid] = useState(false);
             const [referenceReads, setReferenceReads] = useState(() => Object.fromEntries(Array.from({ length: 8 }, (_, index) => {
                 const id = index + 1;
                 return [id, sessionStorage.getItem(`flowchart-reference-read.v2.${window.SCHOOL_APP.currentTermId}.${id}`) === 'true'];
@@ -477,12 +483,41 @@
                 setOrderedFlowSteps([]);
                 setFlowchartMessage('');
                 setReferenceModalOpen(false);
+                setCoachModalOpen(false);
+                setMermaidModalOpen(false);
+            };
+
+            const coachPassed = unit => Boolean(unit && (coachPassedUnits[unit.id] || flowchartRecords[unit.id]?.exportedAt));
+            const openFlowchartCoach = () => {
+                if (!selectedUnit || !referenceReads[selectedUnit.id]) return;
+                const alreadyCompleted = coachPassed(selectedUnit);
+                setCoachStepIndex(alreadyCompleted ? selectedUnit.details.length : 0);
+                setCoachFeedback(alreadyCompleted ? '教練：這個單元的流程圖已完成，可以直接查看 Mermaid code。' : `教練：先想想看，${selectedUnit.description}`);
+                setCoachModalOpen(true);
+            };
+            const answerCoach = step => {
+                if (!selectedUnit) return;
+                const expected = selectedUnit.details[coachStepIndex];
+                if (step !== expected) {
+                    setCoachFeedback('教練：再想一下，程式要依照實際執行的先後順序安排。');
+                    return;
+                }
+                const nextIndex = coachStepIndex + 1;
+                if (nextIndex >= selectedUnit.details.length) {
+                    setCoachPassedUnits(current => ({ ...current, [selectedUnit.id]: true }));
+                    setFlowSteps(selectedUnit.details.join('\n'));
+                    setOrderedFlowSteps([...selectedUnit.details]);
+                    setCoachFeedback('教練：完全正確！現在可以產生 Mermaid code，這會記錄為本單元流程圖通關。');
+                    return;
+                }
+                setCoachStepIndex(nextIndex);
+                setCoachFeedback(`教練：答對了！接著做完「${expected}」後，下一步是什麼？`);
             };
 
             const exportFlowchartMarkdown = async (providedSteps = null) => {
                 if (!selectedUnit) return;
                 const steps = providedSteps || flowSteps.split(/\r?\n/).map(step => step.trim()).filter(Boolean);
-                if (steps.length < 2) { setFlowchartMessage('請將題目描述改寫成至少兩個清楚的流程步驟，每行一個步驟。'); return; }
+                if (steps.length < 2) { setFlowchartMessage('請將題目描述改寫成至少兩個清楚的流程步驟，每行一個步驟。'); return false; }
                 const nodes = steps.map((step, index) => `  step${index + 1}[${step.replace(/[\[\]{}()"']/g, '')}]`);
                 const links = steps.map((_, index) => index === 0 ? '  start --> step1' : `  step${index} --> step${index + 1}`);
                 links.push(`  step${steps.length} --> end`);
@@ -498,8 +533,9 @@
                     const record = { steps: steps.join('\n'), exportedAt: new Date().toISOString(), title: selectedUnit.title };
                     const records = await window.saveFlowchartProgress(selectedUnit.id, record);
                     setFlowchartRecords(records);
-                    setFlowchartMessage('Markdown 已下載；請貼入 Mermaid AI 確認流程圖後，即可開啟程式實作。');
-                } catch (error) { console.error(error); setFlowchartMessage('Markdown 已下載，但完成紀錄暫時未同步，請稍後再試。'); }
+                    setFlowchartMessage('Mermaid code 已下載，流程圖任務已通關；請貼入 Mermaid AI 確認流程圖。');
+                    return true;
+                } catch (error) { console.error(error); setFlowchartMessage('Mermaid code 已下載，但完成紀錄暫時未同步，請稍後再試。'); return false; }
             };
 
             // --- 測驗邏輯 ---
@@ -515,13 +551,12 @@
                 });
             };
 
-            const submitFlowchartOrder = async () => {
-                if (!selectedUnit) return;
-                const correct = selectedUnit.details.every((step, index) => orderedFlowSteps[index] === step);
-                if (!correct) { setFlowchartMessage('順序還不正確，請依程式執行的先後重新排列。'); return; }
-                setFlowSteps(selectedUnit.details.join('\n'));
-                setFlowchartMessage('順序正確！正在產生此單元的 Markdown 檔。');
+            const generateMermaidCode = async () => {
+                if (!selectedUnit || !coachPassed(selectedUnit) || generatingMermaid) return;
+                setGeneratingMermaid(true);
+                setFlowchartMessage('正在產生 Mermaid code…');
                 await exportFlowchartMarkdown(selectedUnit.details);
+                setGeneratingMermaid(false);
             };
 
             const startQuiz = () => {
@@ -782,15 +817,13 @@
                                         <div className="lg:col-span-1 space-y-6">
                                             <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
                                                 <div className="flex items-center gap-3"><div className="rounded-lg bg-emerald-100 p-2 text-xl">🗺️</div><div><p className="text-xs font-black tracking-[.16em] text-emerald-700">STEP 1 · FLOWCHART</p><h3 className="font-black text-slate-800">先完成流程圖任務</h3></div></div>
-                                                <p className="mt-4 text-sm leading-6 text-slate-600">先閱讀參考文件，再把上方題目說明改寫為程式執行步驟。每行一個步驟，系統會下載含 Mermaid 程式碼的 Markdown 檔。</p>
-                                                <button type="button" onClick={() => setReferenceModalOpen(true)} className="mt-4 block w-full rounded-lg border border-emerald-300 bg-white px-3 py-2 text-center text-sm font-bold text-emerald-700 hover:bg-emerald-100">閱讀流程圖參考文件 →</button>
-                                                <p className="mt-4 text-sm font-bold text-emerald-800">將下列程式步驟排成正確的執行順序，再按「檢查排列順序」。</p>
-                                                <div className={`mt-3 space-y-2 ${referenceReads[selectedUnit.id] ? '' : 'pointer-events-none opacity-50'}`}>
-                                                    {orderedFlowSteps.map((step, index) => <div key={`${step}-${index}`} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-2 text-sm text-slate-700"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">{index + 1}</span><span className="min-w-0 flex-1 leading-5">{step}</span><div className="flex gap-1"><button type="button" onClick={() => moveFlowStep(index, -1)} disabled={index === 0} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="上移">↑</button><button type="button" onClick={() => moveFlowStep(index, 1)} disabled={index === orderedFlowSteps.length - 1} className="rounded bg-slate-100 px-2 py-1 font-bold disabled:opacity-30" aria-label="下移">↓</button></div></div>)}
+                                                <p className="mt-4 text-sm leading-6 text-slate-600">依序完成三個流程圖步驟；最後按下「產生 Mermaid code」即代表本單元流程圖通關。</p>
+                                                <div className="mt-4 grid gap-2">
+                                                    <button type="button" onClick={() => setReferenceModalOpen(true)} className="flex items-center justify-between rounded-xl border border-emerald-300 bg-white px-4 py-3 text-left text-sm font-black text-emerald-700 hover:bg-emerald-100"><span>1．閱讀流程圖參考文件</span><span>→</span></button>
+                                                    <button type="button" disabled={!referenceReads[selectedUnit.id]} onClick={openFlowchartCoach} className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-black ${referenceReads[selectedUnit.id] ? 'border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100' : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'}`}><span>2．流程圖教練對話引導</span><span>{referenceReads[selectedUnit.id] ? '→' : '🔒'}</span></button>
+                                                    <button type="button" disabled={!coachPassed(selectedUnit)} onClick={() => setMermaidModalOpen(true)} className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-black ${coachPassed(selectedUnit) ? 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700' : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'}`}><span>3．產生 Mermaid code</span><span>{coachPassed(selectedUnit) ? '→' : '🔒'}</span></button>
                                                 </div>
-                                                <button disabled={!referenceReads[selectedUnit.id]} type="button" onClick={submitFlowchartOrder} className={`mt-3 w-full rounded-lg px-3 py-3 text-sm font-bold text-white shadow-sm ${referenceReads[selectedUnit.id] ? 'bg-emerald-600 hover:bg-emerald-700' : 'cursor-not-allowed bg-slate-300'}`}>檢查排列順序並完成此步驟</button>
-                                                {referenceReads[selectedUnit.id] ? <a href="https://mermaid.ai/web/" target="_blank" rel="noopener noreferrer" className="mt-3 block text-center text-sm font-bold text-emerald-700 hover:underline">開啟 Mermaid AI 貼上程式碼 ↗</a> : <button type="button" disabled className="mt-3 block w-full cursor-not-allowed text-center text-sm font-bold text-slate-400">完成 30 秒參考文件閱讀後解鎖 Mermaid AI</button>}
-                                                <p className={`mt-3 text-xs font-bold ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'text-emerald-700' : 'text-slate-500'}`}>{!referenceReads[selectedUnit.id] ? '請先閱讀並完成流程圖參考文件。' : (flowchartMessage || (flowchartRecords[selectedUnit.id]?.exportedAt ? '✓ 已完成流程圖 Markdown' : '尚未完成流程圖'))}</p>
+                                                <p className={`mt-3 text-xs font-bold ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'text-emerald-700' : 'text-slate-500'}`}>{!referenceReads[selectedUnit.id] ? '請先完成 30 秒流程圖參考文件閱讀。' : (flowchartMessage || (flowchartRecords[selectedUnit.id]?.exportedAt ? '✓ 已完成流程圖任務' : '下一步：開啟流程圖教練。'))}</p>
                                             </section>
                                             
                                             {/* 1. 原始程式連結 */}
@@ -882,6 +915,24 @@
                                 <section className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
                                     <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><p className="text-xs font-black tracking-[.18em] text-emerald-600">REFERENCE DOCUMENT</p><h2 className="mt-1 text-lg font-black text-slate-800">流程圖參考文件</h2></div><button type="button" onClick={() => setReferenceModalOpen(false)} className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200" aria-label="關閉"><Icons.X className="h-6 w-6" /></button></header>
                                     <iframe src={`project.html?unit=${selectedUnit.id}`} title="流程圖參考文件" className="min-h-0 flex-1 border-0" />
+                                </section>
+                            </div>
+                        )}
+
+                        {coachModalOpen && selectedUnit && (
+                            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+                                <section className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+                                    <header className="flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 text-white"><div><p className="text-xs font-black tracking-[.18em] text-emerald-100">FLOWCHART COACH</p><h2 className="mt-1 text-xl font-black">流程圖教練</h2></div><button type="button" onClick={() => setCoachModalOpen(false)} className="rounded-xl bg-white/15 p-2 hover:bg-white/25" aria-label="關閉"><Icons.X className="h-6 w-6" /></button></header>
+                                    <div className="p-6"><p className="text-xs font-black tracking-[.14em] text-emerald-700">第 {Math.min(coachStepIndex + 1, selectedUnit.details.length)} / {selectedUnit.details.length} 步</p><div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold leading-7 text-emerald-900"><span className="mr-2">🧭</span>{coachStepIndex >= selectedUnit.details.length ? '教練：你已完成整個流程，現在可以產生 Mermaid code。' : (coachStepIndex === 0 ? '教練：程式開始執行時，第一個步驟是什麼？' : `教練：做完「${selectedUnit.details[coachStepIndex - 1]}」後，下一步是什麼？`)}</div><div className="mt-4 grid gap-2">{selectedUnit.details.map((step, index) => <button key={step} type="button" disabled={index < coachStepIndex || coachStepIndex >= selectedUnit.details.length} onClick={() => answerCoach(step)} className={`rounded-xl border px-4 py-3 text-left text-sm font-bold transition ${index < coachStepIndex ? 'cursor-default border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-400 hover:bg-emerald-50'}`}>{index < coachStepIndex ? '✓ ' : ''}{step}</button>)}</div><p className={`mt-4 rounded-xl p-3 text-sm font-bold ${coachFeedback.includes('完全正確') || coachFeedback.includes('答對') || coachFeedback.includes('已完成') ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{coachFeedback}</p><div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => setCoachModalOpen(false)} className="rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100">稍後再說</button>{coachPassed(selectedUnit) && <button type="button" onClick={() => { setCoachModalOpen(false); setMermaidModalOpen(true); }} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700">前往產生 Mermaid code →</button>}</div></div>
+                                </section>
+                            </div>
+                        )}
+
+                        {mermaidModalOpen && selectedUnit && (
+                            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+                                <section className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
+                                    <header className="flex items-center justify-between bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5 text-white"><div><p className="text-xs font-black tracking-[.18em] text-indigo-100">STEP 3 · MERMAID</p><h2 className="mt-1 text-xl font-black">產生 Mermaid code</h2></div><button type="button" onClick={() => setMermaidModalOpen(false)} className="rounded-xl bg-white/15 p-2 hover:bg-white/25" aria-label="關閉"><Icons.X className="h-6 w-6" /></button></header>
+                                    <div className="p-6"><p className="text-sm leading-7 text-slate-600">教練已確認流程順序。按下方按鈕會下載 Mermaid code，並將本單元的流程圖任務標記為完成。</p><button type="button" disabled={Boolean(flowchartRecords[selectedUnit.id]?.exportedAt) || generatingMermaid} onClick={generateMermaidCode} className={`mt-5 w-full rounded-xl px-5 py-4 text-sm font-black text-white shadow-lg ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'cursor-default bg-emerald-600' : (generatingMermaid ? 'cursor-wait bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700')}`}>{flowchartRecords[selectedUnit.id]?.exportedAt ? '✓ Mermaid code 已產生，流程圖已通關' : (generatingMermaid ? '正在產生 Mermaid code…' : '產生 Mermaid code 並完成通關')}</button>{flowchartRecords[selectedUnit.id]?.exportedAt ? <a href="https://mermaid.ai/web/" target="_blank" rel="noopener noreferrer" className="mt-3 block w-full rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-4 text-center text-sm font-black text-indigo-700 hover:bg-indigo-100">開啟 Mermaid AI，貼上程式碼 ↗</a> : <p className="mt-3 text-center text-xs font-bold text-slate-500">產生完成後即可開啟 Mermaid AI 的 Paste Mermaid code。</p>}<button type="button" onClick={() => setMermaidModalOpen(false)} className="mt-4 w-full rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100">返回課程</button></div>
                                 </section>
                             </div>
                         )}
