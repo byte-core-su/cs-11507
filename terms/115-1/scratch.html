@@ -70,19 +70,27 @@
 
       const { SCHOOL_APP, LearnerProfile } = window;
       const storageKey = SCHOOL_APP.storageKeys.flowchartProgress;
-      const saved = LearnerProfile.readTermStorage(storageKey, {});
-      let records = saved?.units || {};
+      let scopedStorageKey = '';
+      let records = {};
       let firebaseUser = null;
       let db = null;
       let ready;
       window.FlowchartProgress = new Promise(resolve => { ready = resolve; });
-      const storeLocal = () => LearnerProfile.writeTermStorage(storageKey, { units: records });
-      if (!SCHOOL_APP.isFirebaseConfigured()) ready(records);
+      const storageKeyFor = user => `${storageKey}.${user?.uid || 'guest'}`;
+      const loadLocal = () => LearnerProfile.readTermStorage(scopedStorageKey, {}).units || {};
+      const storeLocal = () => LearnerProfile.writeTermStorage(scopedStorageKey, { units: records });
+      if (!SCHOOL_APP.isFirebaseConfigured()) {
+          scopedStorageKey = storageKeyFor();
+          records = loadLocal();
+          ready(records);
+      }
       else {
           const app = getApps().length ? getApp() : initializeApp(SCHOOL_APP.firebaseConfig);
           db = getFirestore(app);
           onAuthStateChanged(getAuth(app), async user => {
               firebaseUser = user;
+              scopedStorageKey = storageKeyFor(user);
+              records = loadLocal();
               if (!user) { ready(records); return; }
               try {
                   const snapshot = await getDoc(doc(db, 'users', user.uid));
