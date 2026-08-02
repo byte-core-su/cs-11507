@@ -12,6 +12,16 @@
             loop: '流程圖參考文件：重複、重複直到、重複無限次，要以回到前面步驟的流程線表示。',
             parallel: '流程圖參考文件：不同事件帽積木會各自形成可同時執行的流程。'
         },
+        scoring: {
+            1: [{ weight: 10, deductions: [0, 3, 4] }, { weight: 20, deductions: [0, 5, 5] }, { weight: 35, deductions: [0, 7, 35], criticalOptions: [2] }, { weight: 35, deductions: [0, 5, 7] }],
+            2: [{ weight: 15, deductions: [0, 4, 5] }, { weight: 20, deductions: [0, 5, 6] }, { weight: 35, deductions: [0, 25, 35], criticalOptions: [1, 2] }, { weight: 30, deductions: [0, 5, 10] }],
+            3: [{ weight: 15, deductions: [0, 7, 5] }, { weight: 25, deductions: [0, 12, 20] }, { weight: 35, deductions: [0, 12, 30], criticalOptions: [2] }, { weight: 25, deductions: [0, 12, 20] }],
+            4: [{ weight: 20, deductions: [0, 5, 10] }, { weight: 25, deductions: [0, 10, 20] }, { weight: 30, deductions: [0, 10, 20] }, { weight: 25, deductions: [0, 15, 25], criticalOptions: [2] }],
+            5: [{ weight: 15, deductions: [0, 5, 8] }, { weight: 20, deductions: [0, 5, 10] }, { weight: 30, deductions: [0, 15, 25], criticalOptions: [2] }, { weight: 35, deductions: [0, 18, 35], criticalOptions: [2] }],
+            6: [{ weight: 20, deductions: [0, 6, 10] }, { weight: 20, deductions: [0, 5, 10] }, { weight: 35, deductions: [0, 25, 35], criticalOptions: [1, 2] }, { weight: 25, deductions: [0, 8, 15] }],
+            7: [{ weight: 25, deductions: [0, 8, 25], criticalOptions: [2] }, { weight: 25, deductions: [0, 12, 20] }, { weight: 30, deductions: [0, 15, 25], criticalOptions: [2] }, { weight: 20, deductions: [0, 8, 15] }],
+            8: [{ weight: 20, deductions: [0, 5, 10] }, { weight: 25, deductions: [0, 10, 18] }, { weight: 30, deductions: [0, 18, 30], criticalOptions: [2] }, { weight: 25, deductions: [0, 10, 18] }]
+        },
         units: {
             1: {
                 goalQuiz: [
