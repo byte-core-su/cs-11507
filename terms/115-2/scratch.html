@@ -577,9 +577,9 @@
                 return standards.map((standard, index) => ({
                     prompt: prompts[index],
                     options: [
-                        { route: '標準路線', label: standard, flowStep: standard, score: 25, feedback: '教練：這是標準流程，能讓程式穩定往下一步執行。' },
-                        { route: '修正路線', label: `先略過「${standard}」，稍後再補回`, flowStep: `略過「${standard}」後回頭補做`, score: 18, feedback: '教練：這條路仍可修正，但流程會多一次回頭處理。' },
-                        { route: '風險路線', label: `第 ${index + 1} 步先停止目前流程，再重新檢查`, flowStep: `第 ${index + 1} 步暫停流程並重新檢查後繼續`, score: 8, feedback: '教練：這會讓程式中斷，需要額外的恢復步驟。' }
+                        { route: '方案 A', label: standard, flowStep: standard, score: 25, feedback: '教練：這個安排符合程式的實際執行結構，能穩定往下一步執行。' },
+                        { route: '方案 B', label: `先略過「${standard}」，稍後再補回`, flowStep: `略過「${standard}」後回頭補做`, score: 18, feedback: '教練：這個安排仍可修正，但流程會多一次回頭處理。' },
+                        { route: '方案 C', label: `第 ${index + 1} 步先停止目前流程，再重新檢查`, flowStep: `第 ${index + 1} 步暫停流程並重新檢查後繼續`, score: 8, feedback: '教練：這個安排會讓程式中斷，需要額外的恢復步驟。' }
                     ]
                 }));
             };
