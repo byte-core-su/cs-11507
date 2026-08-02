@@ -239,6 +239,13 @@
                         "複製角色並更動起始位置座標。"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311839093",
+                    flowchartSteps: ["綠旗開始，定位賽馬並面朝右方", "角色被點擊後開始移動", "重複 10 次：移動、換造型、碰邊反彈", "重複結束，完成本輪移動"],
+                    flowchartMermaid: `flowchart TD
+  start([綠旗被點擊]) --> init[定位到 x -190 y -70]
+  init --> direction[面朝 90 度]
+  click([角色被點擊]) --> loop{重複 10 次}
+  loop --> move[移動 10 點] --> costume[造型換成下一個] --> edge[碰到邊緣就反彈] --> loop
+  loop --> done([完成本輪移動])`,
                     uploadLinks: [
                         "imgs/5-1-1.png"
                     ],
@@ -266,6 +273,13 @@
                         "複製角色並更動起始位置座標。"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311839447",
+                    flowchartSteps: ["綠旗開始，設定馬匹起點與造型", "角色被點擊後開始賽跑", "重複直到碰到終點：隨機移動、換造型、等待", "抵達終點後停止全部程式"],
+                    flowchartMermaid: `flowchart TD
+  start([綠旗被點擊]) --> init[定位到 x -200 y 0]
+  init --> costume[造型換成 horse-a]
+  click([角色被點擊]) --> race{重複直到碰到終點}
+  race --> move[移動隨機 5 到 20 點] --> next[造型換成下一個] --> wait[等待 0.1 秒] --> race
+  race --> stop([停止全部])`,
                     uploadLinks: [
                         "imgs/5-1-2.png"
                     ],
@@ -293,6 +307,15 @@
                         "「如果」碰到「鼠標」說出「你好」。"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311839501",
+                    flowchartSteps: ["綠旗開始，設定角色位置、方向與造型", "角色被點擊後重複移動並碰邊反彈", "碰到滑鼠時說出問候", "另一個角色重複轉向並隨機等待"],
+                    flowchartMermaid: `flowchart TD
+  start([綠旗被點擊]) --> init[定位角色並設定造型與方向]
+  crabClick([螃蟹被點擊]) --> crabLoop{重複無限次}
+  crabLoop --> crabMove[移動 10 點] --> crabEdge[碰到邊緣就反彈] --> touching{碰到滑鼠？}
+  touching -- 是 --> hello[說出你好 2 秒] --> crabLoop
+  touching -- 否 --> crabLoop
+  otherClick([另一角色被點擊]) --> turnLoop{重複無限次}
+  turnLoop --> turn[右轉 30 度] --> randomWait[等待隨機 1 到 3 秒] --> turnLoop`,
                     uploadLinks: [
                         "imgs/5-1-3(1).png",
                         "imgs/5-1-3(2).png"
@@ -321,6 +344,19 @@
                         "判斷兩種條件是否同時成立。"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311839541",
+                    flowchartSteps: ["綠旗開始，重設魔鬼數目並讓角色跟隨滑鼠", "重複檢查滑鼠按鍵，切換瞄準或發射造型", "子彈持續前進，超出畫面後重設位置", "碰到目標且按下滑鼠時更新數值並隱藏目標"],
+                    flowchartMermaid: `flowchart TD
+  start([綠旗被點擊]) --> score[魔鬼數目設為 0]
+  follow([綠旗被點擊]) --> top[圖層移到最上層] --> followLoop{重複無限次} --> mouse[定位到滑鼠位置] --> followLoop
+  aim([綠旗被點擊]) --> aimLoop{重複無限次} --> pressed{滑鼠鍵被按下？}
+  pressed -- 是 --> fire[造型換成發射] --> aimLoop
+  pressed -- 否 --> target[造型換成瞄準] --> aimLoop
+  bullet([綠旗被點擊]) --> show[顯示並重複前進] --> out{x 座標大於 220？}
+  out -- 是 --> hide[隱藏、等待後重設 x 座標] --> show
+  out -- 否 --> show
+  hit([綠旗被點擊]) --> hitLoop{重複無限次} --> check{碰到目標且滑鼠鍵被按下？}
+  check -- 是 --> add[魔鬼數目改變 1] --> effect[切換被射中造型、說話、隱藏] --> hitLoop
+  check -- 否 --> hitLoop`,
                     uploadLinks: [
                         "imgs/5-1-4(1).png",
                         "imgs/5-1-4(2).png"
@@ -349,6 +385,15 @@
                         "尋找分身數量限制。"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311839581",
+                    flowchartSteps: ["綠旗開始，設定企鵝起點與造型", "角色被點擊後建立自己的分身", "分身產生後定位到隨機高度", "重複直到碰到滑鼠：移動、換造型、反彈，再刪除分身"],
+                    flowchartMermaid: `flowchart TD
+  start([綠旗被點擊]) --> init[定位到 x -200 y -140]
+  init --> costume[造型換成 penguin2-c]
+  click([角色被點擊]) --> clone[建立自己的分身]
+  born([當分身產生]) --> position[定位到 x -200、隨機 y]
+  position --> loop{重複直到碰到滑鼠}
+  loop --> move[移動 10 點] --> next[造型換成下一個] --> edge[碰到邊緣就反彈] --> loop
+  loop --> delete([刪除此分身])`,
                     uploadLinks: [
                         "imgs/5-1-A.png"
                     ],
@@ -376,6 +421,13 @@
                         "自定義程式判斷值。"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311839621",
+                    flowchartSteps: ["綠旗開始，設定起點並將名次歸零", "按下空白鍵後開始前進", "重複直到碰到終點：隨機移動", "抵達終點後名次加一並說出名次"],
+                    flowchartMermaid: `flowchart TD
+  start([綠旗被點擊]) --> init[定位到 x -240 y -140]
+  init --> reset[名次設為 0]
+  space([空白鍵被按下]) --> race{重複直到碰到終點}
+  race --> move[移動隨機 2 到 5 點] --> race
+  race --> rank[名次改變 1] --> say([說出名次])`,
                     uploadLinks: [
                         "imgs/5-1-B.png"
                     ],
@@ -403,6 +455,18 @@
                         "條件判斷：吃到飼料後的體積大小變化。"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311839656",
+                    flowchartSteps: ["綠旗開始，建立多個分身", "分身產生後隨機造型、位置與方向", "分身持續移動並在碰到邊緣時反彈", "碰到食物時廣播消失並改變大小"],
+                    flowchartMermaid: `flowchart TD
+  start([綠旗被點擊]) --> init[定位、設定大小並隱藏]
+  init --> clones{重複 10 次建立分身}
+  clones --> create[建立自己的分身] --> clones
+  born([當分身產生]) --> style[造型換成隨機 1 到 4]
+  style --> position[定位到隨機位置並隨機轉向] --> show[顯示]
+  show --> moveLoop{重複無限次}
+  moveLoop --> move[移動隨機 1 到 5 點] --> edge[碰到邊緣就反彈] --> food{碰到食物？}
+  food -- 是 --> broadcast[廣播訊息 消失] --> size[尺寸改變 10] --> moveLoop
+  food -- 否 --> moveLoop
+  receive([收到訊息 食物]) --> mouse[定位到滑鼠位置並顯示] --> fall{重複 65 次 y 改變 -5} --> hide([隱藏])`,
                     uploadLinks: [
                         "imgs/5-1-C(1).png",
                         "imgs/5-1-C(2).png"
@@ -431,6 +495,20 @@
                         "加入誤擊村民扣分機制。"
                     ],
                     projectLink: "https://scratch.mit.edu/projects/1311839203",
+                    flowchartSteps: ["綠旗開始，將目前分數歸零並讓瞄準角色跟隨滑鼠", "目標重複移動，超出畫面後隱藏並重設", "目標依隨機時間顯示與隱藏", "碰到準星且按下滑鼠時依目標更新分數與造型"],
+                    flowchartMermaid: `flowchart TD
+  start([綠旗被點擊]) --> score[目前分數設為 0]
+  aim([綠旗被點擊]) --> top[圖層移到最上層] --> aimLoop{重複無限次} --> mouse[定位到滑鼠位置] --> aimLoop
+  target([綠旗被點擊]) --> moveLoop{重複無限次}
+  moveLoop --> move[x 改變 5] --> out{x 座標大於 220？}
+  out -- 是 --> reset[隱藏、等待後 x 設為 -220、顯示] --> moveLoop
+  out -- 否 --> moveLoop
+  appear([綠旗被點擊]) --> setup[定位、設定未射中造型並隱藏] --> waitLoop{重複無限次}
+  waitLoop --> show[等待隨機秒數後顯示] --> wait[等待隨機秒數後隱藏] --> waitLoop
+  hit([綠旗被點擊]) --> hitLoop{重複無限次} --> check{碰到準星且滑鼠鍵被按下？}
+  check -- 命中目標 --> plus[目前分數改變 1] --> hitEffect[切換被射中造型、說話、隱藏] --> hitLoop
+  check -- 誤擊目標 --> minus[目前分數改變 -1] --> missEffect[切換被射中造型、說話、隱藏] --> hitLoop
+  check -- 否 --> hitLoop`,
                     uploadLinks: [
                         "imgs/5-1-D(1).png",
                         "imgs/5-1-D(2).png",
@@ -494,7 +572,7 @@
             };
 
             const coachBlueprint = unit => {
-                const standards = Array.from({ length: 4 }, (_, index) => unit.details[index] || `完成第 ${index + 1} 個程式動作`);
+                const standards = Array.from({ length: 4 }, (_, index) => unit.flowchartSteps?.[index] || unit.details[index] || `完成第 ${index + 1} 個程式動作`);
                 const prompts = ['程式開始後，第一個應安排的動作是什麼？', '完成前一步後，下一個穩定流程應是什麼？', '主要動作執行時，應如何延續流程？', '最後應如何完成這段程式流程？'];
                 return standards.map((standard, index) => ({
                     prompt: prompts[index],
@@ -523,7 +601,7 @@
                     setCoachResults(current => ({ ...current, [selectedUnit.id]: result }));
                     setFlowSteps(result.choices.map(item => item.flowStep).join('\n'));
                     setOrderedFlowSteps(result.choices.map(item => item.flowStep));
-                    const record = { ...(flowchartRecords[selectedUnit.id] || {}), steps: result.choices.map(item => item.flowStep).join('\n'), title: selectedUnit.title, coachResult: result };
+                    const record = { ...(flowchartRecords[selectedUnit.id] || {}), steps: (selectedUnit.flowchartSteps || result.choices.map(item => item.flowStep)).join('\n'), title: selectedUnit.title, coachResult: result, source: 'hint-code-flowchart' };
                     window.saveFlowchartProgress(selectedUnit.id, record).then(setFlowchartRecords).catch(error => console.error(error));
                     setCoachRound(4);
                     setCoachFeedback(score >= 85 ? `教練：本次得分 ${score} 分，已達通關標準！` : `教練：本次得分 ${score} 分，未達 85 分；可以再次闖關刷新分數。`);
@@ -538,11 +616,9 @@
                 if (!selectedUnit) return;
                 const steps = providedSteps || flowSteps.split(/\r?\n/).map(step => step.trim()).filter(Boolean);
                 if (steps.length < 2) { setFlowchartMessage('請將題目描述改寫成至少兩個清楚的流程步驟，每行一個步驟。'); return false; }
-                const nodes = steps.map((step, index) => `  step${index + 1}[${step.replace(/[\[\]{}()"']/g, '')}]`);
-                const links = steps.map((_, index) => index === 0 ? '  start --> step1' : `  step${index} --> step${index + 1}`);
-                links.push(`  step${steps.length} --> end`);
                 const coachResult = coachResultFor(selectedUnit);
-                const markdown = [`# ${selectedUnit.title}｜流程圖`, '', '## 題目說明', selectedUnit.description, ...(coachResult ? ['', '## 流程圖教練成績', `${coachResult.score} / 100 分`, ...coachResult.choices.map((choice, index) => `${index + 1}. ${choice.route}：${choice.label}`)] : []), '', '## 流程步驟', ...steps.map((step, index) => `${index + 1}. ${step}`), '', '## Mermaid', '```mermaid', 'flowchart TD', '  start([開始])', ...nodes, ...links, '  end([結束])', '```', '', '請將本檔案中的 Mermaid 區塊貼到 mermaid.ai 產生流程圖。'].join('\n');
+                const mermaidCode = selectedUnit.flowchartMermaid || ['flowchart TD', '  start([開始])', ...steps.map((step, index) => `  step${index + 1}[${step.replace(/[\[\]{}()"']/g, '')}]`), ...steps.map((_, index) => index === 0 ? '  start --> step1' : `  step${index} --> step${index + 1}`), `  step${steps.length} --> end`, '  end([結束])'].join('\n');
+                const markdown = [`# ${selectedUnit.title}｜流程圖`, '', '## 題目說明', selectedUnit.description, ...(coachResult ? ['', '## 流程圖教練成績', `${coachResult.score} / 100 分`, ...coachResult.choices.map((choice, index) => `${index + 1}. ${choice.route}：${choice.label}`)] : []), '', '## 程式結構重點', ...steps.map((step, index) => `${index + 1}. ${step}`), '', '## Mermaid', '```mermaid', mermaidCode, '```', '', '本 Mermaid 依照本關「解題提示挑戰」的積木結構整理；請貼到 mermaid.ai 產生流程圖。'].join('\n');
                 const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -551,7 +627,7 @@
                 link.click();
                 URL.revokeObjectURL(url);
                 try {
-                    const record = { steps: steps.join('\n'), exportedAt: new Date().toISOString(), title: selectedUnit.title, coachResult: coachResultFor(selectedUnit) || null };
+                    const record = { steps: steps.join('\n'), exportedAt: new Date().toISOString(), title: selectedUnit.title, coachResult: coachResultFor(selectedUnit) || null, source: 'hint-code-flowchart' };
                     const records = await window.saveFlowchartProgress(selectedUnit.id, record);
                     setFlowchartRecords(records);
                     setFlowchartMessage('Mermaid code 已下載，流程圖任務已通關；請貼入 Mermaid AI 確認流程圖。');
@@ -578,7 +654,7 @@
                 setGeneratingMermaid(true);
                 setFlowchartMessage('正在產生 Mermaid code…');
                 try {
-                    await exportFlowchartMarkdown(result.choices.map(item => item.flowStep));
+                    await exportFlowchartMarkdown(selectedUnit.flowchartSteps || result.choices.map(item => item.flowStep));
                 } finally {
                     setGeneratingMermaid(false);
                 }
@@ -949,7 +1025,7 @@
                                 <section className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
                                     <header className="flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 text-white"><div><p className="text-xs font-black tracking-[.18em] text-emerald-100">FLOWCHART COACH</p><h2 className="mt-1 text-xl font-black">流程圖教練</h2></div><button type="button" onClick={() => setCoachModalOpen(false)} className="rounded-xl bg-white/15 p-2 hover:bg-white/25" aria-label="關閉"><Icons.X className="h-6 w-6" /></button></header>
                                     <div className="p-6">
-                                        {coachRound < 4 ? <><p className="text-xs font-black tracking-[.14em] text-emerald-700">決策 {coachRound + 1} / 4</p><div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold leading-7 text-emerald-900"><span className="mr-2">🧭</span>{coachBlueprint(selectedUnit)[coachRound].prompt}</div><p className="mt-3 text-xs font-bold text-slate-500">三條路線都能繼續走完流程，但會影響最後的得分與 Mermaid 流程圖。</p><div className="mt-4 grid gap-2">{coachBlueprint(selectedUnit)[coachRound].options.map(option => <button key={option.route} type="button" onClick={() => answerCoach(option)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50"><span className="block text-xs font-black text-emerald-600">{option.route}</span><span className="mt-1 block">{option.label}</span></button>)}</div></> : <div className={`rounded-3xl border-2 p-6 text-center ${Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-emerald-50' : 'border-slate-200 bg-slate-50'}`}><p className="text-xs font-black tracking-[.2em] text-amber-700">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'FLOWCHART PASS CERTIFICATE' : 'FLOWCHART COACH RESULT'}</p><div className="mx-auto mt-4 grid h-24 w-24 place-items-center rounded-full border-4 border-amber-300 bg-white text-3xl font-black text-amber-600 shadow-sm">{coachResultFor(selectedUnit)?.score}</div><h3 className="mt-4 text-2xl font-black text-slate-800">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '流程圖教練通關證明' : '本次流程圖教練結果'}</h3><p className="mt-2 text-sm font-bold text-slate-600">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '達到 85 分通關標準，已取得產生 Mermaid code 的資格。' : '未達 85 分通關標準；再次闖關可依新路線刷新分數。'}</p><p className="mt-3 text-xs font-bold text-slate-500">完成時間：{coachResultFor(selectedUnit)?.completedAt ? new Date(coachResultFor(selectedUnit).completedAt).toLocaleString('zh-TW') : '—'}</p></div>}
+                                        {coachRound < 4 ? <><p className="text-xs font-black tracking-[.14em] text-emerald-700">決策 {coachRound + 1} / 4</p><div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold leading-7 text-emerald-900"><span className="mr-2">🧭</span>{coachBlueprint(selectedUnit)[coachRound].prompt}</div><p className="mt-3 text-xs font-bold text-slate-500">三條路線會影響得分與學習回饋；通關後的 Mermaid 會依本關解題提示程式碼的實際結構生成。</p><div className="mt-4 grid gap-2">{coachBlueprint(selectedUnit)[coachRound].options.map(option => <button key={option.route} type="button" onClick={() => answerCoach(option)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50"><span className="block text-xs font-black text-emerald-600">{option.route}</span><span className="mt-1 block">{option.label}</span></button>)}</div></> : <div className={`rounded-3xl border-2 p-6 text-center ${Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-emerald-50' : 'border-slate-200 bg-slate-50'}`}><p className="text-xs font-black tracking-[.2em] text-amber-700">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'FLOWCHART PASS CERTIFICATE' : 'FLOWCHART COACH RESULT'}</p><div className="mx-auto mt-4 grid h-24 w-24 place-items-center rounded-full border-4 border-amber-300 bg-white text-3xl font-black text-amber-600 shadow-sm">{coachResultFor(selectedUnit)?.score}</div><h3 className="mt-4 text-2xl font-black text-slate-800">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '流程圖教練通關證明' : '本次流程圖教練結果'}</h3><p className="mt-2 text-sm font-bold text-slate-600">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '達到 85 分通關標準，已取得依程式碼產生 Mermaid 的資格。' : '未達 85 分通關標準；再次闖關可依新路線刷新分數。'}</p><p className="mt-3 text-xs font-bold text-slate-500">完成時間：{coachResultFor(selectedUnit)?.completedAt ? new Date(coachResultFor(selectedUnit).completedAt).toLocaleString('zh-TW') : '—'}</p></div>}
                                         <p className={`mt-4 rounded-xl p-3 text-sm font-bold ${coachFeedback.includes('得分') || coachFeedback.includes('標準') || coachFeedback.includes('修正') ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{coachFeedback}</p>
                                         <div className="mt-5 flex flex-wrap justify-end gap-3"><button type="button" onClick={() => setCoachModalOpen(false)} className="rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100">稍後再說</button>{coachRound >= 4 && <button type="button" onClick={openFlowchartCoach} className="rounded-xl border border-emerald-300 bg-white px-5 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-50">再次闖關，刷新分數</button>}{coachRound >= 4 && Number(coachResultFor(selectedUnit)?.score) >= 85 && <button type="button" onClick={() => { setCoachModalOpen(false); setMermaidModalOpen(true); }} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700">前往產生 Mermaid code →</button>}</div>
                                     </div>
@@ -961,7 +1037,7 @@
                             <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
                                 <section className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
                                     <header className="flex items-center justify-between bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5 text-white"><div><p className="text-xs font-black tracking-[.18em] text-indigo-100">STEP 3 · MERMAID</p><h2 className="mt-1 text-xl font-black">產生 Mermaid code</h2></div><button type="button" onClick={() => setMermaidModalOpen(false)} className="rounded-xl bg-white/15 p-2 hover:bg-white/25" aria-label="關閉"><Icons.X className="h-6 w-6" /></button></header>
-                                    <div className="p-6"><p className="text-sm leading-7 text-slate-600">教練已確認流程順序。按下方按鈕會下載 Mermaid code，並將本單元的流程圖任務標記為完成。</p><button type="button" disabled={Boolean(flowchartRecords[selectedUnit.id]?.exportedAt) || generatingMermaid} onClick={generateMermaidCode} className={`mt-5 w-full rounded-xl px-5 py-4 text-sm font-black text-white shadow-lg ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'cursor-default bg-emerald-600' : (generatingMermaid ? 'cursor-wait bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700')}`}>{flowchartRecords[selectedUnit.id]?.exportedAt ? '✓ Mermaid code 已產生，流程圖已通關' : (generatingMermaid ? '正在產生 Mermaid code…' : '產生 Mermaid code 並完成通關')}</button>{flowchartRecords[selectedUnit.id]?.exportedAt ? <a href="https://mermaid.ai/web/" target="_blank" rel="noopener noreferrer" className="mt-3 block w-full rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-4 text-center text-sm font-black text-indigo-700 hover:bg-indigo-100">開啟 Mermaid AI，貼上程式碼 ↗</a> : <p className="mt-3 text-center text-xs font-bold text-slate-500">產生完成後即可開啟 Mermaid AI 的 Paste Mermaid code。</p>}<button type="button" onClick={() => setMermaidModalOpen(false)} className="mt-4 w-full rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100">返回課程</button></div>
+                                    <div className="p-6"><p className="text-sm leading-7 text-slate-600">教練已確認你對本關程式結構的理解。按下方按鈕會下載依「解題提示挑戰」積木結構生成的 Mermaid code，並將本單元的流程圖任務標記為完成。</p><button type="button" disabled={Boolean(flowchartRecords[selectedUnit.id]?.exportedAt) || generatingMermaid} onClick={generateMermaidCode} className={`mt-5 w-full rounded-xl px-5 py-4 text-sm font-black text-white shadow-lg ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'cursor-default bg-emerald-600' : (generatingMermaid ? 'cursor-wait bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700')}`}>{flowchartRecords[selectedUnit.id]?.exportedAt ? '✓ Mermaid code 已產生，流程圖已通關' : (generatingMermaid ? '正在產生 Mermaid code…' : '產生 Mermaid code 並完成通關')}</button>{flowchartRecords[selectedUnit.id]?.exportedAt ? <a href="https://mermaid.ai/web/" target="_blank" rel="noopener noreferrer" className="mt-3 block w-full rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-4 text-center text-sm font-black text-indigo-700 hover:bg-indigo-100">開啟 Mermaid AI，貼上程式碼 ↗</a> : <p className="mt-3 text-center text-xs font-bold text-slate-500">產生完成後即可開啟 Mermaid AI 的 Paste Mermaid code。</p>}<button type="button" onClick={() => setMermaidModalOpen(false)} className="mt-4 w-full rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100">返回課程</button></div>
                                 </section>
                             </div>
                         )}
