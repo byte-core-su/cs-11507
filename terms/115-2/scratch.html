@@ -62,6 +62,7 @@
     </style>
     <script src="../../firebase-config.js"></script>
     <script src="../../shared/learner-profile.js"></script>
+    <script src="flowchart-coach-data.js"></script>
     <script src="../../shared/site-shell.js" defer></script>
     <script type="module">
         import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -168,6 +169,9 @@
             const [orderedFlowSteps, setOrderedFlowSteps] = useState([]);
             const [flowchartMessage, setFlowchartMessage] = useState('');
             const [referenceModalOpen, setReferenceModalOpen] = useState(false);
+            const [goalCheckModalOpen, setGoalCheckModalOpen] = useState(false);
+            const [goalQuestionIndex, setGoalQuestionIndex] = useState(0);
+            const [goalCheckFeedback, setGoalCheckFeedback] = useState('');
             const [coachModalOpen, setCoachModalOpen] = useState(false);
             const [mermaidModalOpen, setMermaidModalOpen] = useState(false);
             const [coachRound, setCoachRound] = useState(0);
@@ -567,26 +571,70 @@
                 setOrderedFlowSteps([]);
                 setFlowchartMessage('');
                 setReferenceModalOpen(false);
+                setGoalCheckModalOpen(false);
                 setCoachModalOpen(false);
                 setMermaidModalOpen(false);
             };
 
+            const coachLessonFor = unit => window.FlowchartCoachData?.units?.[unit?.id] || null;
+            const referenceForConcept = concept => window.FlowchartCoachData?.references?.[concept] || '流程圖參考文件：請辨認這個積木在流程中的角色。';
             const coachBlueprint = unit => {
-                const standards = Array.from({ length: 4 }, (_, index) => unit.flowchartSteps?.[index] || unit.details[index] || `完成第 ${index + 1} 個程式動作`);
-                const prompts = ['程式開始後，第一個應安排的動作是什麼？', '完成前一步後，下一個穩定流程應是什麼？', '主要動作執行時，應如何延續流程？', '最後應如何完成這段程式流程？'];
-                return standards.map((standard, index) => ({
-                    prompt: prompts[index],
-                    options: [
-                        { route: '方案 A', label: standard, flowStep: standard, score: 25, feedback: '教練：這個安排符合程式的實際執行結構，能穩定往下一步執行。' },
-                        { route: '方案 B', label: `先略過「${standard}」，稍後再補回`, flowStep: `略過「${standard}」後回頭補做`, score: 18, feedback: '教練：這個安排仍可修正，但流程會多一次回頭處理。' },
-                        { route: '方案 C', label: `第 ${index + 1} 步先停止目前流程，再重新檢查`, flowStep: `第 ${index + 1} 步暫停流程並重新檢查後繼續`, score: 8, feedback: '教練：這個安排會讓程式中斷，需要額外的恢復步驟。' }
-                    ]
+                const lesson = coachLessonFor(unit);
+                if (lesson?.rounds?.length) return lesson.rounds.map(entry => ({
+                    prompt: entry.prompt,
+                    concept: entry.concept,
+                    reference: referenceForConcept(entry.concept),
+                    options: entry.options.map((choice, index) => ({
+                        route: `方案 ${String.fromCharCode(65 + index)}`,
+                        label: choice.text,
+                        flowStep: choice.text,
+                        score: choice.score,
+                        feedback: `教練：${choice.note}`,
+                        concept: entry.concept,
+                        reference: referenceForConcept(entry.concept)
+                    }))
                 }));
+                const standards = Array.from({ length: 4 }, (_, index) => unit.flowchartSteps?.[index] || unit.details[index] || `完成第 ${index + 1} 個程式動作`);
+                return standards.map((standard, index) => ({ prompt: `流程圖中，哪個安排最符合第 ${index + 1} 個程式重點？`, concept: 'process', reference: referenceForConcept('process'), options: [
+                    { route: '方案 A', label: standard, flowStep: standard, score: 25, feedback: '教練：這個安排符合程式的實際執行結構。', concept: 'process', reference: referenceForConcept('process') },
+                    { route: '方案 B', label: `改變「${standard}」的設定後再執行`, flowStep: `改變「${standard}」的設定後再執行`, score: 18, feedback: '教練：程式可以執行，但結果會不同。', concept: 'process', reference: referenceForConcept('process') },
+                    { route: '方案 C', label: `使用另一種事件或控制方式完成「${standard}」`, flowStep: `使用另一種事件或控制方式完成「${standard}」`, score: 15, feedback: '教練：程式可以執行，但已不是本關的目標流程。', concept: 'process', reference: referenceForConcept('process') }
+                ] }));
             };
             const coachResultFor = unit => unit ? (coachResults[unit.id] || flowchartRecords[unit.id]?.coachResult || null) : null;
             const coachPassed = unit => Boolean(unit && (Number(coachResultFor(unit)?.score) >= 85 || flowchartRecords[unit.id]?.exportedAt));
-            const openFlowchartCoach = () => {
+            const goalCheckPassed = unit => Boolean(unit && flowchartRecords[unit.id]?.goalCheckAt);
+            const openGoalCheck = () => {
                 if (!selectedUnit || !referenceReads[selectedUnit.id]) return;
+                setGoalQuestionIndex(0);
+                setGoalCheckFeedback('先完成三題「本單元學習重點確認」，全對後才會開放流程圖教練。');
+                setGoalCheckModalOpen(true);
+            };
+            const answerGoalCheck = answerIndex => {
+                if (!selectedUnit) return;
+                const questions = coachLessonFor(selectedUnit)?.goalQuiz || [];
+                const question = questions[goalQuestionIndex];
+                if (!question) return;
+                if (answerIndex !== question.answer) {
+                    setGoalQuestionIndex(0);
+                    setGoalCheckFeedback(`這一題要回看「${question.focus}」。三題需要連續全對，請從第一題再試一次。`);
+                    return;
+                }
+                const nextQuestion = goalQuestionIndex + 1;
+                if (nextQuestion < questions.length) {
+                    setGoalQuestionIndex(nextQuestion);
+                    setGoalCheckFeedback('答對了，繼續完成下一題。');
+                    return;
+                }
+                const record = { ...(flowchartRecords[selectedUnit.id] || {}), title: selectedUnit.title, goalCheckAt: new Date().toISOString(), source: 'learning-goals-check' };
+                window.saveFlowchartProgress(selectedUnit.id, record).then(records => {
+                    setFlowchartRecords(records);
+                    setGoalCheckModalOpen(false);
+                    setFlowchartMessage('✓ 已完成本單元學習重點確認，現在可以開啟流程圖教練。');
+                }).catch(error => console.error(error));
+            };
+            const openFlowchartCoach = () => {
+                if (!selectedUnit || !referenceReads[selectedUnit.id] || !goalCheckPassed(selectedUnit)) return;
                 setCoachRound(0);
                 setCoachChoices([]);
                 setCoachFeedback(`教練：我們會走完四個不同的流程決策。每一個選擇都會保留在你的流程圖裡。`);
@@ -597,7 +645,7 @@
                 const nextChoices = [...coachChoices, option];
                 if (nextChoices.length >= 4) {
                     const score = nextChoices.reduce((total, item) => total + item.score, 0);
-                    const result = { score, choices: nextChoices.map(item => ({ route: item.route, label: item.label, flowStep: item.flowStep, score: item.score })), completedAt: new Date().toISOString() };
+                    const result = { score, choices: nextChoices.map(item => ({ route: item.route, label: item.label, flowStep: item.flowStep, score: item.score, concept: item.concept })), completedAt: new Date().toISOString() };
                     setCoachResults(current => ({ ...current, [selectedUnit.id]: result }));
                     setFlowSteps(result.choices.map(item => item.flowStep).join('\n'));
                     setOrderedFlowSteps(result.choices.map(item => item.flowStep));
@@ -609,7 +657,7 @@
                 }
                 setCoachChoices(nextChoices);
                 setCoachRound(nextChoices.length);
-                setCoachFeedback(`教練：你選擇了「${option.route}」。${option.feedback}`);
+                setCoachFeedback(`教練：你選擇了「${option.route}」。${option.feedback} ${option.reference || ''}`);
             };
 
             const exportFlowchartMarkdown = async (providedSteps = null) => {
@@ -921,10 +969,11 @@
                                                 <p className="mt-4 text-sm leading-6 text-slate-600">依序完成三個流程圖步驟；最後按下「產生 Mermaid code」即代表本單元流程圖通關。</p>
                                                 <div className="mt-4 grid gap-2">
                                                     <button type="button" onClick={() => setReferenceModalOpen(true)} className="flex items-center justify-between rounded-xl border border-emerald-300 bg-white px-4 py-3 text-left text-sm font-black text-emerald-700 hover:bg-emerald-100"><span>1．閱讀流程圖參考文件</span><span>→</span></button>
-                                                    <button type="button" disabled={!referenceReads[selectedUnit.id]} onClick={openFlowchartCoach} className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-black ${referenceReads[selectedUnit.id] ? 'border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100' : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'}`}><span>2．流程圖教練對話引導</span><span>{referenceReads[selectedUnit.id] ? '→' : '🔒'}</span></button>
-                                                    <button type="button" disabled={!coachPassed(selectedUnit)} onClick={() => setMermaidModalOpen(true)} className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-black ${coachPassed(selectedUnit) ? 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700' : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'}`}><span>3．產生 Mermaid code</span><span>{coachPassed(selectedUnit) ? '→' : '🔒'}</span></button>
+                                                    <button type="button" disabled={!referenceReads[selectedUnit.id]} onClick={openGoalCheck} className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-black ${referenceReads[selectedUnit.id] ? 'border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100' : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'}`}><span>2．本單元學習重點確認</span><span>{referenceReads[selectedUnit.id] ? '→' : '🔒'}</span></button>
+                                                    <button type="button" disabled={!goalCheckPassed(selectedUnit)} onClick={openFlowchartCoach} className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-black ${goalCheckPassed(selectedUnit) ? 'border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100' : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'}`}><span>3．流程圖教練對話引導</span><span>{goalCheckPassed(selectedUnit) ? '→' : '🔒'}</span></button>
+                                                    <button type="button" disabled={!coachPassed(selectedUnit)} onClick={() => setMermaidModalOpen(true)} className={`flex items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-black ${coachPassed(selectedUnit) ? 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700' : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'}`}><span>4．產生 Mermaid code</span><span>{coachPassed(selectedUnit) ? '→' : '🔒'}</span></button>
                                                 </div>
-                                                <p className={`mt-3 text-xs font-bold ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'text-emerald-700' : 'text-slate-500'}`}>{!referenceReads[selectedUnit.id] ? '請先完成 30 秒流程圖參考文件閱讀。' : (flowchartMessage || (flowchartRecords[selectedUnit.id]?.exportedAt ? '✓ 已完成流程圖任務' : '下一步：開啟流程圖教練。'))}</p>
+                                                <p className={`mt-3 text-xs font-bold ${flowchartRecords[selectedUnit.id]?.exportedAt ? 'text-emerald-700' : 'text-slate-500'}`}>{!referenceReads[selectedUnit.id] ? '請先完成 30 秒流程圖參考文件閱讀。' : (!goalCheckPassed(selectedUnit) ? (flowchartMessage || '下一步：完成本單元學習重點確認。') : (flowchartMessage || (flowchartRecords[selectedUnit.id]?.exportedAt ? '✓ 已完成流程圖任務' : '下一步：開啟流程圖教練。')))}</p>
                                             </section>
                                             
                                             {/* 1. 原始程式連結 */}
@@ -1020,12 +1069,23 @@
                             </div>
                         )}
 
+                        {goalCheckModalOpen && selectedUnit && (() => {
+                            const question = coachLessonFor(selectedUnit)?.goalQuiz?.[goalQuestionIndex];
+                            if (!question) return null;
+                            return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+                                <section className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+                                    <header className="flex items-center justify-between bg-gradient-to-r from-sky-600 to-indigo-600 px-6 py-5 text-white"><div><p className="text-xs font-black tracking-[.18em] text-sky-100">LEARNING GOALS CHECK</p><h2 className="mt-1 text-xl font-black">本單元學習重點確認</h2></div><button type="button" onClick={() => setGoalCheckModalOpen(false)} className="rounded-xl bg-white/15 p-2 hover:bg-white/25" aria-label="關閉"><Icons.X className="h-6 w-6" /></button></header>
+                                    <div className="p-6"><p className="text-xs font-black tracking-[.14em] text-sky-700">第 {goalQuestionIndex + 1} / 3 題 · 三題需連續全對</p><div className="mt-3 rounded-2xl bg-sky-50 p-4 text-base font-black leading-7 text-sky-950">{question.question}</div><div className="mt-4 grid gap-2">{question.options.map((choice, index) => <button key={choice} type="button" onClick={() => answerGoalCheck(index)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-700 transition hover:border-sky-400 hover:bg-sky-50"><span className="mr-2 text-xs font-black text-sky-600">{String.fromCharCode(65 + index)}.</span>{choice}</button>)}</div><p className={`mt-4 rounded-xl p-3 text-sm font-bold ${goalCheckFeedback.includes('回看') ? 'bg-amber-50 text-amber-800' : 'bg-sky-50 text-sky-800'}`}>{goalCheckFeedback}</p><button type="button" onClick={() => setGoalCheckModalOpen(false)} className="mt-4 w-full rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100">稍後再說</button></div>
+                                </section>
+                            </div>;
+                        })()}
+
                         {coachModalOpen && selectedUnit && (
                             <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
                                 <section className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
                                     <header className="flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 text-white"><div><p className="text-xs font-black tracking-[.18em] text-emerald-100">FLOWCHART COACH</p><h2 className="mt-1 text-xl font-black">流程圖教練</h2></div><button type="button" onClick={() => setCoachModalOpen(false)} className="rounded-xl bg-white/15 p-2 hover:bg-white/25" aria-label="關閉"><Icons.X className="h-6 w-6" /></button></header>
                                     <div className="p-6">
-                                        {coachRound < 4 ? <><p className="text-xs font-black tracking-[.14em] text-emerald-700">決策 {coachRound + 1} / 4</p><div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold leading-7 text-emerald-900"><span className="mr-2">🧭</span>{coachBlueprint(selectedUnit)[coachRound].prompt}</div><p className="mt-3 text-xs font-bold text-slate-500">三條路線會影響得分與學習回饋；通關後的 Mermaid 會依本關解題提示程式碼的實際結構生成。</p><div className="mt-4 grid gap-2">{coachBlueprint(selectedUnit)[coachRound].options.map(option => <button key={option.route} type="button" onClick={() => answerCoach(option)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50"><span className="block text-xs font-black text-emerald-600">{option.route}</span><span className="mt-1 block">{option.label}</span></button>)}</div></> : <div className={`rounded-3xl border-2 p-6 text-center ${Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-emerald-50' : 'border-slate-200 bg-slate-50'}`}><p className="text-xs font-black tracking-[.2em] text-amber-700">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'FLOWCHART PASS CERTIFICATE' : 'FLOWCHART COACH RESULT'}</p><div className="mx-auto mt-4 grid h-24 w-24 place-items-center rounded-full border-4 border-amber-300 bg-white text-3xl font-black text-amber-600 shadow-sm">{coachResultFor(selectedUnit)?.score}</div><h3 className="mt-4 text-2xl font-black text-slate-800">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '流程圖教練通關證明' : '本次流程圖教練結果'}</h3><p className="mt-2 text-sm font-bold text-slate-600">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '達到 85 分通關標準，已取得依程式碼產生 Mermaid 的資格。' : '未達 85 分通關標準；再次闖關可依新路線刷新分數。'}</p><p className="mt-3 text-xs font-bold text-slate-500">完成時間：{coachResultFor(selectedUnit)?.completedAt ? new Date(coachResultFor(selectedUnit).completedAt).toLocaleString('zh-TW') : '—'}</p></div>}
+                                        {coachRound < 4 ? <><p className="text-xs font-black tracking-[.14em] text-emerald-700">決策 {coachRound + 1} / 4</p><div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold leading-7 text-emerald-900"><span className="mr-2">🧭</span>{coachBlueprint(selectedUnit)[coachRound].prompt}</div><p className="mt-3 text-xs font-bold text-slate-500">三個方案都能執行，但會改變程式結果與得分；請判斷它在流程圖中屬於哪一種概念。</p><div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs font-bold leading-6 text-indigo-800">📘 {coachBlueprint(selectedUnit)[coachRound].reference}</div><div className="mt-4 grid gap-2">{coachBlueprint(selectedUnit)[coachRound].options.map(option => <button key={option.route} type="button" onClick={() => answerCoach(option)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50"><span className="block text-xs font-black text-emerald-600">{option.route}</span><span className="mt-1 block">{option.label}</span></button>)}</div></> : <div className={`rounded-3xl border-2 p-6 text-center ${Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-emerald-50' : 'border-slate-200 bg-slate-50'}`}><p className="text-xs font-black tracking-[.2em] text-amber-700">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? 'FLOWCHART PASS CERTIFICATE' : 'FLOWCHART COACH RESULT'}</p><div className="mx-auto mt-4 grid h-24 w-24 place-items-center rounded-full border-4 border-amber-300 bg-white text-3xl font-black text-amber-600 shadow-sm">{coachResultFor(selectedUnit)?.score}</div><h3 className="mt-4 text-2xl font-black text-slate-800">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '流程圖教練通關證明' : '本次流程圖教練結果'}</h3><p className="mt-2 text-sm font-bold text-slate-600">{Number(coachResultFor(selectedUnit)?.score) >= 85 ? '達到 85 分通關標準，已取得依程式碼產生 Mermaid 的資格。' : '未達 85 分通關標準；再次闖關可依新路線刷新分數。'}</p><p className="mt-3 text-xs font-bold text-slate-500">完成時間：{coachResultFor(selectedUnit)?.completedAt ? new Date(coachResultFor(selectedUnit).completedAt).toLocaleString('zh-TW') : '—'}</p></div>}
                                         <p className={`mt-4 rounded-xl p-3 text-sm font-bold ${coachFeedback.includes('得分') || coachFeedback.includes('標準') || coachFeedback.includes('修正') ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{coachFeedback}</p>
                                         <div className="mt-5 flex flex-wrap justify-end gap-3"><button type="button" onClick={() => setCoachModalOpen(false)} className="rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-100">稍後再說</button>{coachRound >= 4 && <button type="button" onClick={openFlowchartCoach} className="rounded-xl border border-emerald-300 bg-white px-5 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-50">再次闖關，刷新分數</button>}{coachRound >= 4 && Number(coachResultFor(selectedUnit)?.score) >= 85 && <button type="button" onClick={() => { setCoachModalOpen(false); setMermaidModalOpen(true); }} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700">前往產生 Mermaid code →</button>}</div>
                                     </div>
