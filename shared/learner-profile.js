@@ -8,6 +8,7 @@
   const profileSessionKey = `learning-platform.${app.currentTermId}.active-profile.v1`;
   const browserSessionsKey = `learning-platform.${app.academicYearId || 'school'}.student-browser-sessions.v1`;
   const browserTabKey = 'learning-platform.student-browser-tab.v1';
+  const remoteSessionKey = `learning-platform.${app.academicYearId || 'school'}.remote-session.v1`;
   const browserSessionMaxAgeMs = 4 * 60 * 1000;
   const legacyProfileKey = 'learning-platform.profile.v1';
   const normalizeStudentId = value => String(value || '').trim();
@@ -42,6 +43,24 @@
       }
       return id;
     } catch (_) { return ''; }
+  }
+  function newRemoteSessionId() {
+    const randomPart = global.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return `remote_${randomPart.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  }
+  function getRemoteSessionId() {
+    try {
+      const current = localStorage.getItem(remoteSessionKey);
+      if (typeof current === 'string' && current.startsWith('remote_')) return current;
+      const created = newRemoteSessionId();
+      localStorage.setItem(remoteSessionKey, created);
+      return created;
+    } catch (_) { return newRemoteSessionId(); }
+  }
+  function rotateRemoteSessionId() {
+    const next = newRemoteSessionId();
+    try { localStorage.setItem(remoteSessionKey, next); } catch (_) { /* Keep the in-memory login ID. */ }
+    return next;
   }
   function readBrowserSessions() {
     try {
@@ -143,6 +162,7 @@
     studentEmail: studentId => `${normalizeStudentId(studentId)}@${app.studentEmailDomain}`,
     readLocalProfile, saveLocalProfile, startSession, hasActiveSession, endSession,
     checkBrowserStudent, claimBrowserStudent, refreshBrowserStudent, releaseBrowserStudent,
+    getRemoteSessionId, rotateRemoteSessionId,
     termDocumentPath: uid => `users/${uid}/terms/${app.currentTermId}`,
     readTermStorage, writeTermStorage,
     studentStorageKey, readStudentTermStorage, writeStudentTermStorage
