@@ -329,39 +329,39 @@
         // 測驗題庫資料 (5個特徵，每個特徵5題)
         const quizBanks = [
             [ // 1. 輸入 (Input) 題庫
-                { question: "食譜需要準備麵粉、雞蛋等食材，這相當於演算法可以接受外界提供的資料。這符合哪一項特徵？", options: ["輸入 (Input)", "輸出 (Output)", "有限性 (Finiteness)"] },
-                { question: "某個計算機程式需要使用者鍵入兩個數字才能進行加法運算。這兩個數字代表了演算法的哪一個特徵？", options: ["明確性 (Definiteness)", "輸入 (Input)", "有效性 (Effectiveness)"] },
-                { question: "演算法可以沒有任何從外界取得的資料，或者有多個資料來源。這是指哪項特徵？", options: ["有限性 (Finiteness)", "明確性 (Definiteness)", "輸入 (Input)"] },
-                { question: "在自動販賣機的運作邏輯中，投入的硬幣和選擇的飲料按鈕，屬於演算法的哪個部分？", options: ["輸入 (Input)", "輸出 (Output)", "有效性 (Effectiveness)"] },
-                { question: "為了讓程式開始運作，我們提供給它的初始數據稱為什麼？", options: ["有限性 (Finiteness)", "輸入 (Input)", "輸出 (Output)"] }
+                { question: "食譜需要準備麵粉、雞蛋等食材，這相當於演算法可以接受外界提供的資料。這符合哪一項特徵？", options: ["輸入", "輸出", "有限性"] },
+                { question: "某個計算機程式需要使用者鍵入兩個數字才能進行加法運算。這兩個數字代表了演算法的哪一個特徵？", options: ["明確性", "輸入", "有效性"] },
+                { question: "演算法可以沒有任何從外界取得的資料，或者有多個資料來源。這是指哪項特徵？", options: ["有限性", "明確性", "輸入"] },
+                { question: "在自動販賣機的運作邏輯中，投入的硬幣和選擇的飲料按鈕，屬於演算法的哪個部分？", options: ["輸入", "輸出", "有效性"] },
+                { question: "為了讓程式開始運作，我們提供給它的初始數據稱為什麼？", options: ["有限性", "輸入", "輸出"] }
             ],
             [ // 2. 輸出 (Output) 題庫
-                { question: "演算法最終必須解決問題，並產生至少一個結果給我們。這是哪一項特徵？", options: ["有效性 (Effectiveness)", "明確性 (Definiteness)", "輸出 (Output)"] },
-                { question: "程式計算完學生成績後，在螢幕上顯示出「及格」或「不及格」。這是演算法的哪個特徵？", options: ["輸出 (Output)", "輸入 (Input)", "有限性 (Finiteness)"] },
-                { question: "如果一個演算法執行完畢卻沒有給出任何答案，那它就失去了意義。這強調了哪個特徵的必要性？", options: ["明確性 (Definiteness)", "輸出 (Output)", "有效性 (Effectiveness)"] },
-                { question: "烤箱烤出來的美味蛋糕，在「做蛋糕演算法」中代表什麼？", options: ["有限性 (Finiteness)", "輸入 (Input)", "輸出 (Output)"] },
-                { question: "演算法規定至少必須產生一個或多個什麼，以表示任務完成？", options: ["輸出 (Output)", "有效性 (Effectiveness)", "明確性 (Definiteness)"] }
+                { question: "演算法最終必須解決問題，並產生至少一個結果給我們。這是哪一項特徵？", options: ["有效性", "明確性", "輸出"] },
+                { question: "程式計算完學生成績後，在螢幕上顯示出「及格」或「不及格」。這是演算法的哪個特徵？", options: ["輸出", "輸入", "有限性"] },
+                { question: "如果一個演算法執行完畢卻沒有給出任何答案，那它就失去了意義。這強調了哪個特徵的必要性？", options: ["明確性", "輸出", "有效性"] },
+                { question: "烤箱烤出來的美味蛋糕，在「做蛋糕演算法」中代表什麼？", options: ["有限性", "輸入", "輸出"] },
+                { question: "演算法規定至少必須產生一個或多個什麼，以表示任務完成？", options: ["輸出", "有效性", "明確性"] }
             ],
             [ // 3. 明確性 (Definiteness) 題庫
-                { question: "指令不能寫「加一點點鹽」，必須寫「加 5 克鹽」，讓電腦完全清楚該做什麼。這是哪一項特徵？", options: ["明確性 (Definiteness)", "有限性 (Finiteness)", "輸入 (Input)"] },
-                { question: "程式碼中的每一個指令都不能有模稜兩可的情況，必須讓電腦唯一確切地執行。這是指？", options: ["有效性 (Effectiveness)", "明確性 (Definiteness)", "輸出 (Output)"] },
-                { question: "「將水加熱到適當溫度」這句指令缺乏了哪個演算法特徵？", options: ["明確性 (Definiteness)", "輸入 (Input)", "有限性 (Finiteness)"] },
-                { question: "如果兩台電腦根據同一份演算法執行，每一步的解讀都必須完全相同，這體現了什麼？", options: ["有限性 (Finiteness)", "有效性 (Effectiveness)", "明確性 (Definiteness)"] },
-                { question: "避免使用「或許」、「大概」、「幾次」等模糊字眼，是為了符合演算法的哪項特徵？", options: ["輸入 (Input)", "明確性 (Definiteness)", "輸出 (Output)"] }
+                { question: "指令不能寫「加一點點鹽」，必須寫「加 5 克鹽」，讓電腦完全清楚該做什麼。這是哪一項特徵？", options: ["明確性", "有限性", "輸入"] },
+                { question: "程式碼中的每一個指令都不能有模稜兩可的情況，必須讓電腦唯一確切地執行。這是指？", options: ["有效性", "明確性", "輸出"] },
+                { question: "「將水加熱到適當溫度」這句指令缺乏了哪個演算法特徵？", options: ["明確性", "輸入", "有限性"] },
+                { question: "如果兩台電腦根據同一份演算法執行，每一步的解讀都必須完全相同，這體現了什麼？", options: ["有限性", "有效性", "明確性"] },
+                { question: "避免使用「或許」、「大概」、「幾次」等模糊字眼，是為了符合演算法的哪項特徵？", options: ["輸入", "明確性", "輸出"] }
             ],
             [ // 4. 有限性 (Finiteness) 題庫
-                { question: "演算法不能陷入永無止境的「無限迴圈」，必須在執行一定步驟後結束。這是什麼特徵？", options: ["有效性 (Effectiveness)", "有限性 (Finiteness)", "輸出 (Output)"] },
-                { question: "無論處理的資料量有多大，演算法最終都必須在有限的時間內停止運作。這符合哪一項特徵？", options: ["有限性 (Finiteness)", "明確性 (Definiteness)", "輸入 (Input)"] },
-                { question: "如果一個程式卡住了，永遠無法結束，它就違反了演算法的哪個特徵？", options: ["輸出 (Output)", "有效性 (Effectiveness)", "有限性 (Finiteness)"] },
-                { question: "為了確保我們能得到結果，演算法的執行步數不能是無限的。這被稱為？", options: ["有限性 (Finiteness)", "輸入 (Input)", "明確性 (Definiteness)"] },
-                { question: "雖然某個演算法可能需要跑好幾年才會結束，但只要它「終究會結束」，它就符合哪個特徵？", options: ["有效性 (Effectiveness)", "有限性 (Finiteness)", "輸出 (Output)"] }
+                { question: "演算法不能陷入永無止境的「無限迴圈」，必須在執行一定步驟後結束。這是什麼特徵？", options: ["有效性", "有限性", "輸出"] },
+                { question: "無論處理的資料量有多大，演算法最終都必須在有限的時間內停止運作。這符合哪一項特徵？", options: ["有限性", "明確性", "輸入"] },
+                { question: "如果一個程式卡住了，永遠無法結束，它就違反了演算法的哪個特徵？", options: ["輸出", "有效性", "有限性"] },
+                { question: "為了確保我們能得到結果，演算法的執行步數不能是無限的。這被稱為？", options: ["有限性", "輸入", "明確性"] },
+                { question: "雖然某個演算法可能需要跑好幾年才會結束，但只要它「終究會結束」，它就符合哪個特徵？", options: ["有效性", "有限性", "輸出"] }
             ],
             [ // 5. 有效性 (Effectiveness) 題庫
-                { question: "每一個步驟都必須是基本的、可行的，只要手上有紙筆，原則上都能算出來。這是哪一項特徵？", options: ["輸入 (Input)", "明確性 (Definiteness)", "有效性 (Effectiveness)"] },
-                { question: "演算法中的指令不能是「計算出圓周率的最後一位數」這種無法實現的操作。這說明了哪個特徵？", options: ["有效性 (Effectiveness)", "有限性 (Finiteness)", "輸出 (Output)"] },
-                { question: "電腦的處理器必須能夠實際執行演算法中的每一個基本運算，不能超出其能力範圍。這符合？", options: ["明確性 (Definiteness)", "有效性 (Effectiveness)", "輸入 (Input)"] },
-                { question: "如果一個演算法要求電腦「預知未來的樂透號碼」，它就缺乏了哪個重要特徵？", options: ["有效性 (Effectiveness)", "有限性 (Finiteness)", "明確性 (Definiteness)"] },
-                { question: "每一個操作都必須簡單到可以在有限的時間內確實完成。這是演算法的哪個特徵？", options: ["輸出 (Output)", "輸入 (Input)", "有效性 (Effectiveness)"] }
+                { question: "每一個步驟都必須是基本的、可行的，只要手上有紙筆，原則上都能算出來。這是哪一項特徵？", options: ["輸入", "明確性", "有效性"] },
+                { question: "演算法中的指令不能是「計算出圓周率的最後一位數」這種無法實現的操作。這說明了哪個特徵？", options: ["有效性", "有限性", "輸出"] },
+                { question: "電腦的處理器必須能夠實際執行演算法中的每一個基本運算，不能超出其能力範圍。這符合？", options: ["明確性", "有效性", "輸入"] },
+                { question: "如果一個演算法要求電腦「預知未來的樂透號碼」，它就缺乏了哪個重要特徵？", options: ["有效性", "有限性", "明確性"] },
+                { question: "每一個操作都必須簡單到可以在有限的時間內確實完成。這是演算法的哪個特徵？", options: ["輸出", "輸入", "有效性"] }
             ]
         ];
 
