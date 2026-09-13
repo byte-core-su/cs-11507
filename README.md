@@ -20,14 +20,16 @@
 - `users/{uid}.teacherProgress.{termId}`：該學期教師核定資料。
 - `users/{uid}.teacherProgress.{termId}.taskCompletions`：運算思維與程式設計由教師檢核 Classroom 附件後，依指定單元寫入的完成紀錄；`completedAt` 使用附件上傳日期，`reviewedAt` 保留教師核定日期。學生入口只能讀取，不能自行勾選或修改。
 - `users/{uid}.teacherProgress.{termId}.taskHistory`：每次附件檢核的歷史事件，供教師端依週回看 32 項任務的成長曲線；曲線以 `completedAt`（附件上傳日期）計算。
+- `quizAnswerKeys/{questionId}`：教師專用的題目答案金鑰。正確選項與流程排序解答不放在學生端網頁，避免從網頁原始碼直接取得答案。
+- `quizAttempts/{uid}/events/{attemptId}`：學生每次作答的不可修改紀錄。Firestore Rules 會依私密答案金鑰判定正誤，供教師端的「題目作答分析」查看作答人數、首次答對率、答對率、選項分布與平均作答時間。
 
-部署前請將根目錄的 `firestore.rules` 發佈至 Firebase，並以本目錄作為網站部署根目錄。
+部署前請將根目錄的 `firestore.rules` 發佈至 Firebase，並以本目錄作為網站部署根目錄。首次啟用題目保護時，教師也要登入 `shared/quiz-key-import.html`，匯入本機保管的私密題庫金鑰檔；該檔案不可推送至 GitHub。
 
 下一個學年度只需新增新的學期內容資料夾，並將 `firebase-config.js` 的 `academicYearId` 更新為新的學年度。
 
 ## 正式評量提醒
 
-本系統目前仍存在登入驗證風險，適合作為教材、上課進度與教師輔助檢核使用；不建議將平台自動記錄或顯示的結果直接作為正式評量成績。正式成績應由教師依作業、測驗與人工覆核結果判定。
+本系統目前仍存在登入驗證風險，適合作為教材、上課進度與教師輔助檢核使用；不建議將平台自動記錄或顯示的結果直接作為正式評量成績。題目保護可避免由網頁原始碼直接取得正解，但作答分析仍應作為教學診斷使用；正式成績應由教師依作業、測驗與人工覆核結果判定。
 
 ## 學生登入與重複登入限制
 
