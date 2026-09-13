@@ -41,6 +41,12 @@ service cloud.firestore {
           && request.resource.data.verificationCode.matches('^[0-9]{6}$'));
     }
 
+    // Teacher-only operational settings.  Classroom-to-task mapping is kept
+    // outside student profiles so it never becomes visible in learner pages.
+    match /teacherSettings/{settingId} {
+      allow read, write: if isTeacher();
+    }
+
     // A term ID is part of the document path, so 11501 and 11502 leaderboard
     // records remain separate while keeping the same validation policy.
     match /leaderboards/{termId}/difficulties/{difficulty}/scores/{scoreId} {

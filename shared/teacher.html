@@ -34,6 +34,7 @@
         <button data-tab="live" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">作業檢核</button>
         <button data-tab="progress" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">學習進度</button>
         <button data-tab="questions" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">題目分析</button>
+        <button data-tab="notion" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">Notion 整理</button>
         <button data-tab="roster" class="tab-button flex-1 rounded-xl px-4 py-3 font-bold text-slate-600 hover:bg-slate-100">學生帳號</button>
       </nav>
 
@@ -70,6 +71,16 @@
         </section>
       </section>
 
+      <section id="notion-tab" class="tab-panel hidden">
+        <section class="rounded-2xl bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="font-bold text-slate-700">NOTION LEARNING ARCHIVE</p><h2 class="text-lg font-black">Notion 學習作品整理</h2><p id="notion-note" class="mt-1 text-sm text-slate-500">以作業檢核的班級為準，先將 Classroom 作業對應到本學期 16 項作品任務。</p></div><div id="notion-summary" class="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700">正在讀取設定…</div></div>
+          <div class="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_auto]"><div><p class="text-sm font-bold text-slate-700">目前班級：<span id="notion-class-label">—</span></p><p class="mt-1 text-xs leading-5 text-slate-500">班級會跟隨「作業檢核」；切換班級後可分別保存對應作業。系統名冊會自動帶入學生姓名、學號與座號。</p></div><button id="notion-load-classroom" class="rounded-xl bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900">讀取本班 Classroom 作業</button></div>
+          <div class="mt-5 overflow-x-auto"><table class="w-full min-w-[760px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">類別</th><th class="p-3">編號</th><th class="p-3">系統任務</th><th class="p-3">對應 Classroom 作業</th></tr></thead><tbody id="notion-mapping-body"></tbody></table></div>
+          <div class="mt-5 flex flex-wrap items-center gap-3"><button id="save-notion-mapping" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">儲存本班任務對照</button><button id="export-notion-roster" class="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">下載 Notion 學生名冊 CSV</button><button id="export-notion-progress" class="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">下載 Notion 作品索引 CSV</button><p id="notion-message" class="text-sm text-slate-500"></p></div>
+          <div class="mt-5 rounded-2xl border border-violet-100 bg-violet-50 p-4 text-sm leading-6 text-violet-950"><b>自動同步準備</b><p class="mt-1">CSV 可立即匯入 Notion；要啟用「按一次就建立／更新作品頁」，需先在 Apps Script 的指令碼屬性安全保存 Notion 連線資料。連線金鑰不會寫入本網站或 Firebase。</p></div>
+        </section>
+      </section>
+
       <section id="roster-tab" class="tab-panel hidden">
         <section class="mb-6 rounded-2xl bg-white p-6 shadow-sm"><div class="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-lg font-black">匯入學生名冊</h2><p class="mt-1 text-sm text-slate-500">每行一位學生，格式為「學號,姓名」；班級、座號與性別會由學號自動判讀。</p></div><span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">1510101 → 701 班 1 號</span></div><textarea id="roster-import" rows="7" class="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="1510101,王小明&#10;1520102,陳小華"></textarea><div class="mt-3 flex flex-wrap items-center gap-3"><button id="import-roster" class="rounded-xl bg-indigo-600 px-5 py-2.5 font-bold text-white hover:bg-indigo-700">匯入或更新名冊</button><p id="import-message" class="text-sm text-slate-500"></p></div></section>
         <section class="rounded-2xl bg-white p-6 shadow-sm"><div class="mb-5"><h2 class="text-lg font-black">學生帳號與驗證碼</h2><p id="roster-note" class="mt-1 text-sm text-slate-500">正在讀取資料…</p><div id="roster-class-buttons" class="mt-4 flex flex-wrap gap-2" aria-label="選擇名冊班級"></div></div><div class="overflow-x-auto"><table class="w-full min-w-[680px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">座號</th><th class="p-3">學號</th><th class="p-3">姓名</th><th class="p-3">驗證碼</th><th class="p-3 text-right">管理</th></tr></thead><tbody id="roster-body"></tbody></table></div></section>
@@ -94,6 +105,16 @@
     const totalTasks = 32;
     const classes = Array.from({ length: 11 }, (_, i) => `7${String(i + 1).padStart(2, '0')}`);
     const thinkingChallenges = ['重排積木', '寶箱開鎖', '畢業手鍊', '彙整遊戲卡', '班級出遊', '夜市射氣球', '團隊攀岩', '誰的帽子'];
+    const notionTaskCatalog = {
+      '115-1': {
+        thinking: ['重排積木', '寶箱開鎖', '畢業手鍊', '彙整遊戲卡', '班級出遊', '夜市射氣球', '團隊攀岩', '誰的帽子'],
+        programming: ['2-2-3 動畫實作', '2-3-1 循序結構', '2-3-2 選擇結構', '2-3-3 重複結構', '限時猜數字遊戲', '第一次程式挑戰賽', '2-4 畫正方形', '小小繪圖家']
+      },
+      '115-2': {
+        thinking: ['點心時間', '地圖著色', '收拾玩具球', '萬聖尋糖趣', '行李機器人', '彈珠軌道', '單人搶糖', '變形數獨'],
+        programming: ['分身與互動設計', '流程與條件設計', '角色與事件控制', '遊戲邏輯實作', '模擬與除錯', '分身進階應用', '互動作品創作', '專題成果發表']
+      }
+    };
     const stampUnits = term === '115-1'
       ? [['1-1', '1-1 資訊科技與人類生活'], ['1-2', '1-2 資訊科技及其相關議題'], ['CH1', '第一章 資訊科技導論'], ['2-1', '2-1 認識演算法與程式語言'], ['2-2', '2-2 Scratch 程式設計－基礎篇'], ['2-3', '2-3 Scratch 程式設計－計算篇'], ['2-4', '2-4 Scratch 程式設計－繪圖篇'], ['CH2', '第二章 基礎程式設計']]
       : [['4-1', '4-1 個人資料與隱私'], ['4-2', '4-2 網路安全'], ['4-3', '4-3 資訊安全防護'], ['5-1', '5-1 著作權'], ['5-2', '5-2 合理使用'], ['6-1', '6-1 網路與媒體識讀'], ['6-2', '6-2 數位內容創作'], ['6-3', '6-3 數位公民']];
@@ -109,12 +130,13 @@
     const formatAttendanceTime = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '—'; };
     const deriveFromStudentId = value => { const studentId = String(value || '').trim(); if (!/^15[12]\d{4}$/.test(studentId)) return null; const suffix = studentId.slice(-4); const classRoom = `7${suffix.slice(0, 2)}`; if (!classes.includes(classRoom)) return null; return { studentId, classRoom, seatNo: String(Number(suffix.slice(2))), gender: studentId[2] === '1' ? '男' : '女' }; };
     const studentEmail = studentId => `${studentId}@${window.SCHOOL_APP.studentEmailDomain}`;
-    let app, auth, db, unsubscribeRoster, unsubscribeProgress, unsubscribeAttempts, rosterRows = [], progressRows = [], quizAttemptRows = [], verificationStudentId = '', thinkingStudent = null;
+    let app, auth, db, unsubscribeRoster, unsubscribeProgress, unsubscribeAttempts, unsubscribeNotionSettings, rosterRows = [], progressRows = [], quizAttemptRows = [], verificationStudentId = '', thinkingStudent = null;
     let activeProgressClass = classes[0], activeRosterClass = classes[0], activeLiveClass = classes[0], activeQuestionClass = classes[0], selectedAttendanceDate = taipeiDateKey(), selectedWeeklyStudentId = '';
     let selectedStampUnit = stampUnits[0][0], selectedFlowchartUnit = flowchartUnits[0][0];
     let classroomEndpoint = String(classroomConfig.endpoint || '').trim(), classroomCourses = [], classroomAssignments = [], selectedClassroomCourse = null, selectedClassroomAssignment = null;
     let liveClassroomCourse = null, liveClassroomAssignments = [], liveAssignmentWork = null;
     let liveSubmissions = new Map(), liveEvidenceAutoTimer = null, liveEvidenceLoading = false;
+    let notionSettings = {};
 
     function setLoginMessage(text, error = false) { $('login-message').textContent = text; $('login-message').className = `mt-4 text-sm ${error ? 'text-rose-600' : 'text-slate-500'}`; }
     function teacherTaskCheck(row, task, unitId) { const progress = row.data.teacherProgress?.[term] || {}; const key = `${task}-${unitId}`; if (progress.taskCompletions?.[key]?.status === 'approved') return true; return unitId === '1' && (progress.taskCompletions?.[task]?.status === 'approved' || Object.entries(progress.liveChecks || {}).some(([legacyKey, value]) => legacyKey.indexOf(`${task}_`) === 0 && value?.status === 'approved')); }
@@ -172,7 +194,7 @@
     }
     function openModal(kicker, title, meta, content) { $('modal-kicker').textContent = kicker; $('modal-title').textContent = title; $('modal-meta').textContent = meta; $('modal-content').innerHTML = content; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); }
     function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; }
-    function refreshAll() { renderRoster(); renderProgress(); renderLiveDashboard(); renderMissionDashboard(); renderQuestionAnalytics(); }
+    function refreshAll() { renderRoster(); renderProgress(); renderLiveDashboard(); renderMissionDashboard(); renderQuestionAnalytics(); renderNotionWorkspace(); }
     function certificateForUnit(row, chapterKey) {
       const source = row.data.terms?.[term]?.certificates || row.data.certificates || {};
       const entries = Array.isArray(source) ? source : Object.entries(source).map(([id, value]) => ({ id, ...(value || {}) }));
@@ -436,6 +458,79 @@
       return list.length ? `<div class="mt-3 space-y-2">${list.map((item, index) => { const url = safeExternalUrl(item.url); const createdAt = item.createdAt ? ` · 上傳：${formatDate(item.createdAt)}` : ''; return url ? `<a target="_blank" rel="noopener" href="${escapeHtml(url)}" class="flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-white px-3 py-3 text-left text-indigo-800 shadow-sm transition hover:border-indigo-400 hover:bg-indigo-50"><span><b>${icon} 開啟${expectedType}附件供檢核</b><span class="mt-1 block text-xs font-normal text-slate-500">${escapeHtml(item.name || `附件 ${index + 1}`)}${escapeHtml(createdAt)}</span></span><span class="font-black">↗</span></a>` : `<span class="block rounded-xl bg-white px-3 py-2 text-xs text-slate-500">${escapeHtml(item.name || '附件')}${escapeHtml(createdAt)}</span>`; }).join('')}</div>` : '<p class="mt-2 rounded-lg bg-white/70 p-2 text-xs text-slate-500">尚未讀到附件；請回到儀表板按「重新讀取兩份作業的附件」。</p>';
     }
 
+    // Notion uses a page database rather than a brittle nested-page tree.  One
+    // row is one student + one named task, so late work can be updated safely.
+    function notionTasks() {
+      const catalog = notionTaskCatalog[term] || notionTaskCatalog['115-2'];
+      return ['thinking', 'programming'].flatMap(category => (catalog[category] || []).map((title, index) => ({ key: `${category}-${index + 1}`, category, unitId: String(index + 1), title })));
+    }
+    function notionClassKey() { return `${term}:${activeLiveClass}`; }
+    function notionClassMapping() { return notionSettings?.classes?.[notionClassKey()] || { courseId: '', courseName: '', tasks: {} }; }
+    function notionAssignmentOptions(selectedId = '', selectedTitle = '') {
+      const selected = String(selectedId || '');
+      const choices = liveClassroomAssignments.map(work => `<option value="${escapeHtml(work.id)}" ${work.id === selected ? 'selected' : ''}>${escapeHtml(work.title)}</option>`).join('');
+      if (!liveClassroomAssignments.length && selected && selectedTitle) return `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selectedTitle)}</option>`;
+      return `<option value="">尚未對應</option>${choices}`;
+    }
+    function renderNotionWorkspace() {
+      if (!$('notion-mapping-body')) return;
+      const mapping = notionClassMapping(); const tasks = notionTasks();
+      $('notion-class-label').textContent = `${activeLiveClass} 班`;
+      const ready = Boolean(liveClassroomCourse && liveClassroomAssignments.length);
+      $('notion-summary').textContent = `${activeLiveClass} 班｜已對應 ${Object.values(mapping.tasks || {}).filter(item => item?.assignmentId).length} / ${tasks.length} 項`;
+      $('notion-note').textContent = ready ? `${activeLiveClass} 班已讀取 ${liveClassroomAssignments.length} 份 Classroom 作業；可為每一項作品任務選擇對應作業。` : `目前班級為 ${activeLiveClass}；先按「讀取本班 Classroom 作業」才能建立對照。`;
+      $('notion-mapping-body').innerHTML = tasks.map(task => {
+        const assignment = mapping.tasks?.[task.key] || {};
+        const categoryLabel = task.category === 'thinking' ? '運算思維 · 圖片' : '程式設計 · 影片';
+        const categoryClass = task.category === 'thinking' ? 'bg-emerald-50 text-emerald-700' : 'bg-fuchsia-50 text-fuchsia-700';
+        return `<tr class="border-t border-slate-100"><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${categoryClass}">${categoryLabel}</span></td><td class="p-3 font-mono text-slate-500">${escapeHtml(task.key)}</td><td class="p-3 font-bold">${escapeHtml(task.title)}</td><td class="p-3"><select data-notion-task="${escapeHtml(task.key)}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 ${ready ? '' : 'text-slate-400'}" ${ready ? '' : 'disabled'}>${notionAssignmentOptions(assignment.assignmentId, assignment.assignmentTitle)}</select></td></tr>`;
+      }).join('');
+    }
+    async function loadNotionClassroom() {
+      $('notion-load-classroom').disabled = true; $('notion-message').textContent = '正在讀取本班 Classroom 作業…';
+      try {
+        await loadLiveClassroomCourses();
+        renderNotionWorkspace();
+        $('notion-message').textContent = liveClassroomCourse ? `已載入「${liveClassroomCourse.name}」的作業，請完成對照後儲存。` : '找不到目前班級對應的 Classroom 課程。';
+      } catch (error) { $('notion-message').textContent = error.message || '讀取 Classroom 作業失敗。'; }
+      finally { $('notion-load-classroom').disabled = false; }
+    }
+    async function saveNotionMapping() {
+      if (!liveClassroomCourse || !liveClassroomAssignments.length) { $('notion-message').textContent = '請先讀取本班 Classroom 作業。'; return; }
+      const tasks = {};
+      document.querySelectorAll('[data-notion-task]').forEach(select => {
+        const assignment = liveClassroomAssignments.find(item => item.id === select.value);
+        if (assignment) tasks[select.dataset.notionTask] = { assignmentId: assignment.id, assignmentTitle: assignment.title };
+      });
+      $('save-notion-mapping').disabled = true; $('notion-message').textContent = '正在儲存任務對照…';
+      try {
+        const classesMap = { ...(notionSettings.classes || {}), [notionClassKey()]: { courseId: liveClassroomCourse.id, courseName: liveClassroomCourse.name, tasks, updatedAt: new Date().toISOString() } };
+        await db.collection('teacherSettings').doc('notionSync').set({ classes: classesMap, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: teacherEmail }, { merge: true });
+        $('notion-message').textContent = `已儲存 ${activeLiveClass} 班 ${Object.keys(tasks).length} 項任務對照。`;
+      } catch (error) { console.error(error); $('notion-message').textContent = '儲存失敗，請確認最新版 Firestore Rules 已部署。'; }
+      finally { $('save-notion-mapping').disabled = false; }
+    }
+    function csvCell(value) { const text = String(value ?? ''); return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; }
+    function downloadCsv(filename, headers, rows) {
+      const csv = '\ufeff' + [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
+      const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); link.download = filename; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }
+    function teacherTaskRecord(row, task) { return row.data.teacherProgress?.[term]?.taskCompletions?.[task.key] || null; }
+    function exportNotionRoster() {
+      const rows = mergedProgress().filter(row => row.profile.classRoom === activeLiveClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
+      downloadCsv(`${term}-${activeLiveClass}-Notion學生名冊.csv`, ['班級', '座號', '學號', '姓名'], rows.map(row => [row.profile.classRoom, row.profile.seatNo, row.profile.studentId, row.profile.name || '']));
+      $('notion-message').textContent = `已下載 ${rows.length} 位學生的名冊 CSV。`;
+    }
+    function exportNotionProgress() {
+      const rows = mergedProgress().filter(row => row.profile.classRoom === activeLiveClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
+      const mapping = notionClassMapping(); const tasks = notionTasks(); const output = rows.flatMap(row => tasks.map(task => {
+        const record = teacherTaskRecord(row, task); const assignment = mapping.tasks?.[task.key] || {};
+        return [term, row.profile.classRoom, row.profile.seatNo, row.profile.studentId, row.profile.name || '', task.key, task.category === 'thinking' ? '運算思維' : '程式設計', task.title, assignment.assignmentTitle || '', record?.status === 'approved' ? '已核定通關' : (record?.status === 'revision' ? '需要補件' : '尚未核定'), formatDate(record?.completedAt), formatDate(record?.reviewedAt)];
+      }));
+      downloadCsv(`${term}-${activeLiveClass}-Notion作品索引.csv`, ['學期', '班級', '座號', '學號', '姓名', '任務鍵', '類別', '任務名稱', 'Classroom 作業', '教師狀態', '作品上傳時間', '教師核定時間'], output);
+      $('notion-message').textContent = `已下載 ${output.length} 筆作品索引；每位學生各含 16 項任務。`;
+    }
+
     function renderRoster() {
       const classRoom = activeRosterClass;
       const rows = rosterRows.filter(row => row.classRoom === classRoom).sort((a, b) => Number(a.seatNo) - Number(b.seatNo));
@@ -544,16 +639,20 @@
     async function saveThinking() { if (!thinkingStudent) return; const completedChallenges = [...document.querySelectorAll('.challenge-input:checked')].map(input => input.value); $('save-thinking').disabled = true; try { const update = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() }; update[`teacherProgress.${term}.completedChallenges`] = completedChallenges; update[`teacherProgress.${term}.updatedAt`] = new Date().toISOString(); await db.collection('users').doc(thinkingStudent.id).update(update); $('thinking-message').textContent = '已儲存教師核定結果。'; } catch (error) { console.error(error); $('thinking-message').textContent = '儲存失敗，請確認學生已建立入口網資料。'; } finally { $('save-thinking').disabled = false; } }
     function showCertificates(studentId) { const row = mergedProgress().find(item => item.profile.studentId === studentId); if (!row) return; const list = certificates(row); openModal('學習證書', `${row.profile.name || '學生'}的證書`, row.profile.studentId, list.length ? `<ul class="space-y-2">${list.map((item, index) => `<li class="rounded-xl bg-indigo-50 p-3 text-sm"><b>${escapeHtml(item?.title || item?.name || `證書 ${index + 1}`)}</b>${item?.issuedAt ? `<span class="ml-2 text-slate-500">${escapeHtml(formatDate(item.issuedAt))}</span>` : ''}</li>`).join('')}</ul>` : '<p class="text-sm text-slate-500">尚無證書資料。</p>'); }
     async function importRoster() { const lines = $('roster-import').value.split(/\r?\n/).map(line => line.trim()).filter(Boolean); const parsed = []; const invalid = []; lines.forEach((line, index) => { const [id, ...nameParts] = line.split(/[,，]/); const derived = deriveFromStudentId(id); const name = nameParts.join(',').trim(); if (!derived || !name) invalid.push(index + 1); else parsed.push({ ...derived, name }); }); if (!parsed.length) { $('import-message').textContent = '請輸入至少一筆正確的「學號,姓名」資料。'; return; } if (invalid.length && !confirm(`第 ${invalid.join('、')} 行格式不正確，將略過。是否繼續匯入其餘 ${parsed.length} 位學生？`)) return; $('import-message').textContent = '正在寫入名冊…'; try { const batch = db.batch(); parsed.forEach(row => batch.set(db.collection('rosters').doc(row.studentId), { ...row, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })); await batch.commit(); $('import-message').textContent = `已匯入或更新 ${parsed.length} 位學生。`; $('roster-import').value = ''; } catch (error) { console.error(error); $('import-message').textContent = '匯入失敗，請確認教師權限與網路。'; } }
-    function subscribeData() { unsubscribeRoster?.(); unsubscribeProgress?.(); unsubscribeAttempts?.(); unsubscribeRoster = db.collection('rosters').onSnapshot(snapshot => { rosterRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); refreshAll(); }, () => { $('roster-note').textContent = '無法讀取名冊，請確認 Firestore Rules。'; }); unsubscribeProgress = db.collection('users').onSnapshot(snapshot => { progressRows = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })); refreshAll(); }, () => { $('progress-note').textContent = '無法讀取學習進度，請確認 Firestore Rules。'; }); unsubscribeAttempts = db.collectionGroup('events').where('termId', '==', term).onSnapshot(snapshot => { quizAttemptRows = snapshot.docs.map(doc => ({ userId: doc.ref.parent.parent.id, ...doc.data() })); refreshAll(); }, () => { $('questions-note').textContent = '無法讀取作答紀錄，請確認新版 Firestore Rules 已部署。'; }); }
+    function subscribeData() { unsubscribeRoster?.(); unsubscribeProgress?.(); unsubscribeAttempts?.(); unsubscribeNotionSettings?.(); unsubscribeRoster = db.collection('rosters').onSnapshot(snapshot => { rosterRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); refreshAll(); }, () => { $('roster-note').textContent = '無法讀取名冊，請確認 Firestore Rules。'; }); unsubscribeProgress = db.collection('users').onSnapshot(snapshot => { progressRows = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })); refreshAll(); }, () => { $('progress-note').textContent = '無法讀取學習進度，請確認 Firestore Rules。'; }); unsubscribeAttempts = db.collectionGroup('events').where('termId', '==', term).onSnapshot(snapshot => { quizAttemptRows = snapshot.docs.map(doc => ({ userId: doc.ref.parent.parent.id, ...doc.data() })); refreshAll(); }, () => { $('questions-note').textContent = '無法讀取作答紀錄，請確認新版 Firestore Rules 已部署。'; }); unsubscribeNotionSettings = db.collection('teacherSettings').doc('notionSync').onSnapshot(snapshot => { notionSettings = snapshot.data() || {}; renderNotionWorkspace(); }, () => { $('notion-summary').textContent = '尚未啟用設定儲存'; }); }
     function showDashboard() { if (!$('dashboard-view').classList.contains('hidden')) return; $('login-view').classList.add('hidden'); $('dashboard-view').classList.remove('hidden'); subscribeData(); }
     function classButtons(containerId, type) { const active = type === 'progress' ? activeProgressClass : (type === 'live' ? activeLiveClass : (type === 'questions' ? activeQuestionClass : activeRosterClass)); const activeClass = type === 'progress' ? 'bg-emerald-600 text-white' : (type === 'live' ? 'bg-amber-500 text-white' : (type === 'questions' ? 'bg-cyan-600 text-white' : 'bg-indigo-600 text-white')); $(containerId).innerHTML = classes.map(value => `<button data-class="${value}" class="class-button rounded-lg px-3 py-2 text-sm font-bold ${value === active ? activeClass : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${value}</button>`).join(''); $(containerId).querySelectorAll('.class-button').forEach(button => button.addEventListener('click', () => { if (type === 'progress') activeProgressClass = button.dataset.class; else if (type === 'live') activeLiveClass = button.dataset.class; else if (type === 'questions') activeQuestionClass = button.dataset.class; else activeRosterClass = button.dataset.class; populateClasses(); refreshAll(); if (type === 'live') autoSelectLiveClassroomCourse(); })); }
-    function populateClasses() { classButtons('live-class-buttons', 'live'); classButtons('progress-class-buttons', 'progress'); classButtons('questions-class-buttons', 'questions'); classButtons('roster-class-buttons', 'roster'); }
+    function populateClasses() { classButtons('live-class-buttons', 'live'); classButtons('progress-class-buttons', 'progress'); classButtons('questions-class-buttons', 'questions'); classButtons('roster-class-buttons', 'roster'); renderNotionWorkspace(); }
     $('live-classroom-load').addEventListener('click', loadLiveClassroomCourses);
     $('live-assignment-work').addEventListener('change', event => selectLiveAssignment(event.target.value));
     $('live-evidence-refresh').addEventListener('click', refreshLiveEvidence);
     $('live-evidence-auto').addEventListener('change', event => setLiveEvidenceAuto(event.target.checked));
+    $('notion-load-classroom').addEventListener('click', loadNotionClassroom);
+    $('save-notion-mapping').addEventListener('click', saveNotionMapping);
+    $('export-notion-roster').addEventListener('click', exportNotionRoster);
+    $('export-notion-progress').addEventListener('click', exportNotionProgress);
     $('close-modal').addEventListener('click', closeModal); $('modal').addEventListener('click', event => { if (event.target === $('modal')) closeModal(); });
-    document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'mission' ? 'bg-violet-600 text-white' : (target === 'live' ? 'bg-amber-500 text-white' : (target === 'progress' ? 'bg-emerald-600 text-white' : (target === 'questions' ? 'bg-cyan-600 text-white' : 'bg-indigo-600 text-white')))) : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); }));
+    document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'mission' ? 'bg-violet-600 text-white' : (target === 'live' ? 'bg-amber-500 text-white' : (target === 'progress' ? 'bg-emerald-600 text-white' : (target === 'questions' ? 'bg-cyan-600 text-white' : (target === 'notion' ? 'bg-slate-800 text-white' : 'bg-indigo-600 text-white'))))) : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); if (target === 'notion') renderNotionWorkspace(); }));
     $('import-roster').addEventListener('click', importRoster);
     $('attendance-date').value = selectedAttendanceDate;
     $('attendance-date').addEventListener('change', event => { selectedAttendanceDate = event.target.value || taipeiDateKey(); renderProgress(); });
@@ -561,7 +660,7 @@
     $('live-flowchart-unit').innerHTML = flowchartUnits.map(item => `<option value="${escapeHtml(item[0])}">${escapeHtml(item[1])}</option>`).join('');
     $('live-stamp-unit').addEventListener('change', event => { selectedStampUnit = event.target.value; renderLiveDashboard(); renderMissionDashboard(); });
     $('live-flowchart-unit').addEventListener('change', event => { selectedFlowchartUnit = event.target.value; renderLiveDashboard(); renderMissionDashboard(); });
-    $('logout-button').addEventListener('click', async () => { clearInterval(liveEvidenceAutoTimer); unsubscribeRoster?.(); unsubscribeProgress?.(); unsubscribeAttempts?.(); await auth.signOut(); location.reload(); });
+    $('logout-button').addEventListener('click', async () => { clearInterval(liveEvidenceAutoTimer); unsubscribeRoster?.(); unsubscribeProgress?.(); unsubscribeAttempts?.(); unsubscribeNotionSettings?.(); await auth.signOut(); location.reload(); });
     $('login-form').addEventListener('submit', async event => { event.preventDefault(); if (!auth) return; const email = $('teacher-email').value.trim(); try { setLoginMessage('正在登入…'); const credential = await auth.signInWithEmailAndPassword(email, $('teacher-password').value); if (credential.user.email !== teacherEmail) { await auth.signOut(); throw new Error('not-teacher'); } showDashboard(); } catch (error) { console.error(error); setLoginMessage('登入失敗，請確認教師帳號、密碼與 Firestore Rules。', true); } });
     if (!config || !window.firebase) { setLoginMessage('Firebase 設定尚未完成，無法使用教師端。', true); return; }
     app = firebase.initializeApp(config); auth = firebase.auth(); db = firebase.firestore(); auth.setPersistence(firebase.auth.Auth.Persistence.SESSION); populateClasses(); updateClassroomConnection(); auth.onAuthStateChanged(user => { if (user?.email === teacherEmail && $('dashboard-view').classList.contains('hidden')) showDashboard(); });

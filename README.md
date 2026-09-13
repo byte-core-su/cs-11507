@@ -20,6 +20,7 @@
 - `users/{uid}.teacherProgress.{termId}`：該學期教師核定資料。
 - `users/{uid}.teacherProgress.{termId}.taskCompletions`：運算思維與程式設計由教師檢核 Classroom 附件後，依指定單元寫入的完成紀錄；`completedAt` 使用附件上傳日期，`reviewedAt` 保留教師核定日期。學生入口只能讀取，不能自行勾選或修改。
 - `users/{uid}.teacherProgress.{termId}.taskHistory`：每次附件檢核的歷史事件，供教師端依週回看 32 項任務的成長曲線；曲線以 `completedAt`（附件上傳日期）計算。
+- `teacherSettings/notionSync`：教師限定的班級／任務／Classroom 作業對照；學生無法讀取或改寫。
 - `quizAnswerKeys/{questionId}`：教師專用的題目答案金鑰。正確選項與流程排序解答不放在學生端網頁，避免從網頁原始碼直接取得答案。
 - `quizAttempts/{uid}/events/{attemptId}`：學生每次作答的不可修改紀錄。Firestore Rules 會依私密答案金鑰判定正誤，供教師端的「題目作答分析」查看作答人數、首次答對率、答對率、選項分布與平均作答時間。
 
@@ -48,3 +49,7 @@
 3. 按「更新課程」，選擇課程與作業，確認繳交狀態與附件連結是否顯示。
 
 Classroom 學生帳號會以 `qfm15xxxxx@mail.qfm.kh.edu.tw` 格式對應平台學號；不符合此格式的 Classroom 成員會顯示為「未對應」，便於教師檢查名冊。
+
+## Notion 學習作品整理
+
+教師端的「Notion 整理」會依作業檢核班級，保存 8 項運算思維與 8 項程式設計的 Classroom 作業對照，並可下載學生名冊與 16 項作品索引 CSV。學生身分一律由系統名冊帶入，教師核定狀態與附件上傳時間會保留在作品索引中。Notion 建議以學生名冊與學習作品兩個資料庫呈現，完整欄位與操作方式見 [Notion 學習作品整理](docs/notion-learning-archive.md)。
