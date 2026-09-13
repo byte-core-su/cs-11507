@@ -52,4 +52,4 @@ Classroom 學生帳號會以 `qfm15xxxxx@mail.qfm.kh.edu.tw` 格式對應平台�
 
 ## Notion 學習作品整理
 
-教師端的「Notion 整理」會依作業檢核班級，保存 8 項運算思維與 8 項程式設計的 Classroom 作業對照，並可下載學生名冊與 16 項作品索引 CSV。學生身分一律由系統名冊帶入，教師核定狀態與附件上傳時間會保留在作品索引中。Notion 建議以學生名冊與學習作品兩個資料庫呈現，完整欄位與操作方式見 [Notion 學習作品整理](docs/notion-learning-archive.md)。
+教師端的「Notion 整理」會依作業檢核班級，保存 8 項運算思維與 8 項程式設計的 Classroom 作業對照，並可下載學生名冊與 16 項作品索引 CSV。完成目標工作區的 Connection 與 Apps Script 指令碼屬性設定後，也能將指定任務直接建立或更新為 Notion 作品卡；連線金鑰不會存入網站或 Firebase。學生身分一律由系統名冊帶入，教師核定狀態與附件上傳時間會保留在作品索引中。Notion 建議以學生名冊與學習作品兩個資料庫呈現，完整欄位與操作方式見 [Notion 學習作品整理](docs/notion-learning-archive.md)。

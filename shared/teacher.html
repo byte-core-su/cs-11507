@@ -77,7 +77,7 @@
           <div class="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_auto]"><div><p class="text-sm font-bold text-slate-700">目前班級：<span id="notion-class-label">—</span></p><p class="mt-1 text-xs leading-5 text-slate-500">班級會跟隨「作業檢核」；切換班級後可分別保存對應作業。系統名冊會自動帶入學生姓名、學號與座號。</p></div><button id="notion-load-classroom" class="rounded-xl bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900">讀取本班 Classroom 作業</button></div>
           <div class="mt-5 overflow-x-auto"><table class="w-full min-w-[760px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">類別</th><th class="p-3">編號</th><th class="p-3">系統任務</th><th class="p-3">對應 Classroom 作業</th></tr></thead><tbody id="notion-mapping-body"></tbody></table></div>
           <div class="mt-5 flex flex-wrap items-center gap-3"><button id="save-notion-mapping" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">儲存本班任務對照</button><button id="export-notion-roster" class="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">下載 Notion 學生名冊 CSV</button><button id="export-notion-progress" class="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">下載 Notion 作品索引 CSV</button><p id="notion-message" class="text-sm text-slate-500"></p></div>
-          <div class="mt-5 rounded-2xl border border-violet-100 bg-violet-50 p-4 text-sm leading-6 text-violet-950"><b>自動同步準備</b><p class="mt-1">CSV 可立即匯入 Notion；要啟用「按一次就建立／更新作品頁」，需先在 Apps Script 的指令碼屬性安全保存 Notion 連線資料。連線金鑰不會寫入本網站或 Firebase。</p></div>
+          <div class="mt-5 rounded-2xl border border-violet-100 bg-violet-50 p-4"><div class="flex flex-wrap items-end justify-between gap-3"><div><p class="text-xs font-black tracking-[.14em] text-violet-700">DIRECT NOTION SYNC</p><h3 class="mt-1 font-black text-violet-950">建立／更新指定任務作品頁</h3><p id="notion-sync-note" class="mt-1 text-sm leading-6 text-violet-900">正在確認 Apps Script 的 Notion 連線設定…</p></div><label class="block text-sm font-bold text-violet-900">指定任務<select id="notion-sync-task" class="mt-1 block min-w-60 rounded-xl border border-violet-200 bg-white px-3 py-2 font-normal text-slate-700"></select></label></div><div class="mt-4 flex flex-wrap items-center gap-3"><button id="notion-sync-button" class="rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:bg-slate-400" disabled>同步指定任務到 Notion</button><span class="text-xs leading-5 text-violet-800">會同步本班所有學生；已存在的同一學生與任務會更新，不會重複建立。</span></div></div>
         </section>
       </section>
 
@@ -136,7 +136,7 @@
     let classroomEndpoint = String(classroomConfig.endpoint || '').trim(), classroomCourses = [], classroomAssignments = [], selectedClassroomCourse = null, selectedClassroomAssignment = null;
     let liveClassroomCourse = null, liveClassroomAssignments = [], liveAssignmentWork = null;
     let liveSubmissions = new Map(), liveEvidenceAutoTimer = null, liveEvidenceLoading = false;
-    let notionSettings = {};
+    let notionSettings = {}, notionServiceStatus = { configured: false };
 
     function setLoginMessage(text, error = false) { $('login-message').textContent = text; $('login-message').className = `mt-4 text-sm ${error ? 'text-rose-600' : 'text-slate-500'}`; }
     function teacherTaskCheck(row, task, unitId) { const progress = row.data.teacherProgress?.[term] || {}; const key = `${task}-${unitId}`; if (progress.taskCompletions?.[key]?.status === 'approved') return true; return unitId === '1' && (progress.taskCompletions?.[task]?.status === 'approved' || Object.entries(progress.liveChecks || {}).some(([legacyKey, value]) => legacyKey.indexOf(`${task}_`) === 0 && value?.status === 'approved')); }
@@ -485,6 +485,10 @@
         const categoryClass = task.category === 'thinking' ? 'bg-emerald-50 text-emerald-700' : 'bg-fuchsia-50 text-fuchsia-700';
         return `<tr class="border-t border-slate-100"><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${categoryClass}">${categoryLabel}</span></td><td class="p-3 font-mono text-slate-500">${escapeHtml(task.key)}</td><td class="p-3 font-bold">${escapeHtml(task.title)}</td><td class="p-3"><select data-notion-task="${escapeHtml(task.key)}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 ${ready ? '' : 'text-slate-400'}" ${ready ? '' : 'disabled'}>${notionAssignmentOptions(assignment.assignmentId, assignment.assignmentTitle)}</select></td></tr>`;
       }).join('');
+      $('notion-sync-task').innerHTML = tasks.map(task => { const assignment = mapping.tasks?.[task.key]; const label = `${task.category === 'thinking' ? '運算思維' : '程式設計'} ${task.unitId}｜${task.title}${assignment?.assignmentTitle ? `｜${assignment.assignmentTitle}` : '｜尚未對應作業'}`; return `<option value="${escapeHtml(task.key)}">${escapeHtml(label)}</option>`; }).join('');
+      const serviceReady = Boolean(notionServiceStatus.configured);
+      $('notion-sync-button').disabled = !serviceReady;
+      $('notion-sync-note').textContent = serviceReady ? 'Notion 連線已完成。選擇已對應 Classroom 作業的任務後，即可同步本班所有學生的作品頁。' : '尚未完成 Apps Script 的 Notion 連線設定；CSV 匯出仍可使用。';
     }
     async function loadNotionClassroom() {
       $('notion-load-classroom').disabled = true; $('notion-message').textContent = '正在讀取本班 Classroom 作業…';
@@ -529,6 +533,52 @@
       }));
       downloadCsv(`${term}-${activeLiveClass}-Notion作品索引.csv`, ['學期', '班級', '座號', '學號', '姓名', '任務鍵', '類別', '任務名稱', 'Classroom 作業', '教師狀態', '作品上傳時間', '教師核定時間'], output);
       $('notion-message').textContent = `已下載 ${output.length} 筆作品索引；每位學生各含 16 項任務。`;
+    }
+    async function refreshNotionServiceStatus() {
+      try { notionServiceStatus = (await classroomRequest('notion-status')).notion || { configured: false }; }
+      catch (_) { notionServiceStatus = { configured: false }; }
+      renderNotionWorkspace();
+    }
+    const isoValue = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.toISOString() : ''; };
+    function notionStatusFor(record) { return record?.status === 'approved' ? '已核定通關' : (record?.status === 'revision' ? '需要補件' : '尚未核定'); }
+    async function syncNotionTask() {
+      if (!notionServiceStatus.configured) { $('notion-message').textContent = '請先完成 Apps Script 的 Notion 連線設定。'; return; }
+      const task = notionTasks().find(item => item.key === $('notion-sync-task').value);
+      const mapping = notionClassMapping(); const assignment = mapping.tasks?.[task?.key];
+      if (!task || !assignment?.assignmentId || !mapping.courseId) { $('notion-message').textContent = '這個任務尚未對應 Classroom 作業，請先讀取並儲存任務對照。'; return; }
+      const rows = mergedProgress().filter(row => row.profile.classRoom === activeLiveClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
+      if (!rows.length) { $('notion-message').textContent = '目前班級沒有系統名冊，無法同步。'; return; }
+      $('notion-sync-button').disabled = true; $('notion-message').textContent = `正在讀取「${assignment.assignmentTitle}」的附件並傳送至 Notion…`;
+      try {
+        const response = await classroomRequest('submissions', { courseId: mapping.courseId, courseWorkId: assignment.assignmentId });
+        const submissionMap = new Map((response.submissions || []).filter(item => item.studentId).map(item => [item.studentId, item]));
+        const attachmentKind = task.category === 'thinking' ? 'image' : 'video';
+        const payload = {
+          term, classRoom: activeLiveClass,
+          task: { key: task.key, category: task.category, title: task.title, assignmentTitle: assignment.assignmentTitle },
+          students: rows.map(row => {
+            const record = teacherTaskRecord(row, task); const submission = submissionEvidence(submissionMap.get(row.profile.studentId), attachmentKind);
+            const attachments = (submission?.attachments || []).map(item => ({ name: item.name || '作品附件', url: safeExternalUrl(item.url), createdAt: item.createdAt || submission.updateTime || '' })).filter(item => item.url);
+            return { studentId: row.profile.studentId, name: row.profile.name || '', seatNo: row.profile.seatNo, status: notionStatusFor(record), completedAt: isoValue(record?.completedAt) || attachments[0]?.createdAt || '', reviewedAt: isoValue(record?.reviewedAt), attachments };
+          })
+        };
+        const result = await postNotionSync(payload);
+        $('notion-message').textContent = result.status === 'success' ? `Notion 已同步：新增 ${result.workCreated || 0} 張、更新 ${result.workUpdated || 0} 張作品卡。` : (result.message || 'Notion 同步失敗。');
+      } catch (error) { console.error(error); $('notion-message').textContent = error.message || 'Notion 同步失敗，請確認 Classroom 與 Apps Script 設定。'; }
+      finally { $('notion-sync-button').disabled = !notionServiceStatus.configured; }
+    }
+    function postNotionSync(payload) {
+      const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
+      if (!endpoint) return Promise.reject(new Error('Apps Script Web App 尚未設定。'));
+      return new Promise((resolve, reject) => {
+        const frameName = `notion_sync_${Date.now()}`; const frame = document.createElement('iframe'); frame.name = frameName; frame.className = 'hidden'; document.body.appendChild(frame);
+        const form = document.createElement('form'); form.method = 'post'; form.action = endpoint; form.target = frameName; form.className = 'hidden';
+        [['action', 'notion-sync'], ['payload', JSON.stringify(payload)]].forEach(([name, value]) => { const input = document.createElement('input'); input.name = name; input.value = value; form.appendChild(input); });
+        const cleanup = () => { clearTimeout(timer); window.removeEventListener('message', receive); form.remove(); frame.remove(); };
+        const receive = event => { if (event.data?.kind !== 'learning-notion-sync') return; cleanup(); resolve(event.data.payload || { status: 'error', message: 'Notion 回應格式不正確。' }); };
+        const timer = setTimeout(() => { cleanup(); reject(new Error('Notion 同步逾時。請確認 Apps Script 已重新部署，並查看 Apps Script 執行紀錄。')); }, 120000);
+        window.addEventListener('message', receive); document.body.appendChild(form); form.submit();
+      });
     }
 
     function renderRoster() {
@@ -640,7 +690,7 @@
     function showCertificates(studentId) { const row = mergedProgress().find(item => item.profile.studentId === studentId); if (!row) return; const list = certificates(row); openModal('學習證書', `${row.profile.name || '學生'}的證書`, row.profile.studentId, list.length ? `<ul class="space-y-2">${list.map((item, index) => `<li class="rounded-xl bg-indigo-50 p-3 text-sm"><b>${escapeHtml(item?.title || item?.name || `證書 ${index + 1}`)}</b>${item?.issuedAt ? `<span class="ml-2 text-slate-500">${escapeHtml(formatDate(item.issuedAt))}</span>` : ''}</li>`).join('')}</ul>` : '<p class="text-sm text-slate-500">尚無證書資料。</p>'); }
     async function importRoster() { const lines = $('roster-import').value.split(/\r?\n/).map(line => line.trim()).filter(Boolean); const parsed = []; const invalid = []; lines.forEach((line, index) => { const [id, ...nameParts] = line.split(/[,，]/); const derived = deriveFromStudentId(id); const name = nameParts.join(',').trim(); if (!derived || !name) invalid.push(index + 1); else parsed.push({ ...derived, name }); }); if (!parsed.length) { $('import-message').textContent = '請輸入至少一筆正確的「學號,姓名」資料。'; return; } if (invalid.length && !confirm(`第 ${invalid.join('、')} 行格式不正確，將略過。是否繼續匯入其餘 ${parsed.length} 位學生？`)) return; $('import-message').textContent = '正在寫入名冊…'; try { const batch = db.batch(); parsed.forEach(row => batch.set(db.collection('rosters').doc(row.studentId), { ...row, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })); await batch.commit(); $('import-message').textContent = `已匯入或更新 ${parsed.length} 位學生。`; $('roster-import').value = ''; } catch (error) { console.error(error); $('import-message').textContent = '匯入失敗，請確認教師權限與網路。'; } }
     function subscribeData() { unsubscribeRoster?.(); unsubscribeProgress?.(); unsubscribeAttempts?.(); unsubscribeNotionSettings?.(); unsubscribeRoster = db.collection('rosters').onSnapshot(snapshot => { rosterRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); refreshAll(); }, () => { $('roster-note').textContent = '無法讀取名冊，請確認 Firestore Rules。'; }); unsubscribeProgress = db.collection('users').onSnapshot(snapshot => { progressRows = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })); refreshAll(); }, () => { $('progress-note').textContent = '無法讀取學習進度，請確認 Firestore Rules。'; }); unsubscribeAttempts = db.collectionGroup('events').where('termId', '==', term).onSnapshot(snapshot => { quizAttemptRows = snapshot.docs.map(doc => ({ userId: doc.ref.parent.parent.id, ...doc.data() })); refreshAll(); }, () => { $('questions-note').textContent = '無法讀取作答紀錄，請確認新版 Firestore Rules 已部署。'; }); unsubscribeNotionSettings = db.collection('teacherSettings').doc('notionSync').onSnapshot(snapshot => { notionSettings = snapshot.data() || {}; renderNotionWorkspace(); }, () => { $('notion-summary').textContent = '尚未啟用設定儲存'; }); }
-    function showDashboard() { if (!$('dashboard-view').classList.contains('hidden')) return; $('login-view').classList.add('hidden'); $('dashboard-view').classList.remove('hidden'); subscribeData(); }
+    function showDashboard() { if (!$('dashboard-view').classList.contains('hidden')) return; $('login-view').classList.add('hidden'); $('dashboard-view').classList.remove('hidden'); subscribeData(); refreshNotionServiceStatus(); }
     function classButtons(containerId, type) { const active = type === 'progress' ? activeProgressClass : (type === 'live' ? activeLiveClass : (type === 'questions' ? activeQuestionClass : activeRosterClass)); const activeClass = type === 'progress' ? 'bg-emerald-600 text-white' : (type === 'live' ? 'bg-amber-500 text-white' : (type === 'questions' ? 'bg-cyan-600 text-white' : 'bg-indigo-600 text-white')); $(containerId).innerHTML = classes.map(value => `<button data-class="${value}" class="class-button rounded-lg px-3 py-2 text-sm font-bold ${value === active ? activeClass : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">${value}</button>`).join(''); $(containerId).querySelectorAll('.class-button').forEach(button => button.addEventListener('click', () => { if (type === 'progress') activeProgressClass = button.dataset.class; else if (type === 'live') activeLiveClass = button.dataset.class; else if (type === 'questions') activeQuestionClass = button.dataset.class; else activeRosterClass = button.dataset.class; populateClasses(); refreshAll(); if (type === 'live') autoSelectLiveClassroomCourse(); })); }
     function populateClasses() { classButtons('live-class-buttons', 'live'); classButtons('progress-class-buttons', 'progress'); classButtons('questions-class-buttons', 'questions'); classButtons('roster-class-buttons', 'roster'); renderNotionWorkspace(); }
     $('live-classroom-load').addEventListener('click', loadLiveClassroomCourses);
@@ -651,6 +701,7 @@
     $('save-notion-mapping').addEventListener('click', saveNotionMapping);
     $('export-notion-roster').addEventListener('click', exportNotionRoster);
     $('export-notion-progress').addEventListener('click', exportNotionProgress);
+    $('notion-sync-button').addEventListener('click', syncNotionTask);
     $('close-modal').addEventListener('click', closeModal); $('modal').addEventListener('click', event => { if (event.target === $('modal')) closeModal(); });
     document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'mission' ? 'bg-violet-600 text-white' : (target === 'live' ? 'bg-amber-500 text-white' : (target === 'progress' ? 'bg-emerald-600 text-white' : (target === 'questions' ? 'bg-cyan-600 text-white' : (target === 'notion' ? 'bg-slate-800 text-white' : 'bg-indigo-600 text-white'))))) : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); if (target === 'notion') renderNotionWorkspace(); }));
     $('import-roster').addEventListener('click', importRoster);

@@ -25,6 +25,7 @@
 | 學號 | 文字 |
 | 班級 | 選項 |
 | 座號 | 數字 |
+| 同步鍵 | 文字 |
 
 匯入「學生名冊 CSV」時，將 CSV 的「姓名」指定為標題欄位。
 
@@ -45,6 +46,11 @@
 | 教師狀態 | 選項 |
 | 作品上傳時間 | 日期 |
 | 教師核定時間 | 日期 |
+| 作品連結 | 網址 |
+| 作品附件 | 檔案與媒體 |
+| 同步鍵 | 文字 |
+
+「同步鍵」由系統使用，請保留為文字欄位但不必在作品牆卡片顯示。同步時，系統以它尋找既有學生與作品，因此重新同步只會更新同一張卡，不會重複建立。作品附件只會存放 Google Classroom 的 HTTPS 外部連結；檔案權限仍由 Google Drive／Classroom 原始設定控制。
 
 匯入「作品索引 CSV」後，將「學生」欄位逐步關聯到學生名冊。資料庫可建立兩個檢視：
 
@@ -55,4 +61,22 @@
 
 「任務對照」儲存在 Firestore 的教師限定設定中，因此先部署本專案的最新版 `firestore.rules`。學生無法讀取或改寫這份設定。
 
-目前 CSV 匯入可立即使用。若要做成按下教師端按鈕後直接建立／更新 Notion 作品頁，仍需要在**目標 Notion 工作區**建立專用連線並以最小權限授權，連線金鑰只能保存於 Apps Script 的指令碼屬性，不能放進 GitHub、網頁或 Firebase。Notion 的連線需至少有讀取既有頁面、插入內容與更新內容的權限，且要被加入目標資料庫。Notion 對資料庫頁面的建立、更新與內容區塊分別採用資料來源與頁面 API；這也是保留結構化作品索引的原因。[Notion connection capabilities](https://developers.notion.com/reference/capabilities) 與 [Create a page](https://developers.notion.com/reference/post-page) 可作為設定依據。
+目前 CSV 匯入可立即使用。若要做成按下教師端按鈕後直接建立／更新 Notion 作品頁，請依下列方式設定。
+
+### Apps Script 的安全連線設定
+
+1. 以目標 Notion 工作區的擁有者身分，在 Notion `Settings → Connections` 開啟 Developer Mode，建立一個內部 Connection。它需要 **Read content、Insert content、Update content** 三項內容權限。
+2. 在「學生名冊」與「學習作品」資料庫右上 `••• → Connections`，各自加入這個 Connection；兩個資料庫都必須加入。
+3. 取得兩個資料庫的 **Data source ID**：資料庫設定 `Manage data sources` 中，對資料來源按 `••• → Copy data source ID`。請使用 Data source ID，不是網頁網址或一般 database ID。
+4. 開啟本專案的 Apps Script，選擇 `Project Settings → Script properties`，新增下列三項。值只能直接貼在這裡，**不可放進本網站、Firebase、GitHub 或聊天訊息**：
+
+| 指令碼屬性 | 值 |
+| --- | --- |
+| `NOTION_API_TOKEN` | 此 Connection 的 internal token |
+| `NOTION_STUDENTS_DATA_SOURCE_ID` | 「學生名冊」Data source ID |
+| `NOTION_WORKS_DATA_SOURCE_ID` | 「學習作品」Data source ID |
+
+5. 在 Apps Script 內貼上最新版 `shared/google-classroom.gs`，重新部署 Web App。維持原本設定：以存取網頁應用程式的使用者身分執行，且只限校內網域。
+6. 回到教師端「Notion 整理」。當畫面顯示「Notion 連線已完成」後，先設定並儲存本班任務與 Classroom 作業對照，再選擇一項任務按「同步指定任務到 Notion」。
+
+每次同步會處理該班所有學生：先建立或更新學生名冊資料，再建立或更新該任務的作品卡。作品狀態以教師核定紀錄為準；PNG 僅寫入運算思維任務，MP4 僅寫入程式設計任務。Notion 的連線金鑰只由 Apps Script 在伺服端讀取。Notion 對資料庫頁面的建立、更新與內容區塊分別採用資料來源與頁面 API；這也是保留結構化作品索引的原因。[Notion connection capabilities](https://developers.notion.com/reference/capabilities)、[Query a data source](https://developers.notion.com/reference/query-a-data-source) 與 [Create a page](https://developers.notion.com/reference/post-page) 可作為設定依據。
