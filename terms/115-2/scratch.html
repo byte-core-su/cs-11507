@@ -61,6 +61,7 @@
         }
     </style>
     <script src="../../firebase-config.js"></script>
+    <script type="module" src="../../shared/quiz-security.js"></script>
     <script src="../../shared/learner-profile.js"></script>
     <script src="flowchart-coach-data.js"></script>
     <script src="../../shared/site-shell.js" defer></script>
@@ -621,10 +622,12 @@
                 }
                 return copy;
             };
-            const shuffledGoalQuestions = unit => shuffleItems(coachLessonFor(unit)?.goalQuiz || []).map(question => {
-                const options = shuffleItems(question.options.map((text, index) => ({ text, correct: index === question.answer })));
-                return { ...question, options: options.map(item => item.text), answer: options.findIndex(item => item.correct) };
-            });
+            const shuffledGoalQuestions = unit => shuffleItems(coachLessonFor(unit)?.goalQuiz || []).map(question => ({
+                ...question,
+                keyOptions: [...question.options],
+                options: shuffleItems([...question.options]),
+                questionStartedAt: Date.now()
+            }));
             const openGoalCheck = () => {
                 if (!selectedUnit || !referenceReads[selectedUnit.id]) return;
                 setGoalQuestionIndex(0);
@@ -632,12 +635,28 @@
                 setGoalCheckFeedback('先完成三題「本單元學習重點確認」，全對後才會開放流程圖教練。');
                 setGoalCheckModalOpen(true);
             };
-            const answerGoalCheck = answerIndex => {
+            const answerGoalCheck = async answerIndex => {
                 if (!selectedUnit) return;
                 const questions = goalQuestions;
                 const question = questions[goalQuestionIndex];
                 if (!question) return;
-                if (answerIndex !== question.answer) {
+                let isCorrect;
+                try {
+                    const result = await window.QuizSecurity.saveAttempt({
+                        termId: '115-2',
+                        source: `flowchart-goal-${selectedUnit.id}`,
+                        question: question.question,
+                        options: question.keyOptions,
+                        selectedIndex: question.keyOptions.indexOf(question.options[answerIndex]),
+                        elapsedSeconds: (Date.now() - question.questionStartedAt) / 1000
+                    });
+                    isCorrect = result.correct;
+                } catch (error) {
+                    console.error(error);
+                    setGoalCheckFeedback(error.message || '暫時無法驗證答案，請稍後再試。');
+                    return;
+                }
+                if (!isCorrect) {
                     setGoalQuestionIndex(0);
                     setGoalQuestions(shuffledGoalQuestions(selectedUnit));
                     setGoalCheckFeedback(`這一題要回看「${question.focus}」。三題需要連續全對，請從第一題再試一次。`);
@@ -748,7 +767,13 @@
                 for(let i=0; i<questionsToAskCount; i++) {
                     if (bank.length === 0) break;
                     const randomIndex = Math.floor(Math.random() * bank.length);
-                    selected.push(bank[randomIndex]);
+                    const originalQuestion = bank[randomIndex];
+                    selected.push({
+                        ...originalQuestion,
+                        keyOptions: [...originalQuestion.options],
+                        options: shuffleArray([...originalQuestion.options]),
+                        questionStartedAt: Date.now()
+                    });
                     bank.splice(randomIndex, 1);
                 }
                 
@@ -758,10 +783,29 @@
                 setIsQuizModalOpen(true);
             };
 
-            const handleAnswer = (optionIndex) => {
+            const handleAnswer = async (optionIndex) => {
                 const currentQ = currentQuizQuestions[currentQuestionIndex];
-                
-                if (optionIndex === currentQ.ans) {
+                if (!currentQ || quizFeedback === 'checking' || quizFeedback === 'correct') return;
+                setQuizFeedback('checking');
+                let isCorrect;
+                try {
+                    const result = await window.QuizSecurity.saveAttempt({
+                        termId: '115-2',
+                        source: `scratch-unit-${selectedUnit.id}`,
+                        question: currentQ.q,
+                        options: currentQ.keyOptions,
+                        selectedIndex: currentQ.keyOptions.indexOf(currentQ.options[optionIndex]),
+                        elapsedSeconds: (Date.now() - currentQ.questionStartedAt) / 1000
+                    });
+                    isCorrect = result.correct;
+                } catch (error) {
+                    console.error(error);
+                    setQuizFeedback(null);
+                    alert(error.message || '暫時無法驗證答案，請稍後再試。');
+                    return;
+                }
+
+                if (isCorrect) {
                     setQuizFeedback('correct');
                     setTimeout(() => {
                         if (currentQuestionIndex < currentQuizQuestions.length - 1) {
@@ -1178,21 +1222,16 @@
                                                     <button
                                                         key={idx}
                                                         onClick={() => handleAnswer(idx)}
-                                                        disabled={quizFeedback === 'correct'}
-                                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all font-medium flex items-center
-                                                            ${quizFeedback === 'correct' && idx === currentQuizQuestions[currentQuestionIndex].ans 
-                                                                ? 'border-green-500 bg-green-50 text-green-700' 
-                                                                : 'border-slate-100 hover:border-blue-400 hover:bg-blue-50 text-slate-700'
-                                                            }
-                                                        `}
+                                                        disabled={quizFeedback === 'correct' || quizFeedback === 'checking'}
+                                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all font-medium flex items-center ${quizFeedback === 'correct' ? 'border-green-500 bg-green-50 text-green-700' : 'border-slate-100 hover:border-blue-400 hover:bg-blue-50 text-slate-700'}`}
                                                     >
                                                         <div className={`w-6 h-6 rounded-full border-2 mr-3 flex items-center justify-center flex-shrink-0
-                                                            ${quizFeedback === 'correct' && idx === currentQuizQuestions[currentQuestionIndex].ans 
+                                                            ${quizFeedback === 'correct'
                                                                 ? 'border-green-500 bg-green-500 text-white' 
                                                                 : 'border-slate-300'
                                                             }
                                                         `}>
-                                                            {quizFeedback === 'correct' && idx === currentQuizQuestions[currentQuestionIndex].ans && <Icons.CheckCircle className="w-4 h-4" />}
+                                                            {quizFeedback === 'correct' && <Icons.CheckCircle className="w-4 h-4" />}
                                                         </div>
                                                         {option}
                                                     </button>

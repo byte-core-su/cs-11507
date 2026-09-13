@@ -57,5 +57,88 @@ service cloud.firestore {
         && request.resource.data.score <= 200000;
       allow update, delete: if false;
     }
+
+    // Answer indexes live in a separate teacher-only collection.  They are
+    // intentionally not readable by learners or included in the public site.
+    match /quizAnswerKeys/{questionId} {
+      allow read, write: if isTeacher();
+    }
+
+    // Each response is immutable.  The rule compares the student's selected
+    // index against the protected answer key, so a learner cannot manufacture
+    // a correct result simply by editing browser-side JavaScript.
+    match /quizAttempts/{userId}/events/{attemptId} {
+      function validChoiceAttempt() {
+        let keyPath = /databases/$(database)/documents/quizAnswerKeys/$(request.resource.data.questionId);
+        return request.resource.data.keys().hasOnly([
+            'termId', 'questionId', 'source', 'selectedIndex',
+            'questionText', 'optionCount', 'elapsedSeconds', 'correct', 'createdAt'
+          ])
+          && request.resource.data.termId is string
+          && request.resource.data.termId.matches('^[0-9]{3}-[0-9]$')
+          && request.resource.data.questionId is string
+          && request.resource.data.questionId.matches('^q_[A-Za-z0-9_-]+$')
+          && request.resource.data.source is string
+          && request.resource.data.source.size() > 0
+          && request.resource.data.source.size() <= 80
+          && request.resource.data.questionText is string
+          && request.resource.data.questionText.size() > 0
+          && request.resource.data.questionText.size() <= 500
+          && request.resource.data.optionCount is int
+          && request.resource.data.optionCount >= 2
+          && request.resource.data.optionCount <= 6
+          && request.resource.data.selectedIndex is int
+          && request.resource.data.selectedIndex >= 0
+          && request.resource.data.selectedIndex < request.resource.data.optionCount
+          && request.resource.data.elapsedSeconds is int
+          && request.resource.data.elapsedSeconds >= 0
+          && request.resource.data.elapsedSeconds <= 3600
+          && request.resource.data.correct is bool
+          && request.resource.data.createdAt == request.time
+          && exists(keyPath)
+          && request.resource.data.correct
+             == (request.resource.data.selectedIndex == get(keyPath).data.answerIndex);
+      }
+
+      // Sorting activities use the same private key collection, but compare a
+      // complete ordered block list rather than one selected option.
+      function validSequenceAttempt() {
+        let keyPath = /databases/$(database)/documents/quizAnswerKeys/$(request.resource.data.questionId);
+        return request.resource.data.keys().hasOnly([
+            'termId', 'questionId', 'source', 'questionText', 'optionCount',
+            'responseValue', 'elapsedSeconds', 'correct', 'createdAt'
+          ])
+          && request.resource.data.termId is string
+          && request.resource.data.termId.matches('^[0-9]{3}-[0-9]$')
+          && request.resource.data.questionId is string
+          && request.resource.data.questionId.matches('^q_[A-Za-z0-9_-]+$')
+          && request.resource.data.source is string
+          && request.resource.data.source.size() > 0
+          && request.resource.data.source.size() <= 80
+          && request.resource.data.questionText is string
+          && request.resource.data.questionText.size() > 0
+          && request.resource.data.questionText.size() <= 500
+          && request.resource.data.optionCount is int
+          && request.resource.data.optionCount >= 2
+          && request.resource.data.optionCount <= 10
+          && request.resource.data.responseValue is string
+          && request.resource.data.responseValue.size() > 0
+          && request.resource.data.responseValue.size() <= 1000
+          && request.resource.data.elapsedSeconds is int
+          && request.resource.data.elapsedSeconds >= 0
+          && request.resource.data.elapsedSeconds <= 3600
+          && request.resource.data.correct is bool
+          && request.resource.data.createdAt == request.time
+          && exists(keyPath)
+          && get(keyPath).data.answerValue is string
+          && request.resource.data.correct
+             == (request.resource.data.responseValue == get(keyPath).data.answerValue);
+      }
+
+      allow create: if signedIn() && request.auth.uid == userId
+        && (validChoiceAttempt() || validSequenceAttempt());
+      allow get, list: if isTeacher() || (signedIn() && request.auth.uid == userId);
+      allow update, delete: if false;
+    }
   }
 }

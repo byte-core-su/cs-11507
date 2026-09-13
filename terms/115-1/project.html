@@ -32,6 +32,7 @@
     </style>
   <script src="../../firebase-config.js"></script>
   <script src="../../shared/learner-profile.js"></script>
+  <script type="module" src="../../shared/quiz-security.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -1311,6 +1312,17 @@
             }
         };
 
+        // Keep a stable option order for server-side answer validation. The
+        // displayed options can still be shuffled without exposing an answer.
+        Object.entries(allWizards).forEach(([stageKey, wizard]) => {
+            wizard.steps.forEach(step => {
+                if (!step.opts || step.opts.length === 0) return;
+                step.keyOptions = step.opts.map(option => option.text);
+                step.questionKeyText = [stageKey, step.title, step.desc].join('\n');
+                step.opts.forEach((option, originalIndex) => { option.originalIndex = originalIndex; });
+            });
+        });
+
         // 處理文章中直接點擊答案的邏輯
         window.checkInText = function(clickedId, correctId, keywordName) {
             const feedbackEl = document.getElementById('wiz4-feedback');
@@ -1345,6 +1357,7 @@
         function renderWizard(stageKey) {
             const wiz = allWizards[stageKey];
             const step = wiz.steps[wiz.currentStep];
+            step.questionStartedAt = Date.now();
             
             document.getElementById(`${wiz.prefix}-counter`).innerText = `步驟 ${wiz.currentStep + 1} / ${wiz.steps.length}`;
             document.getElementById(`${wiz.prefix}-title`).innerHTML = step.title;
@@ -1429,7 +1442,7 @@
             if (step.onLoad) step.onLoad();
         }
 
-        function handleWizardAnswer(stageKey, optIdx, btnEl) {
+        async function handleWizardAnswer(stageKey, optIdx, btnEl) {
             const wiz = allWizards[stageKey];
             const step = wiz.steps[wiz.currentStep];
             const opt = step.opts[optIdx];
@@ -1440,7 +1453,26 @@
             optContainer.querySelectorAll('button').forEach(b => b.disabled = true);
             feedbackEl.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-800');
 
-            if (opt.correct) {
+            let isCorrect;
+            try {
+                const result = await window.QuizSecurity.saveAttempt({
+                    termId: '115-1',
+                    source: `project-${stageKey}`,
+                    question: step.questionKeyText,
+                    options: step.keyOptions,
+                    selectedIndex: opt.originalIndex,
+                    elapsedSeconds: (Date.now() - step.questionStartedAt) / 1000
+                });
+                isCorrect = result.correct;
+            } catch (error) {
+                console.error(error);
+                optContainer.querySelectorAll('button').forEach(button => { button.disabled = false; });
+                feedbackEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i>${error.message || '暫時無法驗證答案，請稍後再試。'}`;
+                feedbackEl.classList.add('bg-red-100', 'text-red-700', 'block', 'fade-in');
+                return;
+            }
+
+            if (isCorrect) {
                 btnEl.classList.remove('border-slate-200');
                 btnEl.classList.add('border-green-500', 'bg-green-50', 'text-green-700');
                 feedbackEl.innerHTML = `<i class="fa-solid fa-circle-check mr-2"></i>${opt.msg}`;

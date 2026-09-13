@@ -37,6 +37,7 @@
         }
     </style>
     <script src="../../firebase-config.js"></script>
+    <script type="module" src="../../shared/quiz-security.js"></script>
     <script src="../../shared/learner-profile.js"></script>
     <script src="../../shared/site-shell.js" defer></script>
 </head>
@@ -370,6 +371,8 @@
         let score = 0;
         let wrongAnswers = 0;
         let hasAnswered = false;
+        let currentDisplayOptions = [];
+        let questionStartedAt = 0;
         const referenceUnit = new URLSearchParams(location.search).get('unit');
 
         // DOM 元素
@@ -418,30 +421,23 @@
             // 填入題目
             questionTitle.innerText = q.question;
             
-            // 將選項與是否為正確答案綁定，並進行隨機洗牌
-            let optionsWithStatus = q.options.map((opt, index) => ({
-                text: opt,
-                isCorrect: index === q.answer
-            }));
-            optionsWithStatus.sort(() => Math.random() - 0.5); // 選項隨機排序
-
-            // 找出洗牌後，正確答案的新索引位置 (答錯時要標示用)
-            let correctOptionIndex = optionsWithStatus.findIndex(o => o.isCorrect);
+            currentDisplayOptions = q.options.map((text, originalIndex) => ({ text, originalIndex }));
+            currentDisplayOptions.sort(() => Math.random() - 0.5);
+            questionStartedAt = Date.now();
             
             // 產生選項按鈕
             optionsContainer.innerHTML = '';
-            optionsWithStatus.forEach((optObj, index) => {
+            currentDisplayOptions.forEach((optObj, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'quiz-option w-full text-left px-6 py-4 rounded-xl border-2 border-slate-200 text-slate-700 font-medium bg-white outline-none';
                 btn.innerText = optObj.text;
-                // 改為傳遞 是否正確 及 正確答案的新索引
-                btn.onclick = () => selectOption(optObj.isCorrect, btn, correctOptionIndex);
+                btn.onclick = () => selectOption(index, btn);
                 optionsContainer.appendChild(btn);
             });
         }
 
         // 選擇答案
-        function selectOption(isCorrect, btnElement, correctOptionIndex) {
+        async function selectOption(index, btnElement) {
             if (hasAnswered) return;
             hasAnswered = true;
             
@@ -452,6 +448,26 @@
                 b.disabled = true;
                 b.classList.add('opacity-80', 'cursor-not-allowed');
             });
+
+            const q = currentQuiz[currentQuestion];
+            let isCorrect;
+            try {
+                const result = await window.QuizSecurity.saveAttempt({
+                    termId: '115-2',
+                    source: 'flowchart-feature-quiz',
+                    question: q.question,
+                    options: q.options,
+                    selectedIndex: currentDisplayOptions[index].originalIndex,
+                    elapsedSeconds: (Date.now() - questionStartedAt) / 1000
+                });
+                isCorrect = result.correct;
+            } catch (error) {
+                console.error(error);
+                hasAnswered = false;
+                allButtons.forEach(button => { button.disabled = false; button.classList.remove('opacity-80', 'cursor-not-allowed'); });
+                alert(error.message || '暫時無法驗證答案，請稍後再試。');
+                return;
+            }
 
             if (isCorrect) {
                 score++;
@@ -467,10 +483,6 @@
                 btnElement.classList.replace('text-slate-700', 'text-red-800');
                 btnElement.innerHTML += ' <span class="float-right text-red-600">✗ 答錯了</span>';
                 
-                // 標示正確答案
-                const correctBtn = allButtons[correctOptionIndex];
-                correctBtn.classList.replace('border-slate-200', 'border-green-500');
-                correctBtn.classList.replace('bg-white', 'bg-green-50');
             }
 
             nextBtn.classList.remove('hidden');

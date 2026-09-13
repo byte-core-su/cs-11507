@@ -9,6 +9,7 @@
     <script defer src="../../shared/site-shell.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
+        import '../../shared/quiz-security.js';
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, FieldPath } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -852,21 +853,17 @@
         function renderQuestion() {
             // 如果題庫不夠循環出題
             let qData = quizQs[currentQIndex % quizQs.length];
-            
-            // 紀錄正確答案的文字以便比對
-            let correctText = qData.options[qData.correct];
-            
-            let opts = qData.options.map(o => o);
+            let opts = qData.options.map((text, originalIndex) => ({ text, originalIndex }));
             opts = shuffleArray(opts);
+            qData.activeOpts = opts;
+            qData.questionStartedAt = Date.now();
 
             let html = `<h3 class="text-xl font-bold text-gray-800 mb-6">${qData.q}</h3><div class="space-y-4">`;
-            opts.forEach(optText => {
-                // 將 correctText 存在 dataset 供驗證用 (實際應用上可放內存以防被看原始碼，但此為單機前端教學版)
-                let isCorr = (optText === correctText) ? "1" : "0";
+            opts.forEach((opt) => {
                 html += `
                     <label class="flex items-center p-4 border-2 border-gray-100 rounded-xl cursor-pointer hover:bg-blue-50 transition">
-                        <input type="radio" name="q-opt" value="${isCorr}" class="w-5 h-5 text-blue-600">
-                        <span class="ml-3 text-lg text-gray-700">${optText}</span>
+                        <input type="radio" name="q-opt" value="${opt.originalIndex}" class="w-5 h-5 text-blue-600">
+                        <span class="ml-3 text-lg text-gray-700">${opt.text}</span>
                     </label>
                 `;
             });
@@ -874,11 +871,30 @@
             document.getElementById('question-container').innerHTML = html;
         }
 
-        function checkAnswer() {
+        async function checkAnswer() {
             let selected = document.querySelector('input[name="q-opt"]:checked');
             if(!selected) return showModal("請先選擇一個答案！");
+            const qData = quizQs[currentQIndex % quizQs.length];
+            const submitButton = document.getElementById('next-btn');
+            submitButton.disabled = true;
+            let isCorrect;
+            try {
+                const result = await window.QuizSecurity.saveAttempt({
+                    termId: currentTermId,
+                    source: `infolife-${currentChapter}`,
+                    question: qData.q,
+                    options: qData.options,
+                    selectedIndex: Number(selected.value),
+                    elapsedSeconds: (Date.now() - qData.questionStartedAt) / 1000
+                });
+                isCorrect = result.correct;
+            } catch (error) {
+                console.error(error);
+                submitButton.disabled = false;
+                return showModal('暫時無法驗證答案', error.message || '請確認網路與登入狀態後再試一次。');
+            }
 
-            if(selected.value === "1") {
+            if(isCorrect) {
                 consecutiveCorrect++;
                 totalCorrect++;
             } else {

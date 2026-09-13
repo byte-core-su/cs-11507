@@ -62,6 +62,7 @@
         }
     </style>
   <script src="../../firebase-config.js"></script>
+  <script type="module" src="../../shared/quiz-security.js"></script>
   <script src="../../shared/learner-profile.js"></script>
   <script type="module">
       import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
@@ -549,16 +550,12 @@
                     
                     // 為了不污染原始資料，深拷貝選中的題目
                     const originalQuestion = bank[randomIndex];
-                    const questionCopy = { ...originalQuestion, options: [...originalQuestion.options] };
-                    
-                    // 記住正確答案的「文字內容」
-                    const correctAnswerText = originalQuestion.options[originalQuestion.ans];
-                    
-                    // 將選項陣列打亂
-                    questionCopy.options = shuffleArray(questionCopy.options);
-                    
-                    // 根據文字內容，重新找出打亂後正確答案的新索引位置
-                    questionCopy.ans = questionCopy.options.indexOf(correctAnswerText);
+                    const questionCopy = {
+                        ...originalQuestion,
+                        keyOptions: [...originalQuestion.options],
+                        options: shuffleArray([...originalQuestion.options]),
+                        questionStartedAt: Date.now()
+                    };
 
                     selected.push(questionCopy);
                     bank.splice(randomIndex, 1);
@@ -570,10 +567,29 @@
                 setIsQuizModalOpen(true);
             };
 
-            const handleAnswer = (optionIndex) => {
+            const handleAnswer = async (optionIndex) => {
                 const currentQ = currentQuizQuestions[currentQuestionIndex];
-                
-                if (optionIndex === currentQ.ans) {
+                if (!currentQ || quizFeedback === 'checking' || quizFeedback === 'correct') return;
+                setQuizFeedback('checking');
+                let isCorrect;
+                try {
+                    const result = await window.QuizSecurity.saveAttempt({
+                        termId: '115-1',
+                        source: `scratch-unit-${selectedUnit.id}`,
+                        question: currentQ.q,
+                        options: currentQ.keyOptions,
+                        selectedIndex: currentQ.keyOptions.indexOf(currentQ.options[optionIndex]),
+                        elapsedSeconds: (Date.now() - currentQ.questionStartedAt) / 1000
+                    });
+                    isCorrect = result.correct;
+                } catch (error) {
+                    console.error(error);
+                    setQuizFeedback(null);
+                    alert(error.message || '暫時無法驗證答案，請稍後再試。');
+                    return;
+                }
+
+                if (isCorrect) {
                     setQuizFeedback('correct');
                     setTimeout(() => {
                         if (currentQuestionIndex < currentQuizQuestions.length - 1) {
@@ -943,21 +959,16 @@
                                                     <button
                                                         key={idx}
                                                         onClick={() => handleAnswer(idx)}
-                                                        disabled={quizFeedback === 'correct'}
-                                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all font-medium flex items-center
-                                                            ${quizFeedback === 'correct' && idx === currentQuizQuestions[currentQuestionIndex].ans 
-                                                                ? 'border-green-500 bg-green-50 text-green-700' 
-                                                                : 'border-slate-100 hover:border-blue-400 hover:bg-blue-50 text-slate-700'
-                                                            }
-                                                        `}
+                                                        disabled={quizFeedback === 'correct' || quizFeedback === 'checking'}
+                                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all font-medium flex items-center ${quizFeedback === 'correct' ? 'border-green-500 bg-green-50 text-green-700' : 'border-slate-100 hover:border-blue-400 hover:bg-blue-50 text-slate-700'}`}
                                                     >
                                                         <div className={`w-6 h-6 rounded-full border-2 mr-3 flex items-center justify-center flex-shrink-0
-                                                            ${quizFeedback === 'correct' && idx === currentQuizQuestions[currentQuestionIndex].ans 
+                                                            ${quizFeedback === 'correct'
                                                                 ? 'border-green-500 bg-green-500 text-white' 
                                                                 : 'border-slate-300'
                                                             }
                                                         `}>
-                                                            {quizFeedback === 'correct' && idx === currentQuizQuestions[currentQuestionIndex].ans && <Icons.CheckCircle className="w-4 h-4" />}
+                                                            {quizFeedback === 'correct' && <Icons.CheckCircle className="w-4 h-4" />}
                                                         </div>
                                                         {option}
                                                     </button>

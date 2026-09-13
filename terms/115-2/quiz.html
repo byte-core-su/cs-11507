@@ -171,6 +171,7 @@
         .leaderboard-table tr:nth-child(3) td { color: #fed7aa; font-weight: bold; } /* 第三名青銅 */
     </style>
     <script src="../../firebase-config.js"></script>
+    <script type="module" src="../../shared/quiz-security.js"></script>
     <script src="../../shared/learner-profile.js"></script>
     <script src="../../shared/site-shell.js" defer></script>
 </head>
@@ -565,7 +566,7 @@
         let score = 0;
         let roundQuestionCount = 0;
         let selectedOptionIndex = null;
-        let currentCorrectOptionIndex = null;
+        let currentDisplayedOptions = [];
         
         let timeLeft = 10;
         const TIME_LIMIT = 10;
@@ -674,7 +675,7 @@
             const currentQ = questionQueue[0];
             
             selectedOptionIndex = null;
-            currentCorrectOptionIndex = null;
+            currentDisplayedOptions = [];
             ui.submitBtn.disabled = true;
             ui.feedbackOverlay.classList.add('hidden-screen');
             ui.mainContainer.classList.remove('screen-shake'); 
@@ -682,12 +683,11 @@
             ui.questionCounter.textContent = `第 ${roundQuestionCount} 題 (剩餘 ${questionQueue.length} 題)`;
             ui.questionText.textContent = currentQ.question;
             
-            let shuffledOptions = currentQ.options.map((text, index) => ({ text: text, originalIndex: index }));
-            shuffledOptions = shuffleArray(shuffledOptions);
-            currentCorrectOptionIndex = shuffledOptions.findIndex(opt => opt.originalIndex === currentQ.answer);
+            currentDisplayedOptions = currentQ.options.map((text, index) => ({ text: text, originalIndex: index }));
+            currentDisplayedOptions = shuffleArray(currentDisplayedOptions);
             
             ui.optionsContainer.innerHTML = '';
-            shuffledOptions.forEach((optionObj, index) => {
+            currentDisplayedOptions.forEach((optionObj, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'option-tv w-full text-left p-4 rounded-2xl font-bold text-lg tracking-wide flex items-center';
                 
@@ -763,11 +763,27 @@
             processAnswer(false, true);
         }
 
-        function submitAnswer() {
+        async function submitAnswer() {
             if (selectedOptionIndex === null) return;
             clearInterval(timerInterval);
-            const isCorrect = selectedOptionIndex === currentCorrectOptionIndex;
-            processAnswer(isCorrect, false);
+            ui.submitBtn.disabled = true;
+            const currentQ = questionQueue[0];
+            try {
+                const result = await window.QuizSecurity.saveAttempt({
+                    termId: '115-2',
+                    source: 'knowledge-arena',
+                    question: currentQ.question,
+                    options: currentQ.options,
+                    selectedIndex: currentDisplayedOptions[selectedOptionIndex].originalIndex,
+                    elapsedSeconds: TIME_LIMIT - timeLeft
+                });
+                processAnswer(result.correct, false);
+            } catch (error) {
+                console.error(error);
+                ui.submitBtn.disabled = false;
+                startTimer();
+                alert(error.message || '暫時無法驗證答案，請稍後再試。');
+            }
         }
 
         function processAnswer(isCorrect, isTimeout) {

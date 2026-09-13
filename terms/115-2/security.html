@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>115-2 下學期｜資訊安全與數位著作</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module" src="../../shared/quiz-security.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         body {
@@ -973,32 +974,47 @@
             const rawQ = currentQuestions[currentQuestionIndex];
             if(!rawQ) return;
             
-            const correctText = rawQ.options[rawQ.correct];
-            const shuffledOpts = shuffle([...rawQ.options]);
-            const newCorrectIdx = shuffledOpts.indexOf(correctText);
+            const shuffledOpts = shuffle(rawQ.options.map((text, originalIndex) => ({ text, originalIndex })));
 
             rawQ.activeOpts = shuffledOpts;
-            rawQ.activeCorrect = newCorrectIdx;
+            rawQ.questionStartedAt = Date.now();
 
             let html = `<h3 class="text-xl font-bold text-gray-800 mb-6">${rawQ.q}</h3><div class="space-y-4">`;
-            shuffledOpts.forEach((opt, idx) => {
+            shuffledOpts.forEach((opt) => {
                 html += `
                     <label class="flex items-center p-4 border-2 border-gray-100 rounded-xl cursor-pointer hover:bg-blue-50 transition">
-                        <input type="radio" name="opt" value="${idx}" class="w-5 h-5 text-blue-600">
-                        <span class="ml-3 text-lg text-gray-700">${opt}</span>
+                        <input type="radio" name="opt" value="${opt.originalIndex}" class="w-5 h-5 text-blue-600">
+                        <span class="ml-3 text-lg text-gray-700">${opt.text}</span>
                     </label>
                 `;
             });
             document.getElementById('question-container').innerHTML = html + "</div>";
         }
 
-        function checkAnswer() {
+        async function checkAnswer() {
             const sel = document.querySelector('input[name="opt"]:checked');
             if(!sel) return showModal("未選擇", "請先選擇一個答案！");
 
             const ans = parseInt(sel.value);
             const q = currentQuestions[currentQuestionIndex];
-            const isCorrect = ans === q.activeCorrect;
+            let isCorrect;
+            const button = document.getElementById('next-btn');
+            button.disabled = true;
+            try {
+                const result = await window.QuizSecurity.saveAttempt({
+                    termId: '115-2',
+                    source: `security-${currentChapterId}`,
+                    question: q.q,
+                    options: q.options,
+                    selectedIndex: ans,
+                    elapsedSeconds: (Date.now() - q.questionStartedAt) / 1000
+                });
+                isCorrect = result.correct;
+            } catch (error) {
+                console.error(error);
+                button.disabled = false;
+                return showModal('暫時無法驗證答案', error.message || '請確認網路與登入狀態後再試一次。');
+            }
 
             userAnswers.push({ correct: isCorrect });
 

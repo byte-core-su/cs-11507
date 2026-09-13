@@ -84,6 +84,7 @@
     <script src="../../firebase-config.js"></script>
     <script src="../../shared/learner-profile.js"></script>
     <script src="../../shared/site-shell.js" defer></script>
+    <script type="module" src="../../shared/quiz-security.js"></script>
 </head>
 <body class="text-gray-800">
 
@@ -1256,6 +1257,8 @@
 
         // --- 拼圖邏輯與狀態管理 ---
         let currentPuzzle = null;
+        let currentPuzzleUnitId = null;
+        let puzzleStartedAt = 0;
         let availableBlocks = [];
         let placedBlocks = [];
         
@@ -1282,10 +1285,14 @@
         function initPuzzle(unitId) {
             currentPuzzle = courseData[unitId].puzzle;
             if(!currentPuzzle) return "";
+            currentPuzzleUnitId = unitId;
+            currentPuzzle.keyOptions = currentPuzzle.blocks.map(block => `${block.id}:${block.text}`);
+            currentPuzzle.questionKeyText = [unitId, courseData[unitId].title].join('\n');
+            puzzleStartedAt = Date.now();
             
             // 複製並打亂可用積木
             availableBlocks = [...currentPuzzle.blocks].sort(() => Math.random() - 0.5);
-            placedBlocks = new Array(currentPuzzle.correct.length).fill(null);
+            placedBlocks = new Array(currentPuzzle.blocks.length).fill(null);
             
             // 判斷是否為樹狀分支排版，若是則改為「上下垂直排版」取得最大寬度，且不顯示捲軸方便截圖
             const isWideLayout = !!currentPuzzle.layoutTemplate;
@@ -1314,7 +1321,7 @@
                             <div class="${panelClass} flex flex-col">
                                 <div class="flex justify-between items-end mb-4">
                                     <h4 class="text-sm font-bold text-slate-500 tracking-wider uppercase">程式執行流程 (點擊移出)</h4>
-                                    <button onclick="checkPuzzle()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1 shadow-lg shrink-0">
+                                    <button id="puzzle-check-btn" onclick="checkPuzzle()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1 shadow-lg shrink-0">
                                         <i data-lucide="check-circle-2" class="w-4 h-4"></i> 驗證邏輯
                                     </button>
                                 </div>
@@ -1429,8 +1436,9 @@
             if(resultEl) resultEl.className = "hidden";
         }
 
-        function checkPuzzle() {
+        async function checkPuzzle() {
             const resultEl = document.getElementById('puzzle-result');
+            const checkButton = document.getElementById('puzzle-check-btn');
             
             // 檢查是否全放滿
             if (placedBlocks.includes(null)) {
@@ -1440,13 +1448,25 @@
                 return;
             }
 
-            // 檢查順序是否正確
-            let isCorrect = true;
-            for (let i = 0; i < currentPuzzle.correct.length; i++) {
-                if (placedBlocks[i].id !== currentPuzzle.correct[i]) {
-                    isCorrect = false;
-                    break;
-                }
+            let isCorrect;
+            if (checkButton) checkButton.disabled = true;
+            try {
+                const result = await window.QuizSecurity.saveSequenceAttempt({
+                    termId: '115-2',
+                    source: `elevator-puzzle-${currentPuzzleUnitId}`,
+                    question: currentPuzzle.questionKeyText,
+                    options: currentPuzzle.keyOptions,
+                    selectedOrder: placedBlocks.map(block => block.id),
+                    elapsedSeconds: (Date.now() - puzzleStartedAt) / 1000
+                });
+                isCorrect = result.correct;
+            } catch (error) {
+                console.error(error);
+                resultEl.innerHTML = `<i data-lucide="alert-circle" class="w-5 h-5"></i> ${error.message || '暫時無法驗證流程，請稍後再試。'}`;
+                resultEl.className = "mt-6 p-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-300 bg-amber-500/20 text-amber-400 border border-amber-500/30 block puzzle-block-enter";
+                if (checkButton) checkButton.disabled = false;
+                lucide.createIcons();
+                return;
             }
 
             if (isCorrect) {
@@ -1468,6 +1488,7 @@
             } else {
                 resultEl.innerHTML = `<i data-lucide="x-circle" class="w-5 h-5"></i> 邏輯順序似乎有點不對哦，請點擊移除積木再重試一次！`;
                 resultEl.className = "mt-6 p-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-300 bg-red-500/20 text-red-400 border border-red-500/30 block puzzle-block-enter";
+                if (checkButton) checkButton.disabled = false;
             }
             lucide.createIcons();
         }
