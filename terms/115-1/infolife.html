@@ -853,6 +853,7 @@
         function renderQuestion() {
             // 如果題庫不夠循環出題
             let qData = quizQs[currentQIndex % quizQs.length];
+            document.getElementById('next-btn').disabled = false;
             let opts = qData.options.map((text, originalIndex) => ({ text, originalIndex }));
             opts = shuffleArray(opts);
             qData.activeOpts = opts;
