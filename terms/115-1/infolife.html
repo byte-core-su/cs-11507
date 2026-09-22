@@ -880,7 +880,7 @@
             let isCorrect;
             try {
                 const result = await window.QuizSecurity.saveAttempt({
-                    termId: currentTermId,
+                    termId: '115-1',
                     source: `infolife-${currentChapter}`,
                     question: qData.q,
                     options: qData.options,
@@ -891,7 +891,7 @@
             } catch (error) {
                 console.error(error);
                 submitButton.disabled = false;
-                return showModal('暫時無法驗證答案', error.message || '請確認網路與登入狀態後再試一次。');
+                return showModal(error.message || '暫時無法驗證答案，請確認網路與登入狀態後再試一次。');
             }
 
             if(isCorrect) {
