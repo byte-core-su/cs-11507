@@ -291,26 +291,47 @@
       const thinking = classroomTaskState(row, 'thinking'), programming = classroomTaskState(row, 'programming');
       const thinkingSubmission = liveSubmissionFor(row, 'thinking'), programmingSubmission = liveSubmissionFor(row, 'programming');
       const statusText = state => ({ approved: '已核定', pending: '待檢核', revision: '需補件', empty: '尚未開始' }[state]);
-      const reviewButtons = (task, enabled, color) => enabled ? `<div class="mt-3 flex gap-2"><button data-live-review="${task}" data-live-status="approved" class="rounded-lg ${color} px-3 py-2 text-xs font-bold text-white">查看後，核定通關</button><button data-live-review="${task}" data-live-status="revision" class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-rose-700 ring-1 ring-rose-200">需要補件</button></div>` : '<p class="mt-3 text-xs font-bold text-slate-400">讀到學生附件後，才可進行核定。</p>';
-      openModal('即時儀表板', `${row.profile.name || '學生'}的任務檢核`, `${row.profile.classRoom} 班 ${row.profile.seatNo} 號 · ${row.profile.studentId}`, `<div class="space-y-3 text-sm"><div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-600"><b>檢核方式</b><ol class="mt-1 list-decimal space-y-1 pl-5 text-xs"><li>按下附件按鈕，在新分頁查看學生作品。</li><li>確認後回到此視窗，按「查看後，核定通關」。</li><li>不符合要求時按「需要補件」。</li></ol></div><div class="rounded-xl bg-indigo-50 p-3"><b>集章</b><p class="mt-1 text-indigo-800">${stamp ? `已完成：${escapeHtml(stamp.chapterTitle || stampUnits.find(item => item[0] === selectedStampUnit)?.[1])}` : '尚未完成指定單元'}</p></div><div class="rounded-xl bg-amber-50 p-3"><b>流程圖</b><p class="mt-1 text-amber-800">${flowchart ? `已留下完成紀錄：${escapeHtml(flowchart.title || '')}<br><span class="text-xs">${escapeHtml(formatDate(flowchart.completedAt || flowchart.exportedAt))}</span>` : '尚未留下指定單元的完成紀錄'}</p></div><div class="rounded-xl bg-emerald-50 p-3"><b>運算思維：${statusText(thinking)}</b><p class="mt-1 text-emerald-800">${escapeHtml(liveAssignmentWork?.title || '請先指定 Classroom 作業')} · 顯示 PNG 與 Google 繪圖</p>${attachmentLinks(thinkingSubmission, '圖片')}${reviewButtons('thinking', Boolean(thinkingSubmission), 'bg-emerald-600')}</div><div class="rounded-xl bg-fuchsia-50 p-3"><b>程式設計：${statusText(programming)}</b><p class="mt-1 text-fuchsia-800">${escapeHtml(liveAssignmentWork?.title || '請先指定 Classroom 作業')} · 僅顯示 MP4</p>${attachmentLinks(programmingSubmission, '影片')}${reviewButtons('programming', Boolean(programmingSubmission), 'bg-fuchsia-600')}</div><p id="live-review-message" class="text-xs text-slate-500"></p></div>`);
+      const reviewButtons = (task, enabled, color) => enabled ? `<div class="mt-3 flex gap-2"><button data-live-review="${task}" data-live-status="approved" disabled class="rounded-lg ${color} px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">查看後，核定通關</button><button data-live-review="${task}" data-live-status="revision" class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-rose-700 ring-1 ring-rose-200">需要補件</button></div>` : '<p class="mt-3 text-xs font-bold text-slate-400">讀到學生附件後，才可進行核定。</p>';
+      const thinkingCheck = liveCheck(row, liveReviewKey('thinking'));
+      const programmingCheck = liveCheck(row, liveReviewKey('programming'));
+      const content = `<div class="space-y-3 text-sm">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-600"><b>檢核方式</b><ol class="mt-1 list-decimal space-y-1 pl-5 text-xs"><li>開啟學生作品，確認內容。</li><li>選定本次採認的附件，再按「查看後，核定通關」。</li><li>不符合要求時按「需要補件」。</li></ol></div>
+        <div class="rounded-xl bg-indigo-50 p-3"><b>集章</b><p class="mt-1 text-indigo-800">${stamp ? `已完成：${escapeHtml(stamp.chapterTitle || stampUnits.find(item => item[0] === selectedStampUnit)?.[1])}` : '尚未完成指定單元'}</p></div>
+        <div class="rounded-xl bg-amber-50 p-3"><b>流程圖</b><p class="mt-1 text-amber-800">${flowchart ? `已留下完成紀錄：${escapeHtml(flowchart.title || '')}<br><span class="text-xs">${escapeHtml(formatDate(flowchart.completedAt || flowchart.exportedAt))}</span>` : '尚未留下指定單元的完成紀錄'}</p></div>
+        <div class="rounded-xl bg-emerald-50 p-3"><b>運算思維：${statusText(thinking)}</b><p class="mt-1 text-emerald-800">${escapeHtml(liveAssignmentWork?.title || '請先指定 Classroom 作業')} · 顯示 PNG 與 Google 繪圖</p>${attachmentLinks(thinkingSubmission, '圖片', 'thinking', thinkingCheck?.attachment?.url)}${reviewButtons('thinking', Boolean(thinkingSubmission), 'bg-emerald-600')}</div>
+        <div class="rounded-xl bg-fuchsia-50 p-3"><b>程式設計：${statusText(programming)}</b><p class="mt-1 text-fuchsia-800">${escapeHtml(liveAssignmentWork?.title || '請先指定 Classroom 作業')} · 僅顯示 MP4</p>${attachmentLinks(programmingSubmission, '影片', 'programming', programmingCheck?.attachment?.url)}${reviewButtons('programming', Boolean(programmingSubmission), 'bg-fuchsia-600')}</div>
+        <p id="live-review-message" class="text-xs text-slate-500"></p>
+      </div>`;
+      openModal('即時儀表板', `${row.profile.name || '學生'}的任務檢核`, `${row.profile.classRoom} 班 ${row.profile.seatNo} 號 · ${row.profile.studentId}`, content);
+      ['thinking', 'programming'].forEach(task => {
+        const approveButton = document.querySelector(`[data-live-review="${task}"][data-live-status="approved"]`);
+        const choices = document.querySelectorAll(`input[name="live-review-attachment-${task}"]`);
+        const updateApproval = () => { if (approveButton) approveButton.disabled = !Array.from(choices).some(choice => choice.checked); };
+        choices.forEach(choice => choice.addEventListener('change', updateApproval));
+        updateApproval();
+      });
       document.querySelectorAll('[data-live-review]').forEach(button => button.addEventListener('click', () => saveLiveReview(row, button.dataset.liveReview, button.dataset.liveStatus)));
-    }
-    function submissionCompletedAt(row, task) {
-      const submission = liveSubmissionFor(row, task);
-      const attachmentDates = (submission?.attachments || []).map(item => item?.createdAt).filter(value => timestampMs(value)).sort((a, b) => timestampMs(a) - timestampMs(b));
-      return attachmentDates[0] || submission?.updateTime || new Date().toISOString();
     }
     async function saveLiveReview(row, task, status) {
       if (!row.id) { $('live-review-message').textContent = '這位學生尚未登入建立學習資料，暫時無法寫入教師核定。'; return; }
-      const message = $('live-review-message'); message.textContent = '正在儲存核定結果…';
+      const message = $('live-review-message');
+      const selectedUrl = document.querySelector(`input[name="live-review-attachment-${task}"]:checked`)?.value;
+      const submission = liveSubmissionFor(row, task);
+      const selectedAttachment = (submission?.attachments || []).find(item => safeExternalUrl(item.url) === selectedUrl);
+      if (status === 'approved' && !selectedAttachment) { message.textContent = '請先選定要採認的作品；若附件剛更新，請重新開啟檢核視窗。'; return; }
+      message.textContent = '正在儲存核定結果…';
       try {
         const update = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-        const reviewedAt = new Date().toISOString(); const completedAt = submissionCompletedAt(row, task); const completionKey = `${task}-${selectedFlowchartUnit}`;
-        update[`teacherProgress.${term}.liveChecks.${liveReviewKey(task)}`] = { status, completedAt, reviewedAt, reviewedBy: teacherEmail };
-        update[`teacherProgress.${term}.taskCompletions.${completionKey}`] = { status, completedAt, reviewedAt, reviewedBy: teacherEmail, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
-        update[`teacherProgress.${term}.taskHistory.${completionKey}.event_${Date.now()}`] = { status, completedAt, reviewedAt, reviewedBy: teacherEmail, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
+        const reviewedAt = new Date().toISOString();
+        const completedAt = selectedAttachment?.createdAt || submission?.updateTime || reviewedAt;
+        const completionKey = `${task}-${selectedFlowchartUnit}`;
+        const attachment = selectedAttachment ? { name: selectedAttachment.name || '作品附件', url: safeExternalUrl(selectedAttachment.url), createdAt: selectedAttachment.createdAt || null, mimeType: selectedAttachment.mimeType || '', courseId: String(liveClassroomCourse?.id || ''), courseWorkId: String(liveAssignmentWork?.id || '') } : null;
+        const review = { status, completedAt, reviewedAt, reviewedBy: teacherEmail, ...(attachment ? { attachment } : {}) };
+        update[`teacherProgress.${term}.liveChecks.${liveReviewKey(task)}`] = review;
+        update[`teacherProgress.${term}.taskCompletions.${completionKey}`] = { ...review, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
+        update[`teacherProgress.${term}.taskHistory.${completionKey}.event_${Date.now()}`] = { ...review, source: 'classroom-attachment', unitId: selectedFlowchartUnit };
         await db.collection('users').doc(row.id).update(update);
-        message.textContent = status === 'approved' ? `已核定通關；成長紀錄採附件上傳時間：${formatDate(completedAt)}。` : '已標示為需要補件。';
+        message.textContent = status === 'approved' ? `已核定「${attachment.name}」；成長紀錄採該附件時間：${formatDate(completedAt)}。` : '已標示為需要補件。';
       } catch (error) { console.error(error); message.textContent = '儲存失敗，請確認教師權限。'; }
     }
 
@@ -452,10 +473,20 @@
       if (check?.status === 'revision') return 'revision';
       return liveSubmissionFor(row, type) ? 'pending' : 'empty';
     }
-    function attachmentLinks(submission, expectedType) {
+    function attachmentLinks(submission, expectedType, task, previousUrl = '') {
       const list = submission?.attachments || [];
       const icon = expectedType === '圖片' ? '🖼️' : '🎬';
-      return list.length ? `<div class="mt-3 space-y-2">${list.map((item, index) => { const url = safeExternalUrl(item.url); const createdAt = item.createdAt ? ` · 上傳：${formatDate(item.createdAt)}` : ''; return url ? `<a target="_blank" rel="noopener" href="${escapeHtml(url)}" class="flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-white px-3 py-3 text-left text-indigo-800 shadow-sm transition hover:border-indigo-400 hover:bg-indigo-50"><span><b>${icon} 開啟${expectedType}附件供檢核</b><span class="mt-1 block text-xs font-normal text-slate-500">${escapeHtml(item.name || `附件 ${index + 1}`)}${escapeHtml(createdAt)}</span></span><span class="font-black">↗</span></a>` : `<span class="block rounded-xl bg-white px-3 py-2 text-xs text-slate-500">${escapeHtml(item.name || '附件')}${escapeHtml(createdAt)}</span>`; }).join('')}</div>` : '<p class="mt-2 rounded-lg bg-white/70 p-2 text-xs text-slate-500">尚未讀到附件；請回到儀表板按「重新讀取兩份作業的附件」。</p>';
+      if (!list.length) return '<p class="mt-2 rounded-lg bg-white/70 p-2 text-xs text-slate-500">尚未讀到附件；請重新讀取這份作業的附件。</p>';
+      const entries = list.map((item, index) => ({ item, index, url: safeExternalUrl(item.url) }));
+      const openable = entries.filter(entry => entry.url);
+      const selected = openable.length === 1 ? openable[0].index : openable.find(entry => entry.url === previousUrl)?.index;
+      const instruction = !openable.length ? '附件沒有可開啟的連結，暫時無法核定。' : openable.length > 1 ? `找到 ${openable.length} 件作品，請開啟檢查並選定一件採認。` : '開啟作品檢查後，核定採認的附件。';
+      return `<fieldset class="mt-3 space-y-2"><legend class="mb-2 text-xs font-bold text-slate-600">${instruction}</legend>${entries.map(({ item, index, url }) => {
+        const createdAt = item.createdAt ? ` · 檔案建立：${formatDate(item.createdAt)}` : '';
+        const name = escapeHtml(item.name || `附件 ${index + 1}`);
+        if (!url) return `<span class="block rounded-xl bg-white px-3 py-2 text-xs text-slate-500">${name}${escapeHtml(createdAt)} · 沒有可開啟的連結</span>`;
+        return `<div class="rounded-xl border border-indigo-200 bg-white p-2"><a target="_blank" rel="noopener" href="${escapeHtml(url)}" class="flex items-center justify-between gap-3 rounded-lg px-1 py-2 text-left text-indigo-800 transition hover:bg-indigo-50"><span><b>${icon} 開啟${expectedType}附件供檢核</b><span class="mt-1 block text-xs font-normal text-slate-500">${name}${escapeHtml(createdAt)}</span></span><span class="font-black">↗</span></a><label class="mt-1 flex cursor-pointer items-center gap-2 border-t border-indigo-100 px-1 pt-2 text-sm font-bold text-indigo-800"><input type="radio" name="live-review-attachment-${task}" value="${escapeHtml(url)}" ${index === selected ? 'checked' : ''} class="h-4 w-4 accent-indigo-600">採認這件作品</label></div>`;
+      }).join('')}</fieldset>`;
     }
 
     // Notion uses a page database rather than a brittle nested-page tree.  One
@@ -558,7 +589,10 @@
           task: { key: task.key, category: task.category, title: task.title, assignmentTitle: assignment.assignmentTitle },
           students: rows.map(row => {
             const record = teacherTaskRecord(row, task); const submission = submissionEvidence(submissionMap.get(row.profile.studentId), attachmentKind);
-            const attachments = (submission?.attachments || []).map(item => ({ name: item.name || '作品附件', url: safeExternalUrl(item.url), createdAt: item.createdAt || submission.updateTime || '' })).filter(item => item.url);
+            const submittedAttachments = (submission?.attachments || []).map(item => ({ name: item.name || '作品附件', url: safeExternalUrl(item.url), createdAt: item.createdAt || submission.updateTime || '' })).filter(item => item.url);
+            const approvedUrl = record?.status === 'approved' && record?.attachment?.courseId === mapping.courseId && record?.attachment?.courseWorkId === assignment.assignmentId ? safeExternalUrl(record.attachment.url) : '';
+            const approvedAttachment = approvedUrl ? (submittedAttachments.find(item => item.url === approvedUrl) || { name: record.attachment.name || '已採認作品', url: approvedUrl, createdAt: record.attachment.createdAt || record.completedAt || '' }) : null;
+            const attachments = approvedAttachment ? [approvedAttachment] : submittedAttachments;
             return { studentId: row.profile.studentId, name: row.profile.name || '', seatNo: row.profile.seatNo, status: notionStatusFor(record), completedAt: isoValue(record?.completedAt) || attachments[0]?.createdAt || '', reviewedAt: isoValue(record?.reviewedAt), attachments };
           })
         };

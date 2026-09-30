@@ -18,7 +18,7 @@
 - `users/{uid}.activeSession`：目前有效的跨裝置學生登入識別；新裝置登入時會更新此資料。
 - 學生登入僅保留在目前瀏覽器頁籤的工作階段；關閉頁籤後重新開啟入口網，必須再次輸入驗證碼。
 - `users/{uid}.teacherProgress.{termId}`：該學期教師核定資料。
-- `users/{uid}.teacherProgress.{termId}.taskCompletions`：運算思維與程式設計由教師檢核 Classroom 附件後，依指定單元寫入的完成紀錄；`completedAt` 使用附件上傳日期，`reviewedAt` 保留教師核定日期。學生入口只能讀取，不能自行勾選或修改。
+- `users/{uid}.teacherProgress.{termId}.taskCompletions`：運算思維與程式設計由教師檢核 Classroom 附件後，依指定單元寫入的完成紀錄；核定時保存採認的附件連結，`completedAt` 使用該附件的 Drive 建立時間（無資料時退回 Classroom 作業更新時間），`reviewedAt` 保留教師核定日期。學生入口只能讀取，不能自行勾選或修改。
 - `users/{uid}.teacherProgress.{termId}.taskHistory`：每次附件檢核的歷史事件，供教師端依週回看 32 項任務的成長曲線；曲線以 `completedAt`（附件上傳日期）計算。
 - `teacherSettings/notionSync`：教師限定的班級／任務／Classroom 作業對照；學生無法讀取或改寫。
 - `quizAnswerKeys/{questionId}`：教師專用的題目答案金鑰。正確選項與流程排序解答不放在學生端網頁，避免從網頁原始碼直接取得答案。
@@ -46,7 +46,7 @@
 
 1. 以教師帳號開啟正式教師入口 `teacher.html`，登入後進入「作業檢核」。
 2. 選擇班級，按「讀取對應課程」，再指定本節課作業。
-3. 系統將 PNG 圖片與 Google 繪圖（雲端硬碟檔案或 `docs.google.com/drawings/d/...` 連結）列為運算思維附件，MP4 列為程式設計附件；教師可開啟作品後核定。Google 繪圖會開啟原始連結，不會自動轉存為 PNG。
+3. 系統將 PNG 圖片與 Google 繪圖（雲端硬碟檔案或 `docs.google.com/drawings/d/...` 連結）列為運算思維附件，MP4 列為程式設計附件；教師開啟作品後選定一件採認，再核定通關。同一作業有多件附件時不會自動挑選；Google 繪圖會開啟原始連結，不會自動轉存為 PNG。
 
 學生須將作品加入 Classroom 作業附件；僅貼在私人留言中的連結不屬於作業附件，不會被此功能讀取。
 
@@ -54,4 +54,4 @@ Classroom 學生帳號會以 `qfm15xxxxx@mail.qfm.kh.edu.tw` 格式對應平台�
 
 ## Notion 學習作品整理
 
-教師端的「Notion 整理」會依作業檢核班級，保存 8 項運算思維與 8 項程式設計的 Classroom 作業對照，並可下載學生名冊與 16 項作品索引 CSV。完成目標工作區的 Connection 與 Apps Script 指令碼屬性設定後，也能將指定任務直接建立或更新為 Notion 作品卡；連線金鑰不會存入網站或 Firebase。學生身分一律由系統名冊帶入，教師核定狀態與附件上傳時間會保留在作品索引中。Notion 建議以學生名冊與學習作品兩個資料庫呈現，完整欄位與操作方式見 [Notion 學習作品整理](docs/notion-learning-archive.md)。
+教師端的「Notion 整理」會依作業檢核班級，保存 8 項運算思維與 8 項程式設計的 Classroom 作業對照，並可下載學生名冊與 16 項作品索引 CSV。完成目標工作區的 Connection 與 Apps Script 指令碼屬性設定後，也能將指定任務直接建立或更新為 Notion 作品卡；連線金鑰不會存入網站或 Firebase。學生身分一律由系統名冊帶入；已核定作品只同步教師採認的附件，未核定作品仍可保留全部符合格式的附件供檢查。Notion 建議以學生名冊與學習作品兩個資料庫呈現，完整欄位與操作方式見 [Notion 學習作品整理](docs/notion-learning-archive.md)。

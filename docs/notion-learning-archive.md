@@ -79,4 +79,4 @@
 5. 在 Apps Script 內貼上最新版 `shared/google-classroom.gs`，重新部署 Web App。維持原本設定：以存取網頁應用程式的使用者身分執行，且只限校內網域。
 6. 回到教師端「Notion 整理」。當畫面顯示「Notion 連線已完成」後，先設定並儲存本班任務與 Classroom 作業對照，再選擇一項任務按「同步指定任務到 Notion」。
 
-每次同步會處理該班所有學生：先建立或更新學生名冊資料，再建立或更新該任務的作品卡。作品狀態以教師核定紀錄為準；PNG 僅寫入運算思維任務，MP4 僅寫入程式設計任務。Notion 的連線金鑰只由 Apps Script 在伺服端讀取。Notion 對資料庫頁面的建立、更新與內容區塊分別採用資料來源與頁面 API；這也是保留結構化作品索引的原因。[Notion connection capabilities](https://developers.notion.com/reference/capabilities)、[Query a data source](https://developers.notion.com/reference/query-a-data-source) 與 [Create a page](https://developers.notion.com/reference/post-page) 可作為設定依據。
+每次同步會處理該班所有學生：先建立或更新學生名冊資料，再建立或更新該任務的作品卡。作品狀態以教師核定紀錄為準；PNG 與 Google 繪圖僅寫入運算思維任務，MP4 僅寫入程式設計任務。已核定的作品若有採認附件紀錄，只同步該附件；尚未核定時保留所有符合格式的附件供查看。Notion 的連線金鑰只由 Apps Script 在伺服端讀取。Notion 對資料庫頁面的建立、更新與內容區塊分別採用資料來源與頁面 API；這也是保留結構化作品索引的原因。[Notion connection capabilities](https://developers.notion.com/reference/capabilities)、[Query a data source](https://developers.notion.com/reference/query-a-data-source) 與 [Create a page](https://developers.notion.com/reference/post-page) 可作為設定依據。

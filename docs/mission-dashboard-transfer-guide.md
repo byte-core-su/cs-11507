@@ -130,6 +130,7 @@ users/{uid}
           completedAt: "2026-08-01T...Z"
           reviewedAt: "2026-08-03T...Z"
           reviewedBy: "teacher@example.edu.tw"
+          attachment: { name: "作品", url: "https://...", createdAt: "2026-08-01T...Z", mimeType: "application/vnd.google-apps.drawing", courseId: "...", courseWorkId: "..." }
       taskCompletions:
         thinking-1:
           status: "approved"
@@ -138,6 +139,7 @@ users/{uid}
           completedAt: "2026-08-01T...Z"
           reviewedAt: "2026-08-03T...Z"
           reviewedBy: "teacher@example.edu.tw"
+          attachment: { name: "作品", url: "https://...", createdAt: "2026-08-01T...Z", mimeType: "application/vnd.google-apps.drawing", courseId: "...", courseWorkId: "..." }
       taskHistory:
         thinking-1:
           event_1722470400000:
@@ -148,7 +150,7 @@ users/{uid}
             reviewedAt: "2026-08-03T...Z"
 ```
 
-`completedAt` 是附件上傳日期，用於成長曲線；`reviewedAt` 是教師按下核定按鈕的時間，供稽核使用。
+教師核定前會選定一件採認作品。`completedAt` 優先使用該附件的 Drive 建立時間，缺少時使用 Classroom 作業更新時間，用於成長曲線；`reviewedAt` 是教師按下核定按鈕的時間，供稽核使用。Classroom API 不提供每件附件加入作業的精確時間，故這兩種時間不可視為精確的繳交時刻。
 
 ## 5. 學生端：上課中、出席與使用時間
 
@@ -225,8 +227,8 @@ https://www.googleapis.com/auth/script.external_request
 2. 教師選擇「集章指定單元」與「流程圖指定單元」。
 3. 系統依班級代號自動找 Classroom 課程。
 4. 教師選擇本節課作業；系統讀取附件，可選擇每分鐘自動更新。
-5. PNG 會顯示在運算思維，MP4 會顯示在程式設計。
-6. 教師開啟附件檢查後，按「核定通關」或「需要補件」。
+5. PNG 與 Google 繪圖會顯示在運算思維，MP4 會顯示在程式設計。
+6. 教師開啟附件檢查後，選定一件採認作品，再按「核定通關」；不符合要求可按「需要補件」。
 7. 核定結果寫入 `liveChecks`、`taskCompletions` 與 `taskHistory`；儀表板即時更新。
 
 ### 狀態與配色
@@ -287,10 +289,10 @@ https://www.googleapis.com/auth/script.external_request
 - [ ] 未登入、未繳交的名冊學生仍會出現在教師班級名單中。
 - [ ] 學生登入後，教師端在四分鐘內出現綠色框線。
 - [ ] 離開頁面後，綠框消失，使用時間增加。
-- [ ] 選定 Classroom 作業後，PNG 只影響運算思維、MP4 只影響程式設計。
+- [ ] 選定 Classroom 作業後，PNG 與 Google 繪圖只影響運算思維、MP4 只影響程式設計。
 - [ ] 有附件但未核定時，儀表板顯示空心任務框。
 - [ ] 教師核定後，任務框變實心，並寫入 `completedAt` 與 `reviewedAt`。
-- [ ] 晚幾天核定時，每週成長曲線仍以附件上傳日期計算。
+- [ ] 同一學生有兩件同類附件時，核定前必須選定採認作品，核定紀錄保留其連結，成長曲線採該附件的 Drive 建立時間。
 - [ ] 未曾登入、沒有 `users/{uid}` 的學生會被提示無法寫入教師核定，而不是悄悄失敗。
 - [ ] 學生不可從瀏覽器竄改 `teacherProgress`。
 
