@@ -381,24 +381,26 @@ function attachments_(attachments, driveFiles) {
       const name = metadata.name || driveFile.title || 'Google Drive 附件';
       // alternateLink 偶爾未回傳，仍可用 Drive 檔案 ID 建立教師可開啟的連結。
       const url = metadata.webViewLink || driveFile.alternateLink || (driveFile.id ? 'https://drive.google.com/open?id=' + encodeURIComponent(driveFile.id) : '');
-      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || ''), mimeType: metadata.mimeType || '', createdAt: metadata.createdTime || null, source: 'driveFile' };
+      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || '', url), mimeType: metadata.mimeType || '', createdAt: metadata.createdTime || null, source: 'driveFile' };
     }
     if (attachment.link) {
       const driveId = driveFileIdFromAttachment_(attachment);
       const metadata = (driveFiles && driveFiles[driveId]) || {};
       const name = metadata.name || attachment.link.title || attachment.link.url || '連結附件';
       const url = metadata.webViewLink || attachment.link.url || '';
-      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || ''), mimeType: metadata.mimeType || '', createdAt: metadata.createdTime || null, source: 'link' };
+      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || '', attachment.link.url || url), mimeType: metadata.mimeType || '', createdAt: metadata.createdTime || null, source: 'link' };
     }
     if (attachment.youTubeVideo) return { name: attachment.youTubeVideo.title || 'YouTube 影片', url: attachment.youTubeVideo.alternateLink || '', kind: 'video', mimeType: 'video/youtube', source: 'youtube' };
     return { name: '附件', url: '', kind: '', mimeType: '', source: 'unknown' };
   });
 }
 
-function attachmentKind_(name, mimeType) {
+function attachmentKind_(name, mimeType, url) {
   const value = String(name || '').toLowerCase();
   if (mimeType === 'image/png' || mimeType.indexOf('image/') === 0) return 'image';
+  if (mimeType === 'application/vnd.google-apps.drawing') return 'image';
   if (mimeType === 'video/mp4' || mimeType.indexOf('video/') === 0) return 'video';
+  if (/^https:\/\/docs\.google\.com\/drawings\/d\/[A-Za-z0-9_-]+(?:\/|[?#]|$)/.test(String(url || ''))) return 'image';
   if (/\.png(?:$|[?#])/.test(value)) return 'image';
   if (/\.mp4(?:$|[?#])/.test(value)) return 'video';
   return '';
