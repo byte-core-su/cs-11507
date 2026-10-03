@@ -6,6 +6,7 @@
     <title>一一五學年度上學期 資訊科技學習系統</title>
     <script src="../../firebase-config.js"></script>
     <script src="../../shared/learner-profile.js"></script>
+    <script src="../../shared/learning-certificates.js"></script>
     <script defer src="../../shared/site-shell.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
@@ -781,6 +782,10 @@
             document.getElementById('certificate-detail-content').innerHTML = `
                 <div class="pass-card rounded-[2rem] p-8 shadow-2xl"><div class="text-center mb-6"><h2 class="text-3xl font-black text-blue-600 italic underline tracking-tighter">QUIZ PASS CARD</h2><p class="text-[10px] text-gray-400 font-bold tracking-[0.3em] mt-1">INFORMATION TECHNOLOGY LEARNING SYSTEM</p></div><div class="bg-blue-50/30 border-y-4 border-double border-blue-50 rounded-xl p-5 mb-6"><div class="flex justify-around items-center"><div class="text-center"><span class="block text-[10px] text-blue-400 font-black uppercase mb-1">Class</span><span class="text-xl font-black text-gray-800">${escapeHtml(profile.classRoom)}</span></div><div class="h-8 w-[2px] bg-blue-100"></div><div class="text-center"><span class="block text-[10px] text-blue-400 font-black uppercase mb-1">No.</span><span class="text-xl font-black text-gray-800">${escapeHtml(profile.seatNo)}</span></div><div class="h-8 w-[2px] bg-blue-100"></div><div class="text-center"><span class="block text-[10px] text-blue-400 font-black uppercase mb-1">Name</span><span class="text-xl font-black text-gray-800">${escapeHtml(profile.name)}</span></div></div><p class="mt-4 border-t border-blue-100 pt-3 text-center text-sm font-bold text-gray-600">最佳通關時間：${formatCertificateDate(certificate.awardedAt)}</p></div><div class="space-y-4"><div class="bg-gray-50 p-5 rounded-2xl border border-gray-100"><span class="text-[10px] text-gray-400 font-black uppercase block mb-1">Completed Chapter</span><span class="font-black text-blue-800 text-lg leading-tight">${escapeHtml(certificate.chapterTitle)}</span></div><div class="grid grid-cols-2 gap-4"><div class="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center"><span class="text-[10px] text-gray-400 font-black block mb-1">DURATION</span><span class="font-black text-orange-600 text-lg">${formatCertificateDuration(certificate.durationSeconds)}</span></div><div class="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center"><span class="text-[10px] text-gray-400 font-black block mb-1">ACCURACY</span><span class="font-black text-green-600 text-lg">${escapeHtml(certificate.accuracy)}%</span></div></div><div class="grid grid-cols-2 gap-4 text-center"><div><div class="text-[10px] text-gray-400 font-bold">CORRECT</div><div class="text-2xl font-black text-green-500">${escapeHtml(certificate.score)}</div></div><div><div class="text-[10px] text-gray-400 font-bold">TOTAL Q.</div><div class="text-2xl font-black text-gray-800">${escapeHtml(certificate.totalAttempted)}</div></div></div></div></div>`;
             document.getElementById('certificate-detail-modal').classList.remove('hidden');
+            const download = document.createElement('button');
+            download.textContent = '查看／下載證書 PNG'; download.className = 'mt-4 w-full rounded-xl bg-blue-600 px-5 py-3 font-black text-white';
+            download.onclick = () => window.LearningCertificates.showCertificate(profile, window.SCHOOL_APP.currentTermId, window.LearningCertificates.info(certificate)).catch(error => alert(error.message));
+            document.getElementById('certificate-detail-content').appendChild(download);
         }
 
         function closeCertificateDetail() {

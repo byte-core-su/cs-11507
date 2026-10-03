@@ -64,6 +64,7 @@
   <script src="../../firebase-config.js"></script>
   <script type="module" src="../../shared/quiz-security.js"></script>
   <script src="../../shared/learner-profile.js"></script>
+  <script src="../../shared/learning-certificates.js"></script>
   <script type="module">
       import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
       import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
@@ -647,13 +648,14 @@
                 <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-10">
                     {/* Header */}
                     <header className="bg-orange-500 text-white shadow-md sticky top-0 z-50">
-                        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+                        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap gap-3 items-center justify-between">
                             <div className="flex items-center space-x-2 cursor-pointer" onClick={handleBack}>
                                 <div className="bg-white p-1 rounded-full">
                                     <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center font-bold text-lg">S</div>
                                 </div>
                                 <h1 className="text-xl md:text-2xl font-bold tracking-wide">Scratch 基礎程式設計(1)</h1>
                             </div>
+                            <button type="button" onClick={() => window.LearningCertificates.showFlowchartWall(units, flowchartRecords, window.LearningProfile.get(), window.SCHOOL_APP.currentTermId)} className="rounded-xl bg-white px-3 py-2 text-sm font-black text-blue-700 shadow-lg transition hover:-translate-y-0.5 hover:bg-blue-50">🏆 流程圖集章牆</button>
                             <div className="text-sm md:text-base bg-orange-600 px-3 py-1 rounded-full shadow-inner">
                                 {selectedUnit ? `正在學習：單元 ${selectedUnit.id}` : '請選擇單元'}
                             </div>
