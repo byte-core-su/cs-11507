@@ -1,2 +1,6 @@
 # Teacher-only answer-key exports must never become part of the public site.
 private/
+
+# Local editable quiz sources and build dependencies are not published.
+.maintenance/
+tools/node_modules/

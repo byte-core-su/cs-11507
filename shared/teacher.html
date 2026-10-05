@@ -176,10 +176,10 @@
       selector.innerHTML = `<option value="">全班平均</option>${existingOptions}`;
       if (!rows.some(row => row.profile.studentId === selectedWeeklyStudentId)) selectedWeeklyStudentId = '';
       selector.value = selectedWeeklyStudentId;
-      const selectedRows = selectedWeeklyStudentId ? rows.filter(row => row.profile.studentId === selectedWeeklyStudentId) : rows;
+      const selectedRows = selectedWeeklyStudentId ? rows.filter(row => row.profile.studentId === selectedWeeklyStudentId) : statisticalRows(rows);
       const points = Array.from({ length: 8 }, (_, index) => { const key = weekDateKey(selectedAttendanceDate, 7 - index); const cutoffMs = dateEndMs(key); const total = selectedRows.reduce((sum, row) => { const counts = taskCategoryCountsByDate(row, cutoffMs); return sum + counts.info + counts.flowchart + counts.programming + counts.thinking; }, 0); return { key, value: selectedRows.length ? total / selectedRows.length : 0 }; });
       const target = selectedWeeklyStudentId ? rows.find(row => row.profile.studentId === selectedWeeklyStudentId) : null;
-      $('weekly-growth-note').textContent = `${target ? `${target.profile.name || target.profile.studentId}同學` : `${activeProgressClass} 班平均`}｜截至 ${selectedAttendanceDate}，每點為該週截止日的累計完成項目（滿分 32）。`;
+      $('weekly-growth-note').textContent = `${target ? `${target.profile.name || target.profile.studentId}同學${isTestStudentId(target.profile.studentId) ? '（測試帳號，不計入全班統計）' : ''}` : `${activeProgressClass} 班平均（不含測試帳號）`}｜截至 ${selectedAttendanceDate}，每點為該週截止日的累計完成項目（滿分 32）。`;
       const chart = $('weekly-growth-chart'); const width = 760, height = 220, left = 44, right = 18, top = 18, bottom = 38, plotWidth = width - left - right, plotHeight = height - top - bottom;
       const x = index => left + (plotWidth * index / (points.length - 1)); const y = value => top + plotHeight - (Math.max(0, Math.min(totalTasks, value)) / totalTasks * plotHeight);
       const polyline = points.map((point, index) => `${x(index)},${y(point.value)}`).join(' ');
@@ -231,9 +231,10 @@
       const stampLabel = stampUnits.find(item => item[0] === selectedStampUnit)?.[1] || '指定集章';
       const flowLabel = flowchartUnits.find(item => item[0] === selectedFlowchartUnit)?.[1] || '指定流程圖';
       const rows = mergedProgress().filter(row => row.profile.classRoom === activeLiveClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
-      const imageSubmitted = rows.filter(row => Boolean(liveSubmissionFor(row, 'thinking'))).length;
-      const videoSubmitted = rows.filter(row => Boolean(liveSubmissionFor(row, 'programming'))).length;
-      $('live-evidence-summary').innerHTML = `<article class="rounded-xl border border-emerald-100 bg-white px-4 py-3"><p class="text-xs font-bold text-emerald-600">運算思維 · PNG／Google 繪圖</p><p class="mt-1 text-lg font-black text-slate-800">圖片繳交數 <span class="text-emerald-700">${imageSubmitted}</span> / ${rows.length}</p></article><article class="rounded-xl border border-fuchsia-100 bg-white px-4 py-3"><p class="text-xs font-bold text-fuchsia-600">程式設計 · MP4 影片</p><p class="mt-1 text-lg font-black text-slate-800">影片繳交數 <span class="text-fuchsia-700">${videoSubmitted}</span> / ${rows.length}</p></article>`;
+      const countedRows = statisticalRows(rows);
+      const imageSubmitted = countedRows.filter(row => Boolean(liveSubmissionFor(row, 'thinking'))).length;
+      const videoSubmitted = countedRows.filter(row => Boolean(liveSubmissionFor(row, 'programming'))).length;
+      $('live-evidence-summary').innerHTML = `<article class="rounded-xl border border-emerald-100 bg-white px-4 py-3"><p class="text-xs font-bold text-emerald-600">運算思維 · PNG／Google 繪圖</p><p class="mt-1 text-lg font-black text-slate-800">圖片繳交數 <span class="text-emerald-700">${imageSubmitted}</span> / ${countedRows.length}</p></article><article class="rounded-xl border border-fuchsia-100 bg-white px-4 py-3"><p class="text-xs font-bold text-fuchsia-600">程式設計 · MP4 影片</p><p class="mt-1 text-lg font-black text-slate-800">影片繳交數 <span class="text-fuchsia-700">${videoSubmitted}</span> / ${countedRows.length}</p></article>`;
       const cards = rows.map(row => {
         const stamp = certificateForUnit(row, selectedStampUnit);
         const flowchart = flowchartForUnit(row, selectedFlowchartUnit);
@@ -244,13 +245,13 @@
         const score = Number(Boolean(stamp)) + Number(Boolean(flowchart)) + Number(thinkingState === 'approved') + Number(programmingState === 'approved');
         return { row, stamp, flowchart, thinkingSubmission, programmingSubmission, thinkingState, programmingState, score };
       });
-      $('live-note').textContent = `${activeLiveClass} 班｜集章：${stampLabel}｜流程圖：${flowLabel}。亮色代表資料已完成或教師已核定。`;
-      $('live-summary').textContent = rows.length ? `共 ${rows.length} 人 · 指定作業檢核中` : '此班尚未建立名冊';
+      $('live-note').textContent = `${activeLiveClass} 班｜集章：${stampLabel}｜流程圖：${flowLabel}。亮色代表資料已完成或教師已核定。學號結尾 00 保留供測試，不計入繳交人數與總人數。`;
+      $('live-summary').textContent = rows.length ? `正式學生 ${countedRows.length} 人 · 指定作業檢核中` : '此班尚未建立名冊';
       container.innerHTML = cards.length ? cards.map(item => {
         const { row, stamp, flowchart, thinkingSubmission, programmingSubmission, thinkingState, programmingState, score } = item;
         const stampState = stamp ? 'approved' : 'empty';
         const flowState = flowchart ? 'approved' : 'empty';
-        return `<button data-live-student="${escapeHtml(row.profile.studentId)}" class="relative min-h-64 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-1 hover:border-amber-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-amber-400"><div class="flex items-start gap-3"><span class="grid h-12 w-12 place-items-center rounded-2xl bg-slate-800 text-lg font-black text-white">${escapeHtml(row.profile.seatNo)}</span><div><p class="font-black">${escapeHtml(row.profile.name || '未命名')}</p><p class="font-mono text-xs text-slate-500">${escapeHtml(row.profile.studentId)}</p></div></div><div class="mt-4 grid grid-cols-2 gap-2 text-xs">${taskBadge('集章', 'indigo', stampState, stamp ? stamp.chapterTitle || stampLabel : '')}${taskBadge('運算思維', 'emerald', thinkingState, thinkingState === 'approved' ? '教師已核定' : (thinkingSubmission ? `已讀到 ${thinkingSubmission.attachments.length} 個附件` : '尚無附件'))}${taskBadge('程式設計', 'fuchsia', programmingState, programmingState === 'approved' ? '教師已核定' : (programmingSubmission ? `已讀到 ${programmingSubmission.attachments.length} 個附件` : '尚無附件'))}${taskBadge('流程圖', 'amber', flowState, flowchart ? flowchart.title || flowLabel : '')}</div><div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs"><span class="font-bold text-slate-500">已完成 <b class="text-slate-800">${score} / 4</b></span><span class="font-bold text-amber-700">點此查看附件並核定 →</span></div></button>`;
+        return `<button data-live-student="${escapeHtml(row.profile.studentId)}" class="relative min-h-64 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-1 hover:border-amber-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-amber-400"><div class="flex items-start gap-3"><span class="grid h-12 w-12 place-items-center rounded-2xl bg-slate-800 text-lg font-black text-white">${escapeHtml(row.profile.seatNo)}</span><div><p class="font-black">${escapeHtml(row.profile.name || '未命名')}${testAccountBadge(row.profile.studentId)}</p><p class="font-mono text-xs text-slate-500">${escapeHtml(row.profile.studentId)}</p></div></div><div class="mt-4 grid grid-cols-2 gap-2 text-xs">${taskBadge('集章', 'indigo', stampState, stamp ? stamp.chapterTitle || stampLabel : '')}${taskBadge('運算思維', 'emerald', thinkingState, thinkingState === 'approved' ? '教師已核定' : (thinkingSubmission ? `已讀到 ${thinkingSubmission.attachments.length} 個附件` : '尚無附件'))}${taskBadge('程式設計', 'fuchsia', programmingState, programmingState === 'approved' ? '教師已核定' : (programmingSubmission ? `已讀到 ${programmingSubmission.attachments.length} 個附件` : '尚無附件'))}${taskBadge('流程圖', 'amber', flowState, flowchart ? flowchart.title || flowLabel : '')}</div><div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs"><span class="font-bold text-slate-500">已完成 <b class="text-slate-800">${score} / 4</b></span><span class="font-bold text-amber-700">點此查看附件並核定 →</span></div></button>`;
       }).join('') : '<p class="col-span-full rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-400">此班尚未建立名冊。</p>';
       container.querySelectorAll('[data-live-student]').forEach(button => button.addEventListener('click', () => manageLiveStudent(button.dataset.liveStudent)));
     }
@@ -273,13 +274,14 @@
     function renderMissionDashboard() {
       const container = $('mission-cards'); if (!container) return;
       const rows = mergedProgress().filter(row => row.profile.classRoom === activeLiveClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
-      const inClassCount = rows.filter(isCurrentlyInClass).length;
+      const countedRows = statisticalRows(rows);
+      const inClassCount = countedRows.filter(isCurrentlyInClass).length;
       const stampLabel = stampUnits.find(item => item[0] === selectedStampUnit)?.[1] || '尚未指定集章單元';
       const flowLabel = flowchartUnits.find(item => item[0] === selectedFlowchartUnit)?.[1] || '尚未指定流程圖單元';
       const assignmentLabel = liveAssignmentWork?.title || '尚未指定 Classroom 作業';
-      $('mission-note').textContent = `${activeLiveClass} 班｜集章：${stampLabel}｜流程圖：${flowLabel}｜作業：${assignmentLabel}。綠色框線代表學生目前正在上課頁面。`;
-      $('mission-summary').textContent = rows.length ? `共 ${rows.length} 人 · 上課中 ${inClassCount} 人` : '此班尚未建立名冊';
-      const ranked = rows.map(row => { const stamp = certificateForUnit(row, selectedStampUnit); const flowchart = flowchartForUnit(row, selectedFlowchartUnit); const thinkingState = classroomTaskState(row, 'thinking'); const programmingState = classroomTaskState(row, 'programming'); return { row, stamp, flowchart, thinkingState, programmingState, score: Number(Boolean(stamp)) + Number(Boolean(flowchart)) + Number(thinkingState === 'approved') + Number(programmingState === 'approved') }; }).sort((a, b) => b.score - a.score || Number(a.row.profile.seatNo) - Number(b.row.profile.seatNo));
+      $('mission-note').textContent = `${activeLiveClass} 班｜集章：${stampLabel}｜流程圖：${flowLabel}｜作業：${assignmentLabel}。綠色框線代表學生目前正在上課頁面；學號結尾 00 不計入人數與領先排名。`;
+      $('mission-summary').textContent = rows.length ? `正式學生 ${countedRows.length} 人 · 上課中 ${inClassCount} 人` : '此班尚未建立名冊';
+      const ranked = countedRows.map(row => { const stamp = certificateForUnit(row, selectedStampUnit); const flowchart = flowchartForUnit(row, selectedFlowchartUnit); const thinkingState = classroomTaskState(row, 'thinking'); const programmingState = classroomTaskState(row, 'programming'); return { row, stamp, flowchart, thinkingState, programmingState, score: Number(Boolean(stamp)) + Number(Boolean(flowchart)) + Number(thinkingState === 'approved') + Number(programmingState === 'approved') }; }).sort((a, b) => b.score - a.score || Number(a.row.profile.seatNo) - Number(b.row.profile.seatNo));
       const leaderRanks = new Map(ranked.filter(item => item.score > 0).slice(0, 5).map((item, index) => [item.row.profile.studentId, index + 1]));
       container.innerHTML = rows.length ? rows.map(row => {
         const stamp = certificateForUnit(row, selectedStampUnit);
@@ -290,7 +292,7 @@
         const leaderRank = leaderRanks.get(row.profile.studentId);
         const loginClass = isCurrentlyInClass(row) ? 'border-2 border-emerald-400 bg-emerald-50/40 shadow-sm' : 'border border-slate-200 bg-white';
         const completionEffect = allComplete ? 'animate-pulse ring-2 ring-amber-300 shadow-lg shadow-amber-200/70' : '';
-        return `<article class="relative rounded-xl p-2 ${loginClass} ${completionEffect}">${leaderRank ? `<span class="absolute right-1 top-1 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900">★${leaderRank}</span>` : ''}<p class="truncate text-center text-sm font-black text-slate-800">${escapeHtml(row.profile.name || '未命名')}</p><div class="mt-2 grid grid-cols-2 gap-1">${missionTile('資訊生活', 'indigo', stamp ? 'approved' : 'empty')}${missionTile('運算思維', 'emerald', thinkingState)}${missionTile('程式設計', 'fuchsia', programmingState)}${missionTile('演算流程', 'amber', flowchart ? 'approved' : 'empty')}</div></article>`;
+        return `<article class="relative rounded-xl p-2 ${loginClass} ${completionEffect}">${leaderRank ? `<span class="absolute right-1 top-1 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900">★${leaderRank}</span>` : ''}<p class="truncate text-center text-sm font-black text-slate-800">${escapeHtml(row.profile.name || '未命名')}${testAccountBadge(row.profile.studentId)}</p><div class="mt-2 grid grid-cols-2 gap-1">${missionTile('資訊生活', 'indigo', stamp ? 'approved' : 'empty')}${missionTile('運算思維', 'emerald', thinkingState)}${missionTile('程式設計', 'fuchsia', programmingState)}${missionTile('演算流程', 'amber', flowchart ? 'approved' : 'empty')}</div></article>`;
       }).join('') : '<p class="col-span-full rounded-xl bg-slate-50 p-8 text-center text-sm text-slate-400">此班尚未建立名冊。</p>';
     }
     function manageLiveStudent(studentId) {
@@ -395,7 +397,7 @@
     }
     function renderClassroomSubmissions(rows) {
       const sorted = [...rows].sort((a, b) => String(a.classRoom).localeCompare(String(b.classRoom)) || Number(a.seatNo) - Number(b.seatNo));
-      $('classroom-submissions').innerHTML = sorted.length ? sorted.map(row => { const attachments = (row.attachments || []).map(item => { const url = safeExternalUrl(item.url); return url ? `<a class="mr-2 text-xs font-bold text-indigo-700 underline" target="_blank" rel="noopener" href="${escapeHtml(url)}">${escapeHtml(item.name || '附件')}</a>` : `<span class="mr-2 text-xs text-slate-400">${escapeHtml(item.name || '附件')}</span>`; }).join('') || '<span class="text-slate-400">—</span>'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo || '—')}</td><td class="p-3 font-mono">${escapeHtml(row.studentId || '未對應')}</td><td class="p-3 font-bold">${escapeHtml(row.name || '—')}</td><td class="p-3"><span class="font-bold ${row.state === 'TURNED_IN' ? 'text-emerald-700' : 'text-slate-600'}">${escapeHtml(submissionState(row))}</span></td><td class="p-3 text-xs text-slate-500">${escapeHtml(formatDate(row.updateTime))}</td><td class="p-3">${attachments}</td></tr>`; }).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400">沒有繳交資料。</td></tr>';
+      $('classroom-submissions').innerHTML = sorted.length ? sorted.map(row => { const attachments = (row.attachments || []).map(item => { const url = safeExternalUrl(item.url); return url ? `<a class="mr-2 text-xs font-bold text-indigo-700 underline" target="_blank" rel="noopener" href="${escapeHtml(url)}">${escapeHtml(item.name || '附件')}</a>` : `<span class="mr-2 text-xs text-slate-400">${escapeHtml(item.name || '附件')}</span>`; }).join('') || '<span class="text-slate-400">—</span>'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo || '—')}</td><td class="p-3 font-mono">${escapeHtml(row.studentId || '未對應')}</td><td class="p-3 font-bold">${escapeHtml(row.name || '—')}${testAccountBadge(row.studentId)}</td><td class="p-3"><span class="font-bold ${row.state === 'TURNED_IN' ? 'text-emerald-700' : 'text-slate-600'}">${escapeHtml(submissionState(row))}</span></td><td class="p-3 text-xs text-slate-500">${escapeHtml(formatDate(row.updateTime))}</td><td class="p-3">${attachments}</td></tr>`; }).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400">沒有繳交資料。</td></tr>';
     }
     async function loadClassroomCourses() {
       $('classroom-refresh').disabled = true; setClassroomMessage('正在讀取 Classroom 課程…');
@@ -412,7 +414,7 @@
     async function selectClassroomAssignment(assignmentId) {
       selectedClassroomAssignment = classroomAssignments.find(assignment => assignment.id === assignmentId) || null; if (!selectedClassroomAssignment || !selectedClassroomCourse) return;
       renderClassroomAssignments(); $('classroom-submission-note').textContent = `正在讀取「${selectedClassroomAssignment.title}」的繳交狀態…`;
-      try { const rows = (await classroomRequest('submissions', { courseId: selectedClassroomCourse.id, courseWorkId: selectedClassroomAssignment.id })).submissions || []; renderClassroomSubmissions(rows); $('classroom-submission-note').textContent = `${selectedClassroomAssignment.title}：共 ${rows.length} 位學生。`; }
+      try { const rows = (await classroomRequest('submissions', { courseId: selectedClassroomCourse.id, courseWorkId: selectedClassroomAssignment.id })).submissions || []; renderClassroomSubmissions(rows); $('classroom-submission-note').textContent = `${selectedClassroomAssignment.title}：共 ${rows.filter(row => !isTestStudentId(row.studentId)).length} 位學生（不含測試帳號）。`; }
       catch (error) { $('classroom-submission-note').textContent = error.message; $('classroom-submissions').innerHTML = ''; }
     }
     function setLiveClassroomNote(text, error = false) { $('live-classroom-note').textContent = text; $('live-classroom-note').className = `mt-1 text-sm ${error ? 'text-rose-600' : 'text-slate-600'}`; }
@@ -548,14 +550,19 @@
       return certificate ? { ...certificate, title: certificate.title || task.title } : null;
     }
     function notionClassKey() { return `${term}:${activeNotionClass}`; }
+    function isTestStudentId(value) { return String(value || '').trim().endsWith('00'); }
+    function testAccountBadge(studentId) { return isTestStudentId(studentId) ? '<span class="ml-1 text-[10px] font-bold text-slate-400">（測試）</span>' : ''; }
+    function statisticalRows(rows) { return rows.filter(row => !isTestStudentId(row.profile.studentId)); }
+    function notionEligibleStudentId(value) { const id = String(value || '').trim(); return /^15[12]\d{4}$/.test(id) && !isTestStudentId(id); }
+    function notionClassRows(classRoom = activeNotionClass) { return mergedProgress().filter(row => row.profile.classRoom === classRoom && notionEligibleStudentId(row.profile.studentId)).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo)); }
     function renderNotionWorkspace() {
       if (!$('notion-source-body')) return;
       const tasks = notionTasks();
-      const rows = mergedProgress().filter(row => row.profile.classRoom === activeNotionClass);
+      const rows = notionClassRows();
       const busy = notionSyncing, dataReady = notionDataReady.roster && notionDataReady.progress;
       $('notion-class-label').textContent = `${activeNotionClass} 班`;
       $('notion-summary').textContent = dataReady ? `${activeNotionClass} 班｜${rows.length} 位學生｜四類 32 項` : '等待名冊與學習紀錄完整載入…';
-      $('notion-note').textContent = '分類與單元沿用作業檢核；直接讀取本學期通關／採認紀錄，不需另設 Classroom 作業對照。';
+      $('notion-note').textContent = '分類與單元沿用作業檢核；直接讀取本學期通關／採認紀錄，不需另設 Classroom 作業對照。學號結尾 00 的測試帳號不計入人數、不匯出或同步。';
       $('notion-source-body').innerHTML = tasks.map(task => {
         const available = rows.filter(row => task.system ? notionSystemCertificate(row, task) : notionApprovedAttachment(row, task)).length;
         const categoryClass = { info: 'bg-blue-50 text-blue-700', flowchart: 'bg-amber-50 text-amber-700', thinking: 'bg-emerald-50 text-emerald-700', programming: 'bg-fuchsia-50 text-fuchsia-700' }[task.category];
@@ -597,12 +604,12 @@
     }
     function notionAssignmentTitle(record) { const attachment = record?.attachment; return attachment?.assignmentTitle || (attachment?.courseWorkId ? `作業 ID：${attachment.courseWorkId}` : ''); }
     function exportNotionRoster() {
-      const rows = mergedProgress().filter(row => row.profile.classRoom === activeNotionClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
+      const rows = notionClassRows();
       downloadCsv(`${term}-${activeNotionClass}-Notion學生名冊.csv`, ['班級', '座號', '學號', '姓名'], rows.map(row => [row.profile.classRoom, row.profile.seatNo, row.profile.studentId, row.profile.name || '']));
       $('notion-message').textContent = `已下載 ${rows.length} 位學生的名冊 CSV。`;
     }
     function exportNotionProgress() {
-      const rows = mergedProgress().filter(row => row.profile.classRoom === activeNotionClass).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
+      const rows = notionClassRows();
       const tasks = notionTasks(); const output = rows.flatMap(row => tasks.map(task => {
         const record = task.system ? notionSystemCertificate(row, task) : teacherTaskRecord(row, task);
         return [term, row.profile.classRoom, row.profile.seatNo, row.profile.studentId, row.profile.name || '', task.key, notionCategoryLabel(task.category).split(' · ')[0], record?.title || task.title, task.system ? '系統通關紀錄' : notionAssignmentTitle(record), task.system ? (record ? '系統通關' : '尚未完成') : notionStatusFor(record, Boolean(notionApprovedAttachment(row, task))), formatDate(record?.completedAt), task.system ? '—' : formatDate(record?.reviewedAt), task.system ? (record?.score ?? '') : '', task.system ? (record?.accuracy ?? '') : '', task.system ? (record?.durationSeconds ?? '') : ''];
@@ -618,6 +625,7 @@
     const isoValue = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.toISOString() : ''; };
     function notionStatusFor(record, hasApprovedAttachment) { return hasApprovedAttachment ? '已核定通關' : (record?.status === 'revision' ? '需要補件' : '尚未核定'); }
     async function notionStudentsForTask(rows, task) {
+      rows = rows.filter(row => notionEligibleStudentId(row.profile.studentId));
       if (task.system) return Promise.all(rows.map(async row => {
         const certificate = notionSystemCertificate(row, task);
         const image = certificate ? await window.LearningCertificates.png(row.profile, term, certificate) : null;
@@ -638,8 +646,8 @@
       const classRoom = activeNotionClass;
       const tasks = syncAll ? notionTasks() : notionTasks().filter(item => item.key === $('notion-sync-task').value);
       if (!tasks.length) return;
-      const rows = mergedProgress().filter(row => row.profile.classRoom === classRoom).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
-      if (!rows.length) { $('notion-message').textContent = '目前班級沒有系統名冊，無法同步。'; return; }
+      const rows = notionClassRows(classRoom);
+      if (!rows.length) { $('notion-message').textContent = '本班沒有可同步的正式學生；學號結尾 00 的測試帳號已排除。'; return; }
       notionSyncing = true; notionStopRequested = false; renderNotionWorkspace();
       let completed = 0, workCreated = 0, workUpdated = 0, files = 0;
       try {
@@ -685,8 +693,9 @@
     function renderRoster() {
       const classRoom = activeRosterClass;
       const rows = rosterRows.filter(row => row.classRoom === classRoom).sort((a, b) => Number(a.seatNo) - Number(b.seatNo));
-      $('roster-note').textContent = `${classRoom} 班共 ${rows.length} 位學生`;
-      $('roster-body').innerHTML = rows.length ? rows.map(row => `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.name || '—')}</td><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${/^\d{6}$/.test(row.verificationCode || '') ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${/^\d{6}$/.test(row.verificationCode || '') ? '學生已設定' : '學生尚未設定'}</span></td><td class="p-3 text-right"><button data-code="${escapeHtml(row.studentId)}" class="code-button rounded-lg px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50">查看／重設</button><button data-delete="${escapeHtml(row.studentId)}" class="delete-button rounded-lg px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50">刪除</button></td></tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
+      const testCount = rows.filter(row => isTestStudentId(row.studentId)).length;
+      $('roster-note').textContent = `${classRoom} 班共 ${rows.length - testCount} 位正式學生${testCount ? `；另有 ${testCount} 個測試帳號（不計入統計）` : ''}`;
+      $('roster-body').innerHTML = rows.length ? rows.map(row => `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.name || '—')}${testAccountBadge(row.studentId)}</td><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${/^\d{6}$/.test(row.verificationCode || '') ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${/^\d{6}$/.test(row.verificationCode || '') ? '學生已設定' : '學生尚未設定'}</span></td><td class="p-3 text-right"><button data-code="${escapeHtml(row.studentId)}" class="code-button rounded-lg px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50">查看／重設</button><button data-delete="${escapeHtml(row.studentId)}" class="delete-button rounded-lg px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50">刪除</button></td></tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
       document.querySelectorAll('.code-button').forEach(button => button.addEventListener('click', () => manageCode(button.dataset.code)));
       document.querySelectorAll('.delete-button').forEach(button => button.addEventListener('click', () => deleteRoster(button.dataset.delete)));
     }
@@ -712,7 +721,7 @@
       listeners.forEach(listener => listener.unsubscribe?.());
     }
     function questionScopeLabel() { return activeQuestionClass === 'all' ? `全年級（${classes[0]}–${classes[classes.length - 1]} 班）` : `${activeQuestionClass} 班`; }
-    function questionScopeRows() { return mergedProgress().filter(row => activeQuestionClass === 'all' ? classes.includes(row.profile.classRoom) : row.profile.classRoom === activeQuestionClass); }
+    function questionScopeRows() { return statisticalRows(mergedProgress()).filter(row => activeQuestionClass === 'all' ? classes.includes(row.profile.classRoom) : row.profile.classRoom === activeQuestionClass); }
     function syncQuestionAttempts(force = false) {
       if (force || questionAttemptClass !== activeQuestionClass) stopQuestionAttempts();
       questionAttemptClass = activeQuestionClass;
@@ -786,25 +795,26 @@
       $('question-student-count').textContent = students.size;
       $('question-attempt-count').textContent = rows.length;
       $('question-correct-rate').textContent = rows.length ? `${Math.round(correct / rows.length * 100)}%` : '—';
-      $('questions-note').textContent = `${scopeLabel}｜依首次答對率由低至高排列；相同題號會合併課程頁與知識大擂台的作答。${activeQuestionClass === 'all' ? '全年級答對率依實際作答次數計算，不取各班百分比平均。' : ''}`;
+      $('questions-note').textContent = `${scopeLabel}｜依首次答對率由低至高排列；相同題號會合併課程頁與知識大擂台的作答。學號結尾 00 的作答不列入統計。${activeQuestionClass === 'all' ? '全年級答對率依實際作答次數計算，不取各班百分比平均。' : ''}`;
       $('questions-summary').textContent = rows.length ? `${summaries.length} 題 · ${rows.length} 次作答` : '尚無作答資料';
       $('questions-body').innerHTML = summaries.length ? summaries.map(item => `<tr class="border-t border-slate-100 align-top"><td class="max-w-md p-3 font-bold leading-6">${escapeHtml(item.questionText)}<p class="mt-1 font-mono text-[10px] font-normal text-slate-400">${escapeHtml(item.questionId)}</p></td><td class="p-3 text-xs text-slate-500">${escapeHtml([...item.sources].join('、'))}</td><td class="p-3 font-bold">${item.studentCount}</td><td class="p-3 font-bold">${item.attempts.length}</td><td class="p-3"><span class="font-black ${item.firstRate < 50 ? 'text-rose-600' : (item.firstRate < 75 ? 'text-amber-600' : 'text-emerald-600')}">${item.firstRate}%</span></td><td class="p-3 font-bold">${item.correctRate}%</td><td class="p-3 text-xs">${item.optionCounts.map((count, index) => `${String.fromCharCode(65 + index)}：${count}`).join('　')}</td><td class="p-3 font-bold">${item.averageSeconds} 秒</td></tr>`).join('') : `<tr><td colspan="8" class="p-8 text-center text-slate-400">${escapeHtml(scopeLabel)}尚無本學期作答紀錄。</td></tr>`;
     }
     function renderProgress() {
       const classRoom = activeProgressClass;
       const rows = mergedProgress().filter(row => row.profile.classRoom === classRoom).sort((a, b) => Number(a.profile.seatNo) - Number(b.profile.seatNo));
-      const completeTotal = rows.reduce((sum, row) => sum + completedTasks(row), 0);
-      const usageTotal = rows.reduce((sum, row) => sum + usageSeconds(row), 0);
-      const startedCount = rows.filter(row => row.hasStarted).length;
-      const presentCount = rows.filter(row => row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt).length;
-      $('student-count').textContent = `${presentCount} / ${rows.length}`;
-      $('average-count').textContent = rows.length ? `${(completeTotal / rows.length).toFixed(1)} / ${totalTasks}` : `0 / ${totalTasks}`;
-      $('class-rate').textContent = rows.length ? `${Math.round(completeTotal / (rows.length * totalTasks) * 100)}%` : '—';
-      $('average-time').textContent = rows.length ? formatUsage(usageTotal / rows.length) : '0 分';
-      $('progress-note').textContent = `${classRoom} 班名冊共 ${rows.length} 位；本學期已開始 ${startedCount} 位；${selectedAttendanceDate} 出席 ${presentCount} 位`;
-      $('progress-summary').textContent = rows.length ? `出席率 ${Math.round(presentCount / rows.length * 100)}%` : '此班尚未建立名冊';
+      const countedRows = statisticalRows(rows);
+      const completeTotal = countedRows.reduce((sum, row) => sum + completedTasks(row), 0);
+      const usageTotal = countedRows.reduce((sum, row) => sum + usageSeconds(row), 0);
+      const startedCount = countedRows.filter(row => row.hasStarted).length;
+      const presentCount = countedRows.filter(row => row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt).length;
+      $('student-count').textContent = `${presentCount} / ${countedRows.length}`;
+      $('average-count').textContent = countedRows.length ? `${(completeTotal / countedRows.length).toFixed(1)} / ${totalTasks}` : `0 / ${totalTasks}`;
+      $('class-rate').textContent = countedRows.length ? `${Math.round(completeTotal / (countedRows.length * totalTasks) * 100)}%` : '—';
+      $('average-time').textContent = countedRows.length ? formatUsage(usageTotal / countedRows.length) : '0 分';
+      $('progress-note').textContent = `${classRoom} 班正式學生共 ${countedRows.length} 位；本學期已開始 ${startedCount} 位；${selectedAttendanceDate} 出席 ${presentCount} 位。學號結尾 00 保留供測試，不計入全班統計。`;
+      $('progress-summary').textContent = countedRows.length ? `出席率 ${Math.round(presentCount / countedRows.length * 100)}%` : '此班尚無正式學生';
       renderWeeklyGrowth(rows);
-      $('progress-body').innerHTML = rows.length ? rows.map(row => { const counts = taskCategoryCounts(row); const completed = counts.info + counts.flowchart + counts.programming + counts.thinking; const attendance = row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt; const attendanceCell = attendance ? `<span class="font-bold text-emerald-700">已登入 ${formatAttendanceTime(attendance)}</span>` : '<span class="font-bold text-rose-600">未登入</span>'; const status = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>'; const countCell = value => row.hasStarted ? `<span class="font-bold text-slate-700">${value} / 8</span>` : '<span class="text-slate-400">—</span>'; const updatedCell = row.hasStarted ? escapeHtml(formatDate(row.data.updatedAt)) : '—'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}</td><td class="p-3">${attendanceCell}</td><td class="p-3 font-bold text-violet-700">${status}</td><td class="p-3">${countCell(counts.info)}</td><td class="p-3">${countCell(counts.flowchart)}</td><td class="p-3">${countCell(counts.programming)}</td><td class="p-3">${countCell(counts.thinking)}</td><td class="p-3 font-bold text-slate-600">${formatUsage(usageSeconds(row))}</td><td class="p-3 text-xs text-slate-500">${updatedCell}</td></tr>`; }).join('') : '<tr><td colspan="11" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
+      $('progress-body').innerHTML = rows.length ? rows.map(row => { const counts = taskCategoryCounts(row); const completed = counts.info + counts.flowchart + counts.programming + counts.thinking; const attendance = row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt; const attendanceCell = attendance ? `<span class="font-bold text-emerald-700">已登入 ${formatAttendanceTime(attendance)}</span>` : '<span class="font-bold text-rose-600">未登入</span>'; const status = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>'; const countCell = value => row.hasStarted ? `<span class="font-bold text-slate-700">${value} / 8</span>` : '<span class="text-slate-400">—</span>'; const updatedCell = row.hasStarted ? escapeHtml(formatDate(row.data.updatedAt)) : '—'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}${testAccountBadge(row.profile.studentId)}</td><td class="p-3">${attendanceCell}</td><td class="p-3 font-bold text-violet-700">${status}</td><td class="p-3">${countCell(counts.info)}</td><td class="p-3">${countCell(counts.flowchart)}</td><td class="p-3">${countCell(counts.programming)}</td><td class="p-3">${countCell(counts.thinking)}</td><td class="p-3 font-bold text-slate-600">${formatUsage(usageSeconds(row))}</td><td class="p-3 text-xs text-slate-500">${updatedCell}</td></tr>`; }).join('') : '<tr><td colspan="11" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
     }
 
     async function syncStudentAccountCode(studentId, previousCode, nextCode) {

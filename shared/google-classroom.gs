@@ -91,8 +91,9 @@ function notionConfig_() {
 }
 
 function syncNotion_(payload) {
-  const config = notionConfig_();
   const job = validateNotionPayload_(payload);
+  if (!job.students.length) return { message: '已略過學號結尾 00 的測試帳號，沒有需要同步的正式學生。', studentCreated: 0, studentUpdated: 0, workCreated: 0, workUpdated: 0, skippedTestAccounts: job.skippedTestAccounts };
+  const config = notionConfig_();
   const studentsSchema = notionCall_(config, 'get', 'data_sources/' + encodeURIComponent(config.studentsDataSourceId));
   const worksSchema = notionCall_(config, 'get', 'data_sources/' + encodeURIComponent(config.worksDataSourceId));
   requireNotionProperties_(studentsSchema, { '姓名': 'title', '學號': 'rich_text', '班級': 'select', '座號': 'number', '同步鍵': 'rich_text' }, '學生名冊');
@@ -142,7 +143,7 @@ function syncNotion_(payload) {
       workCreated += 1;
     }
   });
-  return { message: 'Notion 同步完成。', studentCreated: studentCreated, studentUpdated: studentUpdated, workCreated: workCreated, workUpdated: workUpdated };
+  return { message: 'Notion 同步完成。', studentCreated: studentCreated, studentUpdated: studentUpdated, workCreated: workCreated, workUpdated: workUpdated, skippedTestAccounts: job.skippedTestAccounts };
 }
 
 function validateNotionPayload_(payload) {
@@ -157,10 +158,14 @@ function validateNotionPayload_(payload) {
   const system = category === 'info' || category === 'flowchart';
   if (!students.length || students.length > 60) throw new Error('同步學生人數必須介於 1 至 60 人。');
   if (system && students.length > 4) throw new Error('證書圖片請分批同步，每批最多 4 位學生。');
-  return { term: term, classRoom: classRoom, task: { key: String(task.key), category: category, system: system, title: safeNotionText_(task.title, 180), assignmentTitle: safeNotionText_(task.assignmentTitle, 180) }, students: students.map(function(student) {
-    const studentId = String(student.studentId || '');
+  students.forEach(function(student) {
+    const studentId = String(student && student.studentId || '');
     if (!/^15[12]\d{4}$/.test(studentId)) throw new Error('學生學號格式不正確。');
     if ('7' + studentId.slice(-4, -2) !== classRoom) throw new Error('同步學生不屬於所選班級。');
+  });
+  const eligibleStudents = students.filter(function(student) { return !String(student.studentId).endsWith('00'); });
+  return { term: term, classRoom: classRoom, task: { key: String(task.key), category: category, system: system, title: safeNotionText_(task.title, 180), assignmentTitle: safeNotionText_(task.assignmentTitle, 180) }, skippedTestAccounts: students.length - eligibleStudents.length, students: eligibleStudents.map(function(student) {
+    const studentId = String(student.studentId);
     if (system) {
       const completedAt = safeDate_(student.completedAt);
       const certificate = student.status === '系統通關' && completedAt && student.certificate ? validateCertificateImage_(student.certificate, term, task, studentId, completedAt) : null;
