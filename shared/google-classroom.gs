@@ -495,7 +495,7 @@ function driveFileMetadataMap_(attachments) {
   const token = ScriptApp.getOAuthToken();
   const requests = ids.map(function(id) {
     return {
-      url: DRIVE_API_ROOT + 'files/' + encodeURIComponent(id) + '?fields=id,name,mimeType,webViewLink,createdTime&supportsAllDrives=true',
+      url: DRIVE_API_ROOT + 'files/' + encodeURIComponent(id) + '?fields=id,name,mimeType,webViewLink,createdTime,modifiedTime&supportsAllDrives=true',
       method: 'get', headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true
     };
   });
@@ -528,14 +528,14 @@ function attachments_(attachments, driveFiles) {
       const name = metadata.name || driveFile.title || 'Google Drive 附件';
       // alternateLink 偶爾未回傳，仍可用 Drive 檔案 ID 建立教師可開啟的連結。
       const url = metadata.webViewLink || driveFile.alternateLink || (driveFile.id ? 'https://drive.google.com/open?id=' + encodeURIComponent(driveFile.id) : '');
-      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || '', url), mimeType: metadata.mimeType || '', createdAt: metadata.createdTime || null, source: 'driveFile' };
+      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || '', url), mimeType: metadata.mimeType || '', createdAt: metadata.createdTime || null, modifiedAt: metadata.modifiedTime || null, source: 'driveFile' };
     }
     if (attachment.link) {
       const driveId = driveFileIdFromAttachment_(attachment);
       const metadata = (driveFiles && driveFiles[driveId]) || {};
       const name = metadata.name || attachment.link.title || attachment.link.url || '連結附件';
       const url = metadata.webViewLink || attachment.link.url || '';
-      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || '', attachment.link.url || url), mimeType: metadata.mimeType || '', createdAt: metadata.createdTime || null, source: 'link' };
+      return { name: name, url: url, kind: attachmentKind_(name, metadata.mimeType || '', attachment.link.url || url), mimeType: metadata.mimeType || '', createdAt: metadata.createdTime || null, modifiedAt: metadata.modifiedTime || null, source: 'link' };
     }
     if (attachment.youTubeVideo) return { name: attachment.youTubeVideo.title || 'YouTube 影片', url: attachment.youTubeVideo.alternateLink || '', kind: 'video', mimeType: 'video/youtube', source: 'youtube' };
     return { name: '附件', url: '', kind: '', mimeType: '', source: 'unknown' };
