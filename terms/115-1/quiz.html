@@ -18,6 +18,9 @@
     <script src="../../shared/learner-profile.js"></script>
     <script defer src="../../shared/site-shell.js"></script>
 
+    <script src="../../shared/arena-store.js"></script>
+    <script src="../../shared/knowledge-arena.js"></script>
+
     <style>
         body {
             font-family: 'Noto Sans TC', sans-serif;
@@ -227,6 +230,13 @@
                 </button>
             </div>
             
+            <div class="mb-5 p-4 rounded-xl border border-blue-400/40 bg-slate-900/60 text-sm text-slate-200 leading-relaxed">
+                <p>每人每天限挑戰兩次，各難度合計；按下開始即使用一次，重新整理或中途離開不退回。</p>
+                <p class="mt-2 text-yellow-300">作答時離開分頁／視窗立即視為答錯，扣除一命。返回後確認才開始下一題。</p>
+                <p class="mt-2">題目與選項不提供複製／剪下；英雄榜保留每人各難度的個人最佳成績。</p>
+                <p id="arena-daily-status" class="mt-3 font-bold" role="status">正在確認今日挑戰次數…</p>
+                <button id="arena-recheck" hidden class="mt-2 underline">重新確認挑戰次數</button>
+            </div>
             <!-- 查看英雄榜按鈕 -->
             <button onclick="showLeaderboardScreen()" class="btn-3d w-full py-3 px-6 bg-purple-600 text-white rounded-2xl font-bold text-lg border border-purple-400">
                 🏆 查看英雄榜
@@ -264,6 +274,7 @@
                 </div>
 
                 <div id="options-container" class="space-y-4"></div>
+                <p id="arena-operation-status" class="mt-3 text-sm text-yellow-300" role="status" aria-live="polite"></p>
             </div>
 
             <div class="p-6 bg-slate-900/80 border-t border-slate-700/50">
@@ -298,12 +309,20 @@
                         <span class="text-xs text-slate-500 mb-1">答錯</span>
                         <span id="wrong-count" class="text-red-400 text-2xl">0</span>
                     </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-slate-500 mb-1">逾時</span><span id="arena-timeout-count" class="text-yellow-400 text-2xl">0</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-slate-500 mb-1">離開畫面</span><span id="arena-focus-count" class="text-orange-400 text-2xl">0</span>
+                    </div>
                 </div>
             </div>
 
+            <p id="arena-save-status" class="mb-3 text-sm text-slate-300" role="status"></p>
+            <button id="arena-save-retry" hidden class="mb-5 rounded-xl px-4 py-2 bg-blue-600 text-white">重試保存挑戰紀錄</button>
             <div id="record-submission-area" class="mb-6 p-4 bg-purple-900/30 border border-purple-500/50 rounded-xl hidden-screen">
-                <h3 class="text-yellow-400 font-bold mb-2">🎉 恭喜！您的分數進入前十名！</h3>
-                <p class="text-xs text-slate-300 mb-3">請輸入學號登錄英雄榜 (限7位數且15開頭)</p>
+                <h3 class="text-yellow-400 font-bold mb-2">🏆 登錄個人最佳成績</h3>
+                <p class="text-xs text-slate-300 mb-3">同一學期與難度，每位學生僅保留最高分；較低或相同分數不覆蓋。</p>
                 <div class="flex space-x-2">
                     <input type="text" id="student-id-input" readonly class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-center font-mono focus:outline-none" aria-describedby="profile-score-help">
                     <button onclick="submitScoreToLeaderboard()" id="submit-score-btn" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold transition-colors shrink-0">登錄</button>
@@ -363,31 +382,6 @@
     </div>
 
     <script>
-        const firebaseConfig = window.LEARNING_FIREBASE_CONFIG;
-        const currentTermId = '115-1';
-
-        // 初始化 Firebase (確保只初始化一次)
-        let db;
-        let authReadyPromise = Promise.resolve();
-        try {
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-            db = firebase.firestore();
-            authReadyPromise = new Promise((resolve, reject) => {
-                let unsubscribe = () => {};
-                unsubscribe = firebase.auth().onAuthStateChanged((user) => {
-                    unsubscribe();
-                    if (user && !user.isAnonymous) resolve(user);
-                    else reject(new Error('請先由入口網完成學生登入'));
-                }, reject);
-            });
-        } catch (error) {
-            console.error("Firebase 初始化失敗:", error);
-            // alert("Firebase 未正確設定，英雄榜功能將無法運作。");
-        }
-
-        // --- 120 題完整題庫 ---
         const allQuestions = [
             // 第一批 (資訊科技與生活)
             { question: "下列哪一項最能概括「資訊科技」的定義？", options: ["純粹的電腦硬體發展", "只指網路連線技術", "單一應用程式的功能", "資料取得、處理與應用的技術系統"] },
@@ -522,544 +516,10 @@
             { question: "下列哪一項最能描述 Scratch 中的函式積木 (自訂積木) 用途？", options: ["用來顯示變數值在舞臺上", "自動清除所有筆跡", "只能處理偵測事件", "封裝成可重複呼叫的積木"] }
         ];
 
-        let currentDifficulty = 'normal';
-        let maxLives = 2;
-        let currentLives = 2;
-        let score = 0;
-        let roundQuestionCount = 0;
-        let selectedOptionIndex = null;
-        let currentDisplayedOptions = [];
-        
-        let timeLeft = 10;
-        const TIME_LIMIT = 10;
-        let timerInterval = null;
-        let timerStartTimestamp = 0;
-
-        let correctAnswersCount = 0;
-        let wrongAnswersCount = 0;
-
-        let questionQueue = [];
-        let totalQuestionsAtStart = 0;
-        let isFinalScoreSubmittable = false;
-        let quizUnlocked = false;
-        const leaderboardLimit = 20;
-        const requiredInfoLifeCertificates = new Set(['1-1', '1-2', 'CH1', '2-1', '2-2', '2-3', '2-4', 'CH2']);
-
-        const screens = {
-            locked: document.getElementById('screen-locked'),
-            start: document.getElementById('screen-start'),
-            quiz: document.getElementById('screen-quiz'),
-            result: document.getElementById('screen-result'),
-            leaderboard: document.getElementById('screen-leaderboard')
-        };
-        const ui = {
-            mainContainer: document.getElementById('main-container'),
-            score: document.getElementById('score-display'),
-            lives: document.getElementById('lives-container'),
-            questionCounter: document.getElementById('question-counter'),
-            timeText: document.getElementById('time-text'),
-            timeContainer: document.getElementById('time-text-container'),
-            timerBar: document.getElementById('timer-bar'),
-            questionText: document.getElementById('question-text'),
-            optionsContainer: document.getElementById('options-container'),
-            submitBtn: document.getElementById('submit-btn'),
-            feedbackOverlay: document.getElementById('feedback-overlay'),
-            feedbackContent: document.getElementById('feedback-content')
-        };
-
-        // 洗牌陣列函式
-        function shuffleArray(array) {
-            let currentIndex = array.length, randomIndex;
-            while (currentIndex !== 0) {
-                randomIndex = Math.floor(Math.random() * currentIndex);
-                currentIndex--;
-                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-            }
-            return array;
-        }
-
-        function showScreen(screenName) {
-            Object.values(screens).forEach(screen => screen.classList.add('hidden-screen'));
-            screens[screenName].classList.remove('hidden-screen');
-        }
-
-        function showStartScreen() {
-            showScreen(quizUnlocked ? 'start' : 'locked');
-        }
-        const leaderboardScores = (difficulty) => db.collection('leaderboards').doc(currentTermId).collection('difficulties').doc(difficulty).collection('scores');
-
-        function showLeaderboardScreen() {
-            if (!quizUnlocked) { showScreen('locked'); return; }
-            showScreen('leaderboard');
-            loadLeaderboardData('normal'); // 預設載入普通模式
-        }
-
-        function startGame(difficulty) {
-            if (!quizUnlocked) { showScreen('locked'); return; }
-            currentDifficulty = difficulty;
-            switch(difficulty) {
-                case 'easy': maxLives = 3; break;
-                case 'normal': maxLives = 2; break;
-                case 'hard': maxLives = 1; break;
-            }
-            
-            currentLives = maxLives;
-            score = 0;
-            roundQuestionCount = 0;
-            correctAnswersCount = 0;
-            wrongAnswersCount = 0;
-            
-            if (questionQueue.length === 0) {
-                questionQueue = shuffleArray([...allQuestions]);
-            }
-            totalQuestionsAtStart = questionQueue.length;
-            
-            updateUIState();
-            renderLives();
-            
-            // 重置登錄表單狀態
-            document.getElementById('record-submission-area').classList.add('hidden-screen');
-            document.getElementById('submission-success').classList.add('hidden-screen');
-            document.getElementById('submit-score-btn').disabled = false;
-            const profile = window.LearningProfile.get();
-            document.getElementById('student-id-input').value = window.LearningProfile.isComplete(profile) ? profile.studentId : '';
-            document.getElementById('student-id-input').disabled = false;
-            
-            showScreen('quiz');
-            loadQuestion();
-        }
-
-        async function refreshQuizUnlock() {
-            const status = document.getElementById('unlock-status');
-            quizUnlocked = false;
-            showScreen('locked');
-            status.textContent = '正在確認資訊生活集章進度…';
-            try {
-                await authReadyPromise;
-                const profile = window.LearningProfile.get();
-                const user = firebase.auth().currentUser;
-                if (!window.LearningProfile.isComplete(profile) || !user || user.isAnonymous || !db) {
-                    status.textContent = '請先從入口網登入，再完成資訊生活的八枚印章。';
-                    return;
-                }
-                const snapshot = await db.collection('users').doc(user.uid).get();
-                const certificates = snapshot.exists() ? Object.values(snapshot.data().terms?.[currentTermId]?.certificates || {}) : [];
-                const collected = new Set(certificates
-                    .filter(certificate => certificate && certificate.course === '資訊生活' && requiredInfoLifeCertificates.has(certificate.chapterKey))
-                    .map(certificate => certificate.chapterKey));
-                if (collected.size === requiredInfoLifeCertificates.size) {
-                    quizUnlocked = true;
-                    showScreen('start');
-                    return;
-                }
-                status.textContent = `已集 ${collected.size} / ${requiredInfoLifeCertificates.size} 枚印章；集滿八枚後即可挑戰知識大擂台與英雄榜。`;
-            } catch (error) {
-                console.error('檢查集章解鎖狀態失敗:', error);
-                status.textContent = '暫時無法讀取集章紀錄，請稍後再試。';
-            }
-        }
-
-        function loadQuestion() {
-            if (currentLives <= 0) {
-                endGame(false);
-                return;
-            }
-            if (questionQueue.length === 0) {
-                endGame(true);
-                return;
-            }
-
-            roundQuestionCount++;
-            const currentQ = questionQueue[0];
-            
-            selectedOptionIndex = null;
-            currentDisplayedOptions = [];
-            ui.submitBtn.disabled = true;
-            ui.feedbackOverlay.classList.add('hidden-screen');
-            ui.mainContainer.classList.remove('screen-shake'); 
-            
-            ui.questionCounter.textContent = `第 ${roundQuestionCount} 題 (剩餘 ${questionQueue.length} 題)`;
-            ui.questionText.textContent = currentQ.question;
-            
-            currentDisplayedOptions = currentQ.options.map((text, index) => ({ text: text, originalIndex: index }));
-            currentDisplayedOptions = shuffleArray(currentDisplayedOptions);
-            
-            ui.optionsContainer.innerHTML = '';
-            currentDisplayedOptions.forEach((optionObj, index) => {
-                const btn = document.createElement('button');
-                btn.className = 'option-tv w-full text-left p-4 rounded-2xl font-bold text-lg tracking-wide flex items-center';
-                
-                const letterBadge = document.createElement('span');
-                letterBadge.className = 'inline-block bg-slate-800 text-blue-400 w-8 h-8 rounded-full flex items-center justify-center mr-3 border border-blue-500/50 shadow-inner shrink-0';
-                letterBadge.textContent = String.fromCharCode(65 + index); 
-                
-                const textSpan = document.createElement('span');
-                textSpan.textContent = optionObj.text;
-                
-                btn.appendChild(letterBadge);
-                btn.appendChild(textSpan);
-
-                btn.onclick = () => selectOption(index, btn);
-                ui.optionsContainer.appendChild(btn);
-            });
-
-            startTimer();
-        }
-
-        function selectOption(index, btnElement) {
-            selectedOptionIndex = index;
-            const options = ui.optionsContainer.querySelectorAll('.option-tv');
-            options.forEach(opt => opt.classList.remove('selected'));
-            btnElement.classList.add('selected');
-            ui.submitBtn.disabled = false;
-        }
-
-        function startTimer() {
-            clearInterval(timerInterval);
-            timeLeft = TIME_LIMIT;
-            updateTimerDisplay();
-            timerStartTimestamp = Date.now();
-            
-            timerInterval = setInterval(() => {
-                const elapsedSeconds = (Date.now() - timerStartTimestamp) / 1000;
-                timeLeft = TIME_LIMIT - elapsedSeconds;
-
-                if (timeLeft <= 0) {
-                    timeLeft = 0;
-                    clearInterval(timerInterval);
-                    updateTimerDisplay();
-                    handleTimeout();
-                } else {
-                    updateTimerDisplay();
-                }
-            }, 50);
-        }
-
-        function updateTimerDisplay() {
-            const displaySeconds = Math.ceil(timeLeft);
-            ui.timeText.textContent = displaySeconds;
-
-            const percentage = (timeLeft / TIME_LIMIT) * 100;
-            ui.timerBar.style.width = `${percentage}%`;
-
-            if (percentage > 50) {
-                ui.timerBar.className = 'h-full timer-bar bg-green-400 timer-glow-green';
-                ui.timeContainer.className = 'bg-slate-800 w-12 h-12 rounded-full flex items-center justify-center border-2 border-slate-600 shadow-[0_0_10px_rgba(0,0,0,0.5)]';
-                ui.timeText.className = 'text-xl font-black text-white';
-            } else if (percentage > 25) {
-                ui.timerBar.className = 'h-full timer-bar bg-yellow-400 timer-glow-yellow';
-                ui.timeContainer.className = 'bg-yellow-500/20 w-12 h-12 rounded-full flex items-center justify-center border-2 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.5)]';
-                ui.timeText.className = 'text-xl font-black text-yellow-400';
-            } else {
-                ui.timerBar.className = 'h-full timer-bar bg-red-500 timer-glow-red';
-                ui.timeContainer.className = 'bg-red-500/30 w-12 h-12 rounded-full flex items-center justify-center border-2 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse';
-                ui.timeText.className = 'text-xl font-black text-red-400';
-            }
-        }
-
-        function handleTimeout() {
-            processAnswer(false, true);
-        }
-
-        async function submitAnswer() {
-            if (selectedOptionIndex === null) return;
-            clearInterval(timerInterval);
-            ui.submitBtn.disabled = true;
-            const currentQ = questionQueue[0];
-            try {
-                const result = await window.QuizSecurity.saveAttempt({
-                    termId: '115-1',
-                    source: 'knowledge-arena',
-                    question: currentQ.question,
-                    options: currentQ.options,
-                    selectedIndex: currentDisplayedOptions[selectedOptionIndex].originalIndex,
-                    elapsedSeconds: TIME_LIMIT - timeLeft
-                });
-                processAnswer(result.correct, false);
-            } catch (error) {
-                console.error(error);
-                ui.submitBtn.disabled = false;
-                startTimer();
-                alert(error.message || '暫時無法驗證答案，請稍後再試。');
-            }
-        }
-
-        function processAnswer(isCorrect, isTimeout) {
-            clearInterval(timerInterval);
-            ui.submitBtn.disabled = true;
-
-            const answeredQ = questionQueue.shift();
-
-            if (isCorrect) {
-                const bonusSeconds = Math.ceil(timeLeft);
-                const earnedScore = 1000 + (bonusSeconds * 100); 
-                
-                score += earnedScore;
-                correctAnswersCount++;
-                showFeedback('correct', earnedScore, bonusSeconds);
-            } else {
-                currentLives--;
-                wrongAnswersCount++;
-                questionQueue.push(answeredQ); 
-                renderLives();
-                showFeedback(isTimeout ? 'timeout' : 'wrong');
-            }
-
-            updateUIState();
-
-            setTimeout(() => {
-                if (currentLives <= 0) {
-                    endGame(false);
-                } else if (questionQueue.length === 0) {
-                    endGame(true);
-                } else {
-                    loadQuestion();
-                }
-            }, 1800); 
-        }
-
-        function updateUIState() {
-            ui.score.textContent = score.toLocaleString();
-        }
-
-        function renderLives() {
-            ui.lives.innerHTML = '';
-            for (let i = 0; i < maxLives; i++) {
-                const heart = document.createElement('span');
-                heart.textContent = '❤️';
-                heart.className = i < currentLives ? 'heart-icon' : 'heart-icon heart-lost';
-                ui.lives.appendChild(heart);
-            }
-        }
-
-        function showFeedback(type, earnedScore = 0, bonusSeconds = 0) {
-            ui.feedbackOverlay.classList.remove('hidden-screen');
-            const content = ui.feedbackContent;
-            
-            content.classList.remove('scale-100', 'opacity-100', 'scale-50', 'opacity-0');
-            void content.offsetWidth; 
-            content.classList.add('scale-100', 'opacity-100');
-
-            if (type === 'correct') {
-                content.innerHTML = `
-                    <div class="relative inline-block mb-6">
-                        <div class="absolute inset-0 bg-green-500 rounded-full blur-3xl opacity-50 animate-pulse"></div>
-                        <div class="relative w-40 h-40 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(74,222,128,0.8)] border-4 border-white">
-                            <span class="text-7xl text-white font-black drop-shadow-lg">⭕</span>
-                        </div>
-                    </div>
-                    <h3 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-green-300 to-green-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] mb-2 tracking-widest">正解！</h3>
-                    <p class="text-green-300 font-black text-4xl tracking-widest mb-2">+${earnedScore.toLocaleString()} 分</p>
-                    ${bonusSeconds > 0 ? `<p class="text-yellow-400 font-bold text-xl tracking-wide drop-shadow-md">極速加分: ${bonusSeconds}秒 × 100</p>` : ''}
-                `;
-            } else if (type === 'wrong') {
-                ui.mainContainer.classList.add('screen-shake');
-                content.innerHTML = `
-                    <div class="relative inline-block mb-6">
-                        <div class="absolute inset-0 bg-red-600 rounded-full blur-3xl opacity-60 animate-pulse"></div>
-                        <div class="relative w-40 h-40 bg-gradient-to-br from-red-500 to-red-700 rounded-full flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(239,68,68,0.8)] border-4 border-white">
-                            <span class="text-7xl text-white font-black drop-shadow-lg">❌</span>
-                        </div>
-                    </div>
-                    <h3 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-red-400 to-red-600 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] mb-2 tracking-widest">錯誤！</h3>
-                    <p class="text-red-300 font-black text-2xl tracking-widest">失去一命</p>
-                `;
-            } else if (type === 'timeout') {
-                ui.mainContainer.classList.add('screen-shake');
-                content.innerHTML = `
-                    <div class="relative inline-block mb-6">
-                        <div class="absolute inset-0 bg-yellow-500 rounded-full blur-3xl opacity-50 animate-pulse"></div>
-                        <div class="relative w-40 h-40 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mx-auto shadow-[0_0_50px_rgba(234,179,8,0.8)] border-4 border-white">
-                            <svg class="w-20 h-20 text-white drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        </div>
-                    </div>
-                    <h3 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] mb-2 tracking-widest">時間到！</h3>
-                    <p class="text-yellow-300 font-black text-2xl tracking-widest">失去一命</p>
-                `;
-            }
-
-            setTimeout(() => {
-                content.classList.remove('scale-100', 'opacity-100');
-                content.classList.add('scale-50', 'opacity-0');
-            }, 1500);
-        }
-
-        async function endGame(isWin) {
-            clearInterval(timerInterval);
-            const resultIconContainer = document.getElementById('result-icon-container');
-            const resultTitle = document.getElementById('result-title');
-            
-            if (!isWin) {
-                ui.mainContainer.style.boxShadow = "0 0 50px rgba(239, 68, 68, 0.4)";
-                ui.mainContainer.style.borderColor = "rgba(239, 68, 68, 0.5)";
-                resultIconContainer.innerHTML = `
-                    <div class="absolute inset-0 bg-red-600 rounded-full blur-2xl opacity-40"></div>
-                    <div class="relative w-32 h-32 bg-slate-900 border-4 border-red-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(239,68,68,0.6)]">
-                        <span class="text-6xl">💀</span>
-                    </div>
-                `;
-                resultTitle.textContent = "挑戰失敗";
-                resultTitle.className = "text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-b from-red-400 to-red-600 drop-shadow-lg tracking-widest";
-            } else {
-                ui.mainContainer.style.boxShadow = "0 0 50px rgba(250, 204, 21, 0.5)";
-                ui.mainContainer.style.borderColor = "rgba(250, 204, 21, 0.6)";
-                resultIconContainer.innerHTML = `
-                    <div class="absolute inset-0 bg-yellow-400 rounded-full blur-2xl opacity-50"></div>
-                    <div class="relative w-32 h-32 bg-slate-900 border-4 border-yellow-400 rounded-full flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(250,204,21,0.8)]">
-                        <span class="text-6xl">🏆</span>
-                    </div>
-                `;
-                resultTitle.textContent = "全破通關！";
-                resultTitle.className = "text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-500 drop-shadow-lg tracking-widest";
-            }
-
-            document.getElementById('final-score').textContent = score.toLocaleString();
-            document.getElementById('correct-count').textContent = correctAnswersCount;
-            document.getElementById('wrong-count').textContent = wrongAnswersCount;
-
-            showScreen('result');
-
-            // 檢查是否符合英雄榜資格
-            if (score > 0 && db) {
-                checkLeaderboardEligibility();
-            }
-        }
-
-        async function checkLeaderboardEligibility() {
-            await authReadyPromise;
-            try {
-                // 讀取當前難度的前 20 名
-                const snapshot = await leaderboardScores(currentDifficulty)
-                                        .orderBy('score', 'desc')
-                                        .limit(leaderboardLimit)
-                                        .get();
-                
-                const scores = [];
-                snapshot.forEach(doc => scores.push(doc.data().score));
-
-                // 如果未滿 20 人，或者分數高於第 20 名
-                if (scores.length < leaderboardLimit || score > scores[scores.length - 1]) {
-                    isFinalScoreSubmittable = true;
-                    document.getElementById('record-submission-area').classList.remove('hidden-screen');
-                }
-            } catch (error) {
-                console.error("無法檢查英雄榜資格:", error);
-            }
-        }
-
-        async function submitScoreToLeaderboard() {
-            await authReadyPromise;
-            if (!isFinalScoreSubmittable || !db) return;
-
-            const inputElement = document.getElementById('student-id-input');
-            const errorElement = document.getElementById('submission-error');
-            const profile = window.LearningProfile.get();
-            const studentId = window.LearningProfile.isComplete(profile) ? profile.studentId : '';
-            const isValid = window.LearningProfile.isComplete(profile);
-
-            if (!isValid) {
-                errorElement.textContent = "請先回入口網完成學生資料設定。";
-                errorElement.classList.remove('hidden-screen');
-                return;
-            }
-
-            errorElement.classList.add('hidden-screen');
-            const btn = document.getElementById('submit-score-btn');
-            btn.disabled = true;
-            btn.textContent = "登錄中...";
-            inputElement.disabled = true;
-
-            try {
-                await leaderboardScores(currentDifficulty).add({
-                    studentId: studentId,
-                    score: score,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
-                isFinalScoreSubmittable = false;
-                document.getElementById('submission-success').classList.remove('hidden-screen');
-                btn.textContent = "已登錄";
-            } catch (error) {
-                console.error("登錄分數失敗:", error);
-                errorElement.textContent = "連線失敗，請稍後再試。";
-                errorElement.classList.remove('hidden-screen');
-                btn.disabled = false;
-                btn.textContent = "登錄";
-                inputElement.disabled = false;
-            }
-        }
-
-        async function loadLeaderboardData(difficulty) {
-            await authReadyPromise;
-            // 切換按鈕樣式
-            ['easy', 'normal', 'hard'].forEach(d => {
-                const tab = document.getElementById(`tab-${d}`);
-                if (d === difficulty) {
-                    tab.className = 'flex-1 py-2 text-sm font-bold rounded-md bg-purple-600 text-white shadow-md transition-colors';
-                } else {
-                    tab.className = 'flex-1 py-2 text-sm font-bold rounded-md text-slate-400 hover:text-white transition-colors';
-                }
-            });
-
-            const tbody = document.getElementById('leaderboard-body');
-            const emptyMsg = document.getElementById('leaderboard-empty');
-            const loading = document.getElementById('leaderboard-loading');
-
-            tbody.innerHTML = '';
-            emptyMsg.classList.add('hidden-screen');
-            
-            if (!db) {
-                emptyMsg.textContent = "資料庫未連線，無法載入英雄榜。";
-                emptyMsg.classList.remove('hidden-screen');
-                return;
-            }
-
-            loading.classList.remove('hidden-screen');
-
-            try {
-                const snapshot = await leaderboardScores(difficulty)
-                                        .orderBy('score', 'desc')
-                                        .limit(leaderboardLimit)
-                                        .get();
-                
-                loading.classList.add('hidden-screen');
-
-                if (snapshot.empty) {
-                    emptyMsg.textContent = "尚無紀錄，成為第一位上榜者吧！";
-                    emptyMsg.classList.remove('hidden-screen');
-                    return;
-                }
-
-                let rank = 1;
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    const tr = document.createElement('tr');
-                    
-                    let rankDisplay = rank;
-                    if (rank === 1) rankDisplay = '🥇';
-                    else if (rank === 2) rankDisplay = '🥈';
-                    else if (rank === 3) rankDisplay = '🥉';
-
-                    // 將學號稍微遮蔽保護隱私 (選用，目前僅顯示)
-                    tr.innerHTML = `
-                        <td class="font-black text-lg">${rankDisplay}</td>
-                        <td class="font-mono tracking-wider">${data.studentId}</td>
-                        <td class="font-black text-yellow-400">${data.score.toLocaleString()}</td>
-                    `;
-                    tbody.appendChild(tr);
-                    rank++;
-                });
-
-            } catch (error) {
-                console.error("載入英雄榜失敗:", error);
-                loading.classList.add('hidden-screen');
-                emptyMsg.textContent = "載入失敗，請檢查網路連線。";
-                emptyMsg.classList.remove('hidden-screen');
-            }
-        }
-
-        // 初始化：知識大擂台僅在資訊生活八枚印章集滿後開放。
-        refreshQuizUnlock();
+        window.KnowledgeArena.mount({
+            termId: '115-1', questions: allQuestions,
+            requiredCertificates: ['1-1', '1-2', 'CH1', '2-1', '2-2', '2-3', '2-4', 'CH2']
+        });
 
     </script>
 </body>

@@ -51,17 +51,96 @@ service cloud.firestore {
     // records remain separate while keeping the same validation policy.
     match /leaderboards/{termId}/difficulties/{difficulty}/scores/{scoreId} {
       allow read: if signedIn();
-      allow create: if signedIn()
-        && termId.matches('^[0-9]{3}-[0-9]$')
-        && difficulty in ['easy', 'normal', 'hard']
-        && request.resource.data.keys().hasOnly(['studentId', 'score', 'timestamp'])
-        && request.resource.data.studentId is string
-        && request.resource.data.studentId.matches('^15[0-9]{5}$')
-        && request.auth.token.email == request.resource.data.studentId + '@students.jimwang-4b0ca.firebaseapp.com'
-        && request.resource.data.score is int
-        && request.resource.data.score >= 0
-        && request.resource.data.score <= 200000;
-      allow update, delete: if false;
+      // Historical random-ID scores are retained, but new results use one best per learner.
+      allow write: if false;
+    }
+
+    function arenaStudent(studentId) {
+      return signedIn() && studentId is string && studentId.matches('^15[0-9]{5}$')
+        && request.auth.token.email == studentId + '@students.jimwang-4b0ca.firebaseapp.com';
+    }
+    function arenaDay() {
+      return int((request.time.toMillis() + 28800000) / 86400000);
+    }
+    function arenaTerm(termId) {
+      return termId in ['115-1', '115-2'];
+    }
+    match /arenaActivity/{accountId}/days/{dayId} {
+      function validDaily() {
+        let data = request.resource.data;
+        let runPath = /databases/$(database)/documents/arenaActivity/$(accountId)/runs/$(data.lastRunId);
+        let run = getAfter(runPath).data;
+        return data.studentId == accountId && arenaStudent(accountId)
+          && data.keys().hasOnly(['termId', 'day', 'studentId', 'count', 'lastRunId', 'updatedAt'])
+          && arenaTerm(data.termId) && data.day is int && data.day == arenaDay()
+          && dayId == data.termId + '_' + string(data.day)
+          && data.count is int && data.count >= 1 && data.count <= 2
+          && data.lastRunId is string && data.lastRunId.size() <= 80
+          && data.updatedAt == request.time && !exists(runPath)
+          && run.termId == data.termId && run.day == data.day
+          && run.studentId == data.studentId && run.slot == data.count
+          && run.status == 'active' && run.startedAt == request.time;
+      }
+      allow read: if isTeacher() || arenaStudent(accountId);
+      allow create: if signedIn() && validDaily() && request.resource.data.count == 1;
+      allow update: if signedIn() && validDaily()
+        && request.resource.data.count == resource.data.count + 1;
+      allow delete: if false;
+    }
+    match /arenaActivity/{accountId}/runs/{runId} {
+      function validStart() {
+        let data = request.resource.data;
+        let dayId = data.termId + '_' + string(data.day);
+        let daily = getAfter(/databases/$(database)/documents/arenaActivity/$(accountId)/days/$(dayId)).data;
+        return data.studentId == accountId && arenaStudent(accountId)
+          && data.keys().hasOnly(['termId', 'day', 'studentId', 'difficulty', 'slot', 'questionCount', 'status', 'startedAt'])
+          && arenaTerm(data.termId) && data.day is int && data.day == arenaDay()
+          && data.difficulty in ['easy', 'normal', 'hard']
+          && data.questionCount == (data.termId == '115-1' ? 120 : 160)
+          && data.slot is int && data.slot >= 1 && data.slot <= 2
+          && data.status == 'active' && data.startedAt == request.time
+          && daily.termId == data.termId && daily.studentId == data.studentId
+          && daily.count == data.slot && daily.lastRunId == runId && daily.updatedAt == request.time;
+      }
+      function validFinish() {
+        let data = request.resource.data;
+        let lost = data.wrong + data.timeouts + data.departures;
+        let maxLives = data.difficulty == 'easy' ? 3 : (data.difficulty == 'normal' ? 2 : 1);
+        return data.studentId == accountId && arenaStudent(accountId)
+          && resource.data.status == 'active' && data.status == 'finished'
+          && data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'finishedAt', 'score', 'correct', 'wrong', 'timeouts', 'departures', 'rounds', 'won'
+          ])
+          && data.finishedAt == request.time && data.finishedAt >= data.startedAt
+          && data.score is int && data.correct is int && data.correct >= 0 && data.correct <= data.questionCount
+          && data.score >= data.correct * 1000 && data.score <= data.correct * 2000
+          && data.wrong is int && data.wrong >= 0 && data.timeouts is int && data.timeouts >= 0
+          && data.departures is int && data.departures >= 0 && lost <= maxLives
+          && data.rounds is int && data.rounds == data.correct + lost
+          && data.won is bool
+          && (data.won ? (data.correct == data.questionCount && lost < maxLives) : lost == maxLives);
+      }
+      allow read: if isTeacher() || arenaStudent(accountId);
+      allow create: if signedIn() && validStart();
+      allow update: if signedIn() && validFinish();
+      allow delete: if false;
+    }
+    match /leaderboards/{termId}/difficulties/{difficulty}/bests/{studentId} {
+      function validBest() {
+        let data = request.resource.data;
+        let run = get(/databases/$(database)/documents/arenaActivity/$(studentId)/runs/$(data.runId)).data;
+        return arenaStudent(studentId) && !studentId.matches('.*00$')
+          && arenaTerm(termId) && difficulty in ['easy', 'normal', 'hard']
+          && data.keys().hasOnly(['studentId', 'score', 'runId', 'timestamp'])
+          && data.studentId == studentId && data.score is int && data.score > 0
+          && data.runId is string && data.timestamp == request.time
+          && run.status == 'finished' && run.termId == termId && run.difficulty == difficulty
+          && run.studentId == studentId && run.score == data.score;
+      }
+      allow read: if signedIn();
+      allow create: if signedIn() && validBest();
+      allow update: if signedIn() && validBest() && request.resource.data.score > resource.data.score;
+      allow delete: if false;
     }
 
     // Answer indexes live in a separate teacher-only collection.  They are
