@@ -56,12 +56,16 @@ function fixture() {
       if (method === 'patch') {
         if (fail.has('schema-write')) { const error = Error('mock schema permission'); error.httpStatus = 403; throw error; }
         for (const [name, value] of Object.entries(data.properties)) {
+          if (Object.hasOwn(value, 'description') && (typeof value.description !== 'string' || !value.description.length)) {
+            const error = Error('body failed validation: body.properties.' + name + '.description.length should be ≥ `1`, instead was `0`.');
+            error.httpStatus = 400; throw error;
+          }
           if (value.select) {
             const previous = schema.properties[name];
             const options = value.select.options.map(option => option.id
               ? clone(previous.select.options.find(old => old.id === option.id))
               : { id: nextId(), color:'default', ...clone(option) });
-            schema.properties[name] = { ...previous, description:value.description, select:{ options } };
+            schema.properties[name] = { ...previous, description:value.description ?? null, select:{ options } };
           } else {
             const type = Object.keys(value)[0]; schema.properties[name] = { type, ...clone(value) };
           }
@@ -132,6 +136,24 @@ function fixture() {
 }
 
 // Missing select choices must be created before filters/pages use them, without deleting old choices.
+for (const description of ['', null, undefined]) {
+  const f = fixture();
+  for (const schema of f.schemas.values()) for (const property of Object.values(schema.properties)) {
+    if (property.type !== 'select') continue;
+    if (description === undefined) delete property.description;
+    else property.description = description;
+  }
+  const job = f.payload([f.student('1510301')]); job.classRoom = '703';
+  const result = f.context.syncNotion_(job);
+  check(result.filesSynced === 1 && !result.failedStudents.length, 'blank/missing description sync succeeds: ' + description);
+  const patches = f.calls.filter(call => call.method === 'patch' && call.url.startsWith('data_sources/'));
+  check(patches.every(call => Object.values(call.data.properties).every(property => !Object.hasOwn(property, 'description'))),
+    'does not send empty/null/missing descriptions: ' + description);
+  check([...f.schemas.values()].every(schema => schema.properties['班級'].select.options.some(option => option.name === '701')
+    && schema.properties['班級'].select.options.some(option => option.name === '703')), 'both classes retained with blank descriptions');
+  const repeated = f.context.syncNotion_(job);
+  check(repeated.filesSynced === 1 && !repeated.failedStudents.length && repeated.workCreated === 0, 'blank-description repeat keeps stable card');
+}
 {
   const f = fixture(), job = f.payload([f.student('1510301')]); job.classRoom = '703';
   const query = f.context.notionQuery_;

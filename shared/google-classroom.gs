@@ -219,9 +219,12 @@ function ensureNotionSelectOptions_(config, dataSourceId, schema, required, labe
     if (!missing.length) return;
     // Notion replaces the full options list. Retain every existing option by ID
     // to preserve colors/descriptions and unrelated teacher-created options.
-    properties[name] = { description: property.description || '', select: { options: existing.map(function(option) {
+    properties[name] = { select: { options: existing.map(function(option) {
       return option.id ? { id: option.id } : { name: option.name };
     }).concat(missing.map(function(value) { return { name: value }; })) } };
+    // Empty descriptions are returned as null/absent, but PATCH rejects "".
+    // Preserve existing nonempty descriptions; otherwise omit the optional field.
+    if (typeof property.description === 'string' && property.description.length) properties[name].description = property.description;
   });
   if (!Object.keys(properties).length) return;
   const path = 'data_sources/' + encodeURIComponent(dataSourceId);
