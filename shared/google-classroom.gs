@@ -98,6 +98,13 @@ function syncNotion_(payload) {
   const worksSchema = notionCall_(config, 'get', 'data_sources/' + encodeURIComponent(config.worksDataSourceId));
   requireNotionProperties_(studentsSchema, { '姓名': 'title', '學號': 'rich_text', '班級': 'select', '座號': 'number', '同步鍵': 'rich_text' }, '學生名冊');
   requireNotionProperties_(worksSchema, { '名稱': 'title', '學生': 'relation', '學期': 'select', '班級': 'select', '座號': 'number', '學號': 'rich_text', '類別': 'select', '任務鍵': 'rich_text', '任務名稱': 'rich_text', 'Classroom 作業': 'rich_text', '教師狀態': 'select', '作品上傳時間': 'date', '教師核定時間': 'date', '作品連結': 'url', '作品附件': 'files', '同步鍵': 'rich_text' }, '學習作品');
+  // Filters also require existing select options: prepare both schemas before querying.
+  ensureNotionSelectOptions_(config, config.studentsDataSourceId, studentsSchema, { '班級': [job.classRoom] }, '學生名冊');
+  ensureNotionSelectOptions_(config, config.worksDataSourceId, worksSchema, {
+    '班級': [job.classRoom], '學期': [job.term],
+    '類別': [{ info: '資訊生活', flowchart: '演算流程', thinking: '運算思維', programming: '程式設計' }[job.task.category]],
+    '教師狀態': job.students.map(function(student) { return student.status; })
+  }, '學習作品');
   ensureNotionCertificateProperties_(config, worksSchema);
 
   const knownStudents = pageMapBySyncKey_(notionQuery_(config, config.studentsDataSourceId, {}));
@@ -195,6 +202,38 @@ function requireNotionProperties_(schema, expected, label) {
   Object.keys(expected).forEach(function(name) {
     const property = schema.properties && schema.properties[name];
     if (!property || property.type !== expected[name]) throw new Error('Notion「' + label + '」缺少欄位「' + name + '」或欄位類型不正確。');
+  });
+}
+
+function ensureNotionSelectOptions_(config, dataSourceId, schema, required, label) {
+  const properties = {};
+  Object.keys(required).forEach(function(name) {
+    const property = schema.properties && schema.properties[name];
+    if (!property || property.type !== 'select' || !property.select || !Array.isArray(property.select.options)) {
+      throw new Error('Notion「' + label + '」欄位「' + name + '」選項設定無法讀取，請確認為選取欄位。');
+    }
+    const existing = property.select.options;
+    const missing = required[name].filter(function(value, index, values) {
+      return values.indexOf(value) === index && !existing.some(function(option) { return option.name === value; });
+    });
+    if (!missing.length) return;
+    // Notion replaces the full options list. Retain every existing option by ID
+    // to preserve colors/descriptions and unrelated teacher-created options.
+    properties[name] = { description: property.description || '', select: { options: existing.map(function(option) {
+      return option.id ? { id: option.id } : { name: option.name };
+    }).concat(missing.map(function(value) { return { name: value }; })) } };
+  });
+  if (!Object.keys(properties).length) return;
+  const path = 'data_sources/' + encodeURIComponent(dataSourceId);
+  notionCall_(config, 'patch', path, { properties: properties });
+  const updated = notionCall_(config, 'get', path);
+  Object.keys(properties).forEach(function(name) {
+    const property = updated.properties && updated.properties[name];
+    const options = property && property.select && property.select.options;
+    const retained = schema.properties[name].select.options.map(function(option) { return option.name; }).concat(required[name]);
+    if (!Array.isArray(options) || retained.some(function(value) { return !options.some(function(option) { return option.name === value; }); })) {
+      throw new Error('Notion「' + label + '」欄位「' + name + '」選項尚未完整更新，請重新同步。');
+    }
   });
 }
 

@@ -13,6 +13,12 @@ let checks = 0;
 function check(condition, message) { assert(condition, message); checks++; }
 function fixture() {
   const pages = new Map(), uploads = new Map(), calls = [], fail = new Set();
+  const schemas = new Map(['students', 'works'].map(id => [id, { properties: Object.fromEntries(
+    Object.entries(id === 'students' ? { '姓名':'title','學號':'rich_text','班級':'select','座號':'number','同步鍵':'rich_text' }
+      : { '名稱':'title','學生':'relation','學期':'select','班級':'select','座號':'number','學號':'rich_text','類別':'select','任務鍵':'rich_text','任務名稱':'rich_text','Classroom 作業':'rich_text','教師狀態':'select','作品上傳時間':'date','教師核定時間':'date','作品連結':'url','作品附件':'files','同步鍵':'rich_text' })
+      .map(([name, type]) => [name, type === 'select' ? { type, description: name + '原說明', select: { options: name === '班級'
+        ? [{ id: id + '-701', name:'701', color:'yellow', description:'原班級說明' }] : [] } } : { type, [type]:{} }]))
+  }]));
   let serial = 0, sends = 0;
   const nextId = () => `00000000-0000-4000-8000-${String(++serial).padStart(12, '0')}`;
   const rt = value => ({ rich_text: [{ plain_text: value }] });
@@ -31,8 +37,12 @@ function fixture() {
   UrlFetchApp: { fetch: () => { sends++; return { getResponseCode: () => 200, getContentText: () => '{"status":"uploaded"}' }; } } });
   vm.runInContext(source, context);
   context.notionConfig_ = () => ({ token: 'mock', studentsDataSourceId: 'students', worksDataSourceId: 'works' });
-  context.requireNotionProperties_ = () => {};
-  context.ensureNotionCertificateProperties_ = () => {};
+  const validateSelects = (dataSource, properties) => {
+    for (const [name, value] of Object.entries(properties)) {
+      if (value.select && !schemas.get(dataSource).properties[name].select.options.some(option => option.name === value.select.name))
+        throw Error('select option "' + value.select.name + '" not found for property "' + name + '"');
+    }
+  };
   context.notionQuery_ = (_, dataSource, payload) => [...pages.values()].filter(page => page.parent === dataSource && !page.in_trash)
     .filter(page => !payload.filter || payload.filter.and.every(filter => {
       const property = page.properties[filter.property];
@@ -41,7 +51,27 @@ function fixture() {
   context.notionCall_ = (_, method, url, data) => {
     calls.push({ method, url, data: data && clone(data) });
     const parts = url.split('?')[0].split('/');
-    if (method === 'get' && parts[0] === 'data_sources') return { properties: {} };
+    if (parts[0] === 'data_sources') {
+      const schema = schemas.get(parts[1]); assert(schema, 'data source must exist');
+      if (method === 'patch') {
+        if (fail.has('schema-write')) { const error = Error('mock schema permission'); error.httpStatus = 403; throw error; }
+        for (const [name, value] of Object.entries(data.properties)) {
+          if (value.select) {
+            const previous = schema.properties[name];
+            const options = value.select.options.map(option => option.id
+              ? clone(previous.select.options.find(old => old.id === option.id))
+              : { id: nextId(), color:'default', ...clone(option) });
+            schema.properties[name] = { ...previous, description:value.description, select:{ options } };
+          } else {
+            const type = Object.keys(value)[0]; schema.properties[name] = { type, ...clone(value) };
+          }
+        }
+      }
+      const result = clone(schema);
+      if (method === 'get' && fail.has('schema-readback') && calls.some(call => call.method === 'patch' && call.url === url))
+        result.properties['班級'].select.options = [];
+      return result;
+    }
     if (url === 'file_uploads') { const id = nextId(); uploads.set(id, { status: 'uploaded', in_trash: false, expiry_time: null }); return { id }; }
     if (parts[0] === 'file_uploads') {
       if (fail.has('upload-permission')) { const error = Error('mock permission'); error.httpStatus = 403; throw error; }
@@ -49,12 +79,14 @@ function fixture() {
       return clone(uploads.get(parts[1]));
     }
     if (method === 'post' && url === 'pages') {
+      validateSelects(data.parent.data_source_id, data.properties);
       const id = nextId(); const page = { id, parent: data.parent.data_source_id, properties: normalize(data.properties), cover: data.cover || null, blocks: blocks(data.children || []) };
       pages.set(id, page); return clone(page);
     }
     if (parts[0] === 'pages') {
       const page = pages.get(parts[1]); assert(page, 'page must exist');
       if (method === 'patch') {
+        validateSelects(page.parent, data.properties);
         if (fail.has('page:' + text(page.properties['學號']))) throw Error('mock student page failure');
         page.properties = { ...page.properties, ...normalize(data.properties) };
         if ('cover' in data) page.cover = clone(data.cover);
@@ -96,7 +128,63 @@ function fixture() {
   const work = id => [...pages.values()].find(page => page.parent === 'works' && text(page.properties['學號']) === id);
   const live = page => page.blocks.filter(block => !block.in_trash);
   const placeholder = block => block.type === 'paragraph' && context.notionBlockText_(block).startsWith('尚無本學期通關紀錄');
-  return { context, pages, uploads, calls, fail, student, payload, run, work, live, placeholder, sends: () => sends, rt, text, nextId };
+  return { context, pages, schemas, uploads, calls, fail, student, payload, run, work, live, placeholder, sends: () => sends, rt, text, nextId };
+}
+
+// Missing select choices must be created before filters/pages use them, without deleting old choices.
+{
+  const f = fixture(), job = f.payload([f.student('1510301')]); job.classRoom = '703';
+  const query = f.context.notionQuery_;
+  f.context.notionQuery_ = (...args) => {
+    for (const filter of args[2].filter?.and || []) if (filter.select)
+      assert(f.schemas.get(args[1]).properties[filter.property].select.options.some(option => option.name === filter.select.equals),
+        'filter option must exist before query');
+    return query(...args);
+  };
+  let result = f.context.syncNotion_(job);
+  check(result.filesSynced === 1 && !result.failedStudents.length, '703 sync succeeds when schemas initially contain only 701');
+  for (const id of ['students','works']) {
+    const property = f.schemas.get(id).properties['班級'];
+    check(property.select.options.some(option => option.name === '703'), id + ' receives 703 option');
+    check(property.select.options.some(option => option.id === id + '-701' && option.color === 'yellow' && option.description === '原班級說明'), id + ' preserves 701 metadata');
+    check(property.description === '班級原說明', id + ' preserves property description');
+  }
+  const before = f.calls.filter(call => call.method === 'patch' && call.url.startsWith('data_sources/')).length;
+  result = f.context.syncNotion_(job);
+  check(result.filesSynced === 1 && result.workCreated === 0 && !result.failedStudents.length, '703 repeat updates same card');
+  check(f.calls.filter(call => call.method === 'patch' && call.url.startsWith('data_sources/')).length === before, 'no schema writes when options already exist');
+  job.classRoom = '701'; job.students = [f.student('1510101')]; job.term = '115-2'; job.students[0].certificate.unitId = '4-1';
+  result = f.context.syncNotion_(job);
+  check(result.filesSynced === 1 && !result.failedStudents.length, 'second term option is prepared automatically');
+}
+{
+  const f = fixture(); f.fail.add('schema-write');
+  assert.throws(() => f.run([f.student()]), /mock schema permission/);
+  check(f.pages.size === 0, 'schema permission error stops before any student page is changed');
+}
+{
+  const f = fixture(); f.fail.add('schema-readback');
+  const job = f.payload([f.student('1510301')]); job.classRoom = '703';
+  assert.throws(() => f.context.syncNotion_(job), /選項尚未完整更新/);
+  check(f.pages.size === 0, 'schema readback failure stops before page writes');
+}
+for (const category of ['flowchart', 'thinking', 'programming']) {
+  const f = fixture(), student = f.student(), job = f.payload([student]);
+  job.task = { key:category + '-1', category, title:'離線測試任務' };
+  if (category === 'flowchart') { student.certificate.unitId = '1'; student.certificate.score = 90; }
+  else {
+    student.status = '已核定通關'; student.certificate = null;
+    student.reviewedAt = student.completedAt; student.reviewedBy = 'jimwang@mail.qfm.kh.edu.tw';
+    student.approvedAttachmentUrl = 'https://example.invalid/approved';
+    student.attachments = [{ url:student.approvedAttachmentUrl, name:'教師採認附件' }];
+  }
+  const result = f.context.syncNotion_(job);
+  check(result.filesSynced === 1 && !result.failedStudents.length, category + ' category and completion status options prepared');
+  if (category !== 'flowchart') for (const status of ['需要補件', '尚未核定']) {
+    student.status = status;
+    const pending = f.context.syncNotion_(job);
+    check(!pending.failedStudents.length && pending.filesSynced === 0, category + ' ' + status + ' option prepared without publishing attachment');
+  }
 }
 
 // Blank card -> later pass, preserving teacher notes and one stable card.
