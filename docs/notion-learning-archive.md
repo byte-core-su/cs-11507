@@ -125,4 +125,6 @@ Notion 整理直接讀取既有教師核定紀錄；分類整合不新增 Firest
 
 證書補圖與同步結果確認使用 `learning-archive-v4`。網站推送不會自動更新 Apps Script；請更新現有指令碼後，到「部署 → 管理部署作業 → 編輯 → 版本選擇新增版本 → 部署」，維持原本 Web App 網址。重新開啟教師端，確認不再顯示更新後端提示，再同步原班級及指定任務。舊版直接同步會被阻擋，CSV 匯出仍可使用。無須重建 Notion 欄位、刪除作品卡或讓學生重做測驗。
 
+若重複同步曾出現 `body.image.type should be not present`（HTTP 400），原因是既有圖片區塊更新不接受新增圖片所使用的 `image.type` 欄位。最新指令碼已區分新增與更新格式；較早的 v4 也須更新並新增部署版本後重試，不需重新授權或清除資料。[Notion 區塊更新格式](https://developers.notion.com/reference/update-a-block) 與 [官方 SDK 欄位定義](https://github.com/makenotion/notion-sdk-js/blob/main/src/api-endpoints/common.ts) 為修正依據。
+
 Notion 的連線金鑰只由 Apps Script 在伺服端讀取。資料列、正文圖片與圖片上傳分別使用 Notion 的資料來源、頁面／區塊及檔案上傳 API。[Notion connection capabilities](https://developers.notion.com/reference/capabilities)、[Query a data source](https://developers.notion.com/reference/query-a-data-source)、[Uploading small files](https://developers.notion.com/guides/data-apis/uploading-small-files)、[Retrieve a file upload](https://developers.notion.com/reference/retrieve-file-upload) 與 [Update a data source](https://developers.notion.com/reference/update-a-data-source) 為相關操作依據。

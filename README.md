@@ -131,4 +131,6 @@ Classroom 學生帳號會以 `qfm15xxxxx@mail.qfm.kh.edu.tw` 格式對應平台�
 
 證書補圖與結果確認需部署 `learning-archive-v4` 版 Apps Script；教師端會阻擋舊版直接同步並提示更新。請以最新 `shared/google-classroom.gs` 更新現有 Apps Script 專案，部署新的 Web App 版本後重新開啟教師頁面，再同步原班級、原任務。沿用原本的 Web App 網址、Notion 指令碼屬性及權限，不需重設 Firebase 或 Notion 資料庫。
 
+既有證書圖片更新採用 Notion 專用的區塊更新格式，不共用新增圖片的完整格式，避免重複同步時因 `image.type` 被拒而出現 HTTP 400。若已部署較早的 v4，仍須套用最新指令碼並新增部署版本；原卡及通關紀錄可直接沿用。
+
 本功能須更新並重新部署 `shared/google-classroom.gs`。舊版核可紀錄若未保存採認附件，需回「作業檢核」重新選定並核可。重新同步會更新系統產生的附件區塊，不保留未採認的作品連結；通關紀錄移除後，對應的系統證書圖片會移到 Notion 垃圾桶，作品卡保留。教師自行補充的內容應放在自動管理區塊以外。完整欄位、作品牆展示與操作方式見 [Notion 學習作品整理](docs/notion-learning-archive.md)。

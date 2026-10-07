@@ -19,7 +19,10 @@ function fixture() {
   const text = property => (property?.rich_text || []).map(item => item.plain_text || item.text?.content || '').join('');
   const normalize = properties => Object.fromEntries(Object.entries(properties).map(([key, value]) => [key,
     value.rich_text ? { ...value, rich_text: value.rich_text.map(item => ({ ...item, plain_text: item.text?.content || item.plain_text || '' })) } : clone(value)]));
-  const blocks = input => input.map(block => ({ ...clone(block), id: nextId() }));
+  const blocks = input => input.map(block => {
+    if (block.type === 'image') assert.equal(block.image.type, 'file_upload', 'image creation keeps its file_upload type');
+    return { ...clone(block), id: nextId() };
+  });
   const context = vm.createContext({ console, Utilities: {
     base64Decode: value => [...Buffer.from(value, 'base64')],
     computeDigest: (_, bytes) => [...crypto.createHash('sha256').update(Buffer.from(bytes)).digest()],
@@ -71,7 +74,16 @@ function fixture() {
       }
       for (const page of pages.values()) {
         const block = page.blocks.find(item => item.id === parts[1]);
-        if (block) { Object.assign(block, clone(data)); return clone(block); }
+        if (block) {
+          // Notion's update schema differs from its image creation schema.
+          if (data.image && Object.hasOwn(data.image, 'type')) {
+            const error = Error('body failed validation: body.image.type should be not present, instead was `"file_upload"`.');
+            error.httpStatus = 400; throw error;
+          }
+          Object.assign(block, clone(data));
+          if (data.image?.file_upload) block.image.type = 'file_upload'; // Response schema includes type.
+          return clone(block);
+        }
       }
     }
     throw Error('Unexpected mock call: ' + method + ' ' + url);
@@ -103,7 +115,14 @@ function fixture() {
   check(f.live(page).some(block => block.id === 'manual-note') && f.live(page).some(block => block.id === 'manual-image'), 'teacher content preserved');
   check(f.live(page).filter(block => block.type === 'heading_2').length === 1, 'no duplicate system headings');
   const uploadId = page.cover.file_upload.id, sends = f.sends();
-  f.run([f.student()]);
+  const repeated = f.run([f.student()]);
+  check(repeated.filesSynced === 1 && !repeated.failedStudents.length, 'existing image update satisfies strict Notion schema');
+  const update = f.calls.find(call => call.method === 'patch' && call.data?.image);
+  check(update && !Object.hasOwn(update.data.image, 'type') && update.data.image.file_upload.id === uploadId,
+    'image update omits type and retains upload ID');
+  check(update.data.image.caption[0].text.content === '通關證書｜115-1-1510101-info-1.png', 'image update retains certificate caption');
+  check(page.cover.type === 'file_upload' && page.properties['作品附件'].files[0].type === 'file_upload',
+    'cover and file property retain their required type');
   check(f.sends() === sends && page.cover.file_upload.id === uploadId, 'valid upload is checked and reused');
   check(f.calls.some(call => call.method === 'get' && call.url === 'file_uploads/' + uploadId), 'does not trust hash alone');
   const image = f.live(page).find(block => f.context.isNotionCertificateBlock_(block));

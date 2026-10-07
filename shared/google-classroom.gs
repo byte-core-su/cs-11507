@@ -342,7 +342,9 @@ function syncNotionCertificateBlocks_(config, page, certificate) {
   }
   if (managed.length) {
     // Refresh the image reference even when reusing the same valid upload.
-    notionCall_(config, 'patch', 'blocks/' + encodeURIComponent(managed[0].id), { image: notionCertificateBlocks_(certificate)[1].image });
+    // Unlike image creation, the block update API rejects image.type.
+    const image = notionCertificateBlocks_(certificate)[1].image;
+    notionCall_(config, 'patch', 'blocks/' + encodeURIComponent(managed[0].id), { image: { file_upload: image.file_upload, caption: image.caption } });
     managed.slice(1).forEach(function(block) { notionCall_(config, 'patch', 'blocks/' + encodeURIComponent(block.id), { in_trash: true }); });
   } else append(certificate);
   // Only remove the integration's exact placeholder, and only after the image write succeeds.
