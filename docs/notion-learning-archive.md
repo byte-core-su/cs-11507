@@ -15,7 +15,9 @@
    - **學生名冊 CSV**：每位學生一列，可匯入 Notion 的學生資料庫。
    - **作品索引 CSV**：每位學生 × 32 個任務一列，包含類別、名稱、資料來源、通關／上傳時間、核定狀態，以及有紀錄時的得分、正確率與作答秒數。
 5. 選擇一項任務按「同步指定任務到 Notion」，或按「同步本班全部 32 項」。尚未完成的項目可先建立空白卡，之後核可再同步即可更新。
-6. 系統每批處理 4 位學生，顯示目前任務與學生進度。請保持頁面開啟；可按「完成本批後停止」，已完成的批次保留。中斷或失敗後可再次同步，會更新原卡，不需刪除重建。
+6. 系統每批處理 4 位學生，顯示目前任務與學生進度。請保持頁面開啟；可按「完成本批後停止」，已完成的批次保留。個別學生寫入或確認失敗時，會繼續處理同批及後面的學生，並列出學號、姓名、任務與原因；該項不計入成功證書件數。中斷或失敗後可再次同步，會更新原卡，不需刪除重建。整批連線、權限、資料格式或設定錯誤則停止並提示，已完成的內容保留。
+
+「可同步 28 / 28 人」代表平台找到 28 位學生的有效來源紀錄，不代表 Notion 已收到 28 張圖片。成功證書件數依 Notion 寫入後讀回的封面、作品附件、正文圖片、通關狀態與證書索引確認；若只有空白卡、圖片未完整掛入，會顯示失敗，不以已送出的圖片數代替成功數。
 
 ## 集章證書與作品來源
 
@@ -28,7 +30,9 @@
 
 學生端上下學期的程式設計頁面都有 8 格「流程圖集章牆」，完成後可查看／下載證書 PNG；資訊生活原有證書也可下載 PNG。下學期僅完成教練討論或達到 85 分，尚未產生 Mermaid code 時，不核發流程圖集章。重新闖關未達標不會用低分覆寫已保存的成功通關得分；舊紀錄若缺少成功得分，證書仍可依完成時間核發，但不虛填分數。
 
-教師同步時會依通關紀錄與現有名冊即時產生 PNG，經 Apps Script 直接上傳到 Notion 的檔案儲存空間，設定為作品附件、正文圖片與頁面封面。不另建公開的 Firebase／Drive 圖片網址，金鑰不會傳到學生端；不需額外 Google Drive 寫入權限。同一圖片未變更時沿用既有上傳，姓名或通關紀錄變更後再同步才更新圖片。來源紀錄未完成者只建立空白卡，不會產生虛假的證書。
+教師同步時會依通關紀錄與現有名冊即時產生 PNG，經 Apps Script 直接上傳到 Notion 的檔案儲存空間，設定為作品附件、正文圖片與頁面封面。不另建公開的 Firebase／Drive 圖片網址，金鑰不會傳到學生端；不需額外 Google Drive 寫入權限。同一圖片未變更時，先確認舊上傳仍有效才沿用；檔案不存在、失效或尚未完成上傳時改為重新上傳，權限或連線錯誤則明確列為失敗。每次同步均刷新正文圖片引用及封面、附件，補齊缺圖；姓名或通關紀錄變更後再同步會更新圖片。來源紀錄未完成者只建立空白卡，不會產生虛假的證書。
+
+空白卡後來有通關紀錄時，會在補圖成功後移除自動管理區塊中的「尚無本學期通關紀錄；完成後同步即可展示證書。」舊提示；不重複建立作品卡或證書標題。若通關紀錄移除，再同步會恢復尚未完成提示。只整理系統產生的提示及證書圖片，教師自行增加的筆記與圖片保留；移除的系統區塊使用 Notion 垃圾桶機制，可復原。這項修正避免先建立空白卡後，舊提示殘留而與教師端通關狀態矛盾。
 
 運算思維與程式設計是否完成仍以教師端核定紀錄為準；學生自行上傳附件只會成為待檢核的證據，不會直接變成通關紀錄，也不會將附件匯入 Notion。只有該學生、本學期、該單元的教師核可紀錄中明確採認的那一件附件才匯入；多件附件不會自動選第一件。尚未核可、需要補件或缺少完整採認資訊者只保留名冊與空白任務卡；舊版核可紀錄若未保存採認附件或課程／作業識別，需回「作業檢核」重新選定並核可。資訊生活與演算流程不需教師逐件核可，依系統通關紀錄產生證書。
 
@@ -119,4 +123,6 @@ Notion 整理直接讀取既有教師核定紀錄；分類整合不新增 Firest
 
 完整 32 項、證書上傳與附件核可限制均包含 Apps Script 後端更新，須將最新版 `shared/google-classroom.gs` 貼回 Apps Script 並重新部署 Web App，既有 Notion 指令碼屬性及 Google 授權範圍不需更改。
 
-Notion 的連線金鑰只由 Apps Script 在伺服端讀取。資料列、正文圖片與圖片上傳分別使用 Notion 的資料來源、頁面／區塊及檔案上傳 API。[Notion connection capabilities](https://developers.notion.com/reference/capabilities)、[Query a data source](https://developers.notion.com/reference/query-a-data-source)、[Uploading small files](https://developers.notion.com/guides/data-apis/uploading-small-files) 與 [Update a data source](https://developers.notion.com/reference/update-a-data-source) 為相關操作依據。
+證書補圖與同步結果確認使用 `learning-archive-v4`。網站推送不會自動更新 Apps Script；請更新現有指令碼後，到「部署 → 管理部署作業 → 編輯 → 版本選擇新增版本 → 部署」，維持原本 Web App 網址。重新開啟教師端，確認不再顯示更新後端提示，再同步原班級及指定任務。舊版直接同步會被阻擋，CSV 匯出仍可使用。無須重建 Notion 欄位、刪除作品卡或讓學生重做測驗。
+
+Notion 的連線金鑰只由 Apps Script 在伺服端讀取。資料列、正文圖片與圖片上傳分別使用 Notion 的資料來源、頁面／區塊及檔案上傳 API。[Notion connection capabilities](https://developers.notion.com/reference/capabilities)、[Query a data source](https://developers.notion.com/reference/query-a-data-source)、[Uploading small files](https://developers.notion.com/guides/data-apis/uploading-small-files)、[Retrieve a file upload](https://developers.notion.com/reference/retrieve-file-upload) 與 [Update a data source](https://developers.notion.com/reference/update-a-data-source) 為相關操作依據。

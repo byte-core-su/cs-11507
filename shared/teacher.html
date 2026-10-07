@@ -114,6 +114,7 @@
             <div class="mt-4 flex flex-wrap items-center gap-3"><button id="notion-sync-button" class="rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:bg-slate-400" disabled>同步指定任務到 Notion</button><span class="text-xs leading-5 text-violet-800">系統通關證書＋教師採認作品；尚未完成或未核可者保留空白卡。同一學生與任務更新原卡，不會重複建立。</span></div>
           </div>
           <div class="mt-4 flex flex-wrap items-center gap-3"><button id="notion-sync-all" disabled class="rounded-xl bg-blue-700 px-5 py-2.5 font-bold text-white hover:bg-blue-800 disabled:bg-slate-400">同步本班全部 32 項</button><button id="notion-sync-stop" class="hidden rounded-xl border border-slate-300 px-5 py-2.5 font-bold text-slate-600">完成本批後停止</button><p class="text-xs text-slate-500">首次全班同步需較長時間，請保持此頁開啟。證書 PNG 直接上傳至 Notion，不建立公開圖片網址。</p></div>
+          <div id="notion-sync-results" class="mt-3 text-sm text-slate-700" aria-live="polite"></div>
         </section>
       </section>
 
@@ -834,18 +835,19 @@
       $('notion-sync-task').innerHTML = tasks.map(task => `<option value="${escapeHtml(task.key)}">${escapeHtml(`${notionCategoryLabel(task.category)}｜${task.title}｜${task.system ? '系統通關紀錄' : '作業檢核採認紀錄'}`)}</option>`).join('');
       const selectedTask = notionSelectedTasks.get(notionClassKey());
       if (tasks.some(task => task.key === selectedTask)) $('notion-sync-task').value = selectedTask;
-      const serviceReady = Boolean(notionServiceStatus.configured && notionServiceStatus.syncVersion === 'learning-archive-v3');
+      const serviceReady = Boolean(notionServiceStatus.configured && notionServiceStatus.syncVersion === 'learning-archive-v4');
       $('notion-sync-button').disabled = !serviceReady || busy || !dataReady;
       $('notion-sync-all').disabled = !serviceReady || busy || !dataReady;
       $('notion-sync-stop').classList.toggle('hidden', !notionSyncing);
       $('notion-sync-task').disabled = busy;
       $('notion-class-buttons').querySelectorAll('button').forEach(button => { button.disabled = busy; });
-      $('notion-sync-note').textContent = serviceReady ? 'Notion 連線已完成。直接沿用作業檢核的分類、單元與採認附件，可同步單項或本班全部 32 項，不需重複設定作業。' : (notionServiceStatus.configured ? 'Notion 連線已設定；請將最新版 google-classroom.gs 貼回 Apps Script 並重新部署，以啟用依採認紀錄同步。CSV 匯出仍可使用。' : '尚未完成 Apps Script 的 Notion 連線設定；CSV 匯出仍可使用。');
+      $('notion-sync-note').textContent = serviceReady ? 'Notion 連線已完成。「可同步人數」是平台來源紀錄，不是圖片成功數；同步後會確認證書封面、附件與正文，缺圖可再次同步補齊。' : (notionServiceStatus.configured ? 'Notion 連線已設定；請將最新版 google-classroom.gs 貼回 Apps Script 並重新部署，以啟用證書補圖與同步結果確認。CSV 匯出仍可使用。' : '尚未完成 Apps Script 的 Notion 連線設定；CSV 匯出仍可使用。');
     }
     function selectNotionClass(classRoom) {
       if (!classes.includes(classRoom) || notionSyncing || classRoom === activeNotionClass) return;
       activeNotionClass = classRoom;
       $('notion-message').textContent = '';
+      $('notion-sync-results').replaceChildren();
       classButtons('notion-class-buttons', 'notion'); renderNotionWorkspace();
     }
     function csvCell(value) { const text = String(value ?? ''); return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; }
@@ -903,31 +905,41 @@
       if (notionSyncing) return;
       if (!notionDataReady.roster || !notionDataReady.progress) { $('notion-message').textContent = '名冊與學習紀錄尚未完整載入，請稍候；若持續無法載入，請重新登入教師端。'; return; }
       if (!notionServiceStatus.configured) { $('notion-message').textContent = '請先完成 Apps Script 的 Notion 連線設定。'; return; }
-      if (notionServiceStatus.syncVersion !== 'learning-archive-v3') { $('notion-message').textContent = '請先更新並重新部署 Apps Script，再重新開啟教師頁面。'; return; }
+      if (notionServiceStatus.syncVersion !== 'learning-archive-v4') { $('notion-message').textContent = '請先更新並重新部署 Apps Script，再重新開啟教師頁面。'; return; }
       const classRoom = activeNotionClass;
       const tasks = syncAll ? notionTasks() : notionTasks().filter(item => item.key === $('notion-sync-task').value);
       if (!tasks.length) return;
       const rows = notionClassRows(classRoom);
       if (!rows.length) { $('notion-message').textContent = '本班沒有可同步的正式學生；學號結尾 00 的測試帳號已排除。'; return; }
       notionSyncing = true; notionStopRequested = false; renderNotionWorkspace();
-      let completed = 0, workCreated = 0, workUpdated = 0, files = 0;
+      let completed = 0, processed = 0, workCreated = 0, workUpdated = 0, files = 0;
+      const failedStudents = [];
+      $('notion-sync-results').replaceChildren();
+      const showFailures = () => {
+        $('notion-sync-results').innerHTML = failedStudents.length ? `<details class="rounded-xl border border-amber-200 bg-amber-50 p-4" open><summary class="cursor-pointer font-bold text-amber-900">${failedStudents.length} 筆尚未同步完成，請修正後重新同步原任務</summary><ul class="mt-2 list-disc space-y-1 pl-5">${failedStudents.map(item => `<li>${escapeHtml(item.studentId)}・${escapeHtml(item.name)}｜${escapeHtml(item.taskTitle)}：${escapeHtml(item.message)}</li>`).join('')}</ul></details>` : '';
+      };
       try {
         for (const task of tasks) {
           if (notionStopRequested) break;
-          $('notion-message').textContent = `正在整理 ${classRoom} 班 ${task.title}（${completed + 1} / ${tasks.length} 項）…`;
+          let taskFailed = false;
+          $('notion-message').textContent = `正在整理 ${classRoom} 班 ${task.title}（${processed + 1} / ${tasks.length} 項）…`;
           const students = await notionStudentsForTask(rows, task);
           for (let offset = 0; offset < students.length; offset += 4) {
             if (notionStopRequested) break;
             const batch = students.slice(offset, offset + 4);
-            $('notion-message').textContent = `${classRoom} 班 ${task.title}｜第 ${completed + 1} / ${tasks.length} 項，學生 ${offset + 1}–${offset + batch.length} / ${students.length}；正在上傳／更新…`;
+            $('notion-message').textContent = `${classRoom} 班 ${task.title}｜第 ${processed + 1} / ${tasks.length} 項，學生 ${offset + 1}–${offset + batch.length} / ${students.length}；正在上傳／更新…`;
             const result = await postNotionSync({ term, classRoom, task: { key: task.key, category: task.category, title: task.title, assignmentTitle: task.system ? '系統通關紀錄' : '作業檢核採認紀錄' }, students: batch });
             if (result.status !== 'success') throw new Error(result.message || 'Notion 同步失敗。');
             workCreated += Number(result.workCreated) || 0; workUpdated += Number(result.workUpdated) || 0;
-            files += batch.filter(student => student.certificate || student.attachments.length).length;
+            files += Number(result.filesSynced) || 0;
+            const failures = Array.isArray(result.failedStudents) ? result.failedStudents : [];
+            if (failures.length) taskFailed = true;
+            failedStudents.push(...failures.map(item => ({ ...item, taskTitle: task.title })));
+            showFailures();
           }
-          if (!notionStopRequested) completed++;
+          if (!notionStopRequested) { processed++; if (!taskFailed) completed++; }
         }
-        $('notion-message').textContent = `${classRoom} 班${notionStopRequested ? '已停止，已完成的批次保留' : '同步完成'}：完成 ${completed} / ${tasks.length} 項，新增 ${workCreated} 張、更新 ${workUpdated} 張；同步 ${files} 件證書／採認附件。可再次同步更新，不會重複建卡。`;
+        $('notion-message').textContent = `${classRoom} 班${notionStopRequested ? '已停止，已完成的批次保留' : failedStudents.length ? '部分同步未完成' : '同步完成'}：完成 ${completed} / ${tasks.length} 項，新增 ${workCreated} 張、更新 ${workUpdated} 張；已同步 ${files} 件證書／採認附件${failedStudents.length ? `，${failedStudents.length} 筆失敗（見下方名單）` : ''}。可再次同步補齊原卡，不會重複建卡。`;
       } catch (error) { console.error(error); $('notion-message').textContent = `已完成 ${completed} / ${tasks.length} 項；${error.message || 'Notion 同步失敗'}。已完成的批次保留，可重新同步。`; }
       finally { notionSyncing = false; renderNotionWorkspace(); }
     }
