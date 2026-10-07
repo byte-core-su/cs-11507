@@ -419,9 +419,10 @@
                 const snapshot = await db.collection('users').doc(owner.uid).get({ source: 'server' });
                 if (accessGeneration !== generation) return;
                 const data = window.ArenaStore.exists(snapshot) ? snapshot.data().terms?.[termId] || {} : {};
+                const certificates = requiredCertificates ? window.QuizPassStatus.normalize(
+                    { certificates: data.certificates }, 'infolife', requiredCertificates).certificates : null;
                 unlocked = requiredCertificates
-                    ? requiredCertificates.every(key => Object.values(data.certificates || {}).some(
-                        cert => cert?.course === '資訊生活' && cert.chapterKey === key))
+                    ? requiredCertificates.every(key => certificates[`infolife-${key}`])
                     : requiredTasks.every(key => Boolean(data.tasks?.[key]));
                 if (!unlocked) { $('unlock-status').textContent = '請先完成本學期資訊生活的八枚印章，再挑戰知識大擂台。'; return; }
                 store = window.ArenaStore.create(db, termId);

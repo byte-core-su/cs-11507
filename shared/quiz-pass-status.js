@@ -1,4 +1,4 @@
-// Display previously saved passes without changing quiz scoring or answer validation.
+// Share live pass records across cards, certificates and unlock status; leave scoring unchanged.
 (() => {
     'use strict';
     const numeric = value => value !== null && value !== undefined && value !== ''
@@ -24,14 +24,38 @@
             }) : '日期未提供'
         };
     }
-    function create({ termId, prefix, chapterKeys, read, startButton }) {
+    // Accept historical map IDs and explicit chapter keys, but only this course's real slots.
+    function normalize(history, prefix, chapterKeys) {
+        const keys = new Set(chapterKeys);
+        const course = prefix === 'infolife' ? '資訊生活' : '資訊安全與數位著作';
+        const collect = source => {
+            const result = {};
+            for (const [mapId, record] of Object.entries(source || {})) {
+                if (!record || typeof record !== 'object' || (record.course && record.course !== course)) continue;
+                const idKey = id => String(id || '').startsWith(`${prefix}-`) ? String(id).slice(prefix.length + 1) : null;
+                const identifiers = [idKey(mapId), idKey(record.id)].filter(key => keys.has(key));
+                if (!identifiers.length && record.course !== course) continue;
+                const candidates = [...identifiers, record.chapterKey].filter(key => keys.has(key));
+                if (!candidates.length || new Set(candidates).size !== 1) continue;
+                const key = candidates[0], id = `${prefix}-${key}`;
+                // Canonical map entries take priority over duplicate legacy entries.
+                if (!result[id] || mapId === id) result[id] = { ...record, chapterKey: key };
+            }
+            return result;
+        };
+        return { certificates: collect(history?.certificates), lastPasses: collect(history?.lastPasses) };
+    }
+    function create({ termId, prefix, chapterKeys, read, watch, startButton }) {
         const keys = new Set(chapterKeys);
         let owner = '', records = null, currentChapter = '', request = 0, loading = null, failed = false;
+        let unsubscribe = null, watching = false, syncing = false;
+        const listeners = new Set();
         let originalLabel = '';
         const currentOwner = () => String(window.LearningProfile?.get?.()?.studentId || '');
         function ensureOwner() {
             const next = currentOwner();
             if (next === owner) return;
+            unsubscribe?.(); unsubscribe = null; watching = false; syncing = false;
             owner = next; records = null; failed = false; loading = null; request++;
             document.querySelectorAll('[data-quiz-pass-badge]').forEach(node => node.remove());
             ['quiz-previous-pass-study', 'quiz-previous-pass-active'].forEach(id => {
@@ -39,6 +63,9 @@
                 if (element) { element.replaceChildren(); element.hidden = true; }
             });
             if (originalLabel && startButton()) startButton().textContent = originalLabel;
+            document.getElementById('certificate-detail-content')?.replaceChildren();
+            const detail = document.getElementById('certificate-detail-modal');
+            detail?.classList.add('hidden'); detail?.classList.remove('flex');
         }
         function previous(key) {
             const id = `${prefix}-${key}`;
@@ -54,7 +81,10 @@
                 if (!previous(key)) return;
                 const badge = document.createElement('span');
                 badge.dataset.quizPassBadge = key;
-                badge.className = 'mt-3 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800';
+                badge.className = 'mt-3 inline-flex items-center gap-1 rounded-full border border-current px-3 py-1 text-xs font-black';
+                // Inherit the chapter's palette, including its white hover text.
+                badge.style.color = 'inherit';
+                badge.style.background = 'color-mix(in srgb, currentColor 9%, transparent)';
                 badge.textContent = '✓ 已通關・可再次挑戰';
                 if (failed) badge.title = '暫時無法更新，顯示上次成功讀取的通關狀態';
                 button.append(badge);
@@ -110,18 +140,50 @@
                 button.textContent = keys.has(currentChapter) && previousPass ? '再次挑戰（已通關）' : originalLabel;
             }
         }
-        function paint() { ensureOwner(); cardBadges(); paintHistory(); }
+        function snapshot() { return { records, failed, pending: records === null || syncing }; }
+        function paint() {
+            ensureOwner(); cardBadges(); paintHistory();
+            listeners.forEach(listener => listener(snapshot()));
+        }
         async function refresh() {
             ensureOwner();
             if (!owner) { paint(); return; }
+            if (loading || watching) { paint(); return loading; }
             const expectedOwner = owner, token = ++request;
             failed = false;
+            if (watch) {
+                watching = true;
+                paint();
+                const valid = () => {
+                    if (currentOwner() !== expectedOwner) { ensureOwner(); paint(); return false; }
+                    return request === token;
+                };
+                let finish;
+                loading = new Promise(resolve => { finish = resolve; });
+                const complete = () => { finish(); if (request === token) loading = null; };
+                const fail = error => {
+                    if (!valid()) { complete(); return; }
+                    console.warn('Unable to sync quiz passes:', error);
+                    failed = true; watching = false; unsubscribe?.(); unsubscribe = null;
+                    paint(); complete();
+                };
+                Promise.resolve().then(() => watch((result, metadata = {}) => {
+                    if (!valid()) { complete(); return; }
+                    records = normalize(result, prefix, chapterKeys);
+                    syncing = Boolean(metadata.fromCache || metadata.hasPendingWrites);
+                    failed = false; paint(); complete();
+                }, fail)).then(stop => {
+                    if (!valid() || !watching) stop?.();
+                    else unsubscribe = stop;
+                }, fail);
+                return loading;
+            }
             const pending = (async () => {
                 try {
                     const result = await read();
                     if (currentOwner() !== expectedOwner) { ensureOwner(); paint(); return; }
                     if (request !== token) return;
-                    records = result || { certificates: {}, lastPasses: {} };
+                    records = normalize(result, prefix, chapterKeys);
                     paint();
                 } catch (error) {
                     if (currentOwner() !== expectedOwner) { ensureOwner(); paint(); return; }
@@ -136,11 +198,17 @@
             return pending;
         }
         window.addEventListener('focus', () => {
-            if (currentOwner() === owner) return;
+            if (currentOwner() === owner && !failed) return;
             ensureOwner(); paint(); void refresh();
         });
+        window.addEventListener('pagehide', () => {
+            unsubscribe?.(); unsubscribe = null; watching = false; loading = null; request++;
+        });
+        window.addEventListener('pageshow', event => { if (event.persisted) void refresh(); });
         return Object.freeze({
             refresh,
+            snapshot() { ensureOwner(); return snapshot(); },
+            subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
             show(key) {
                 ensureOwner(); currentChapter = key; paint();
                 if (!keys.has(key)) return;
@@ -148,5 +216,5 @@
             }
         });
     }
-    window.QuizPassStatus = Object.freeze({ create });
+    window.QuizPassStatus = Object.freeze({ create, normalize, date });
 })();
