@@ -947,6 +947,18 @@
         return { studentId: row.profile.studentId, name: row.profile.name || '', seatNo: row.profile.seatNo, status: notionStatusFor(record, Boolean(approvedAttachment)), completedAt: isoValue(record?.completedAt) || approvedAttachment?.createdAt || '', reviewedAt, reviewedBy: record?.reviewedBy || '', assignmentTitle: notionAssignmentTitle(record), approvedAttachmentUrl: approvedAttachment?.url || '', attachments: approvedAttachment ? [approvedAttachment] : [] };
       });
     }
+    function notionAuthDiagnosticHtml(value) {
+      if (value?.version !== 'drive-auth-diagnostic-v1') return '';
+      const scope = { NOT_REQUIRED: '已具備授權（NOT_REQUIRED）', REQUIRED: '需要授權（REQUIRED）', UNKNOWN: '無法確認' }[value.scopeStatus] || '無法確認';
+      const advanced = { SUCCESS: '成功', FAILED: '失敗', UNAVAILABLE: '無法使用／尚未啟用', INVALID_RESPONSE: '回應缺少帳號資訊' }[value.advancedStatus] || '無法確認';
+      const reason = { AUTHENTICATION_FAILED: '驗證失敗', ACCESS_DENIED: '權限或存取限制', SERVICE_DISABLED: '服務未啟用或被停用', UNKNOWN: '未分類錯誤' }[value.advancedReason] || '';
+      const rows = [ ['檢查時間', formatDate(value.checkedAt)], ['失敗階段', value.stage || '—'],
+        ['存取帳號', value.activeUser || '無法取得'], ['實際執行帳號', value.effectiveUser || '無法取得'],
+        ['Drive 唯讀授權', scope], ['Drive 進階服務', advanced + (reason ? `（${reason}）` : '')] ];
+      if (value.advancedUser) rows.push(['Drive 回傳帳號', value.advancedUser]);
+      const hint = value.advancedStatus === 'SUCCESS' ? '同次執行可透過進階服務讀取帳號資訊，但直接 HTTP 讀取仍遭拒；這不代表原附件已確認可下載。' : '這是失敗當下的檢查結果，並非事後在編輯器另行測試；請連同原始錯誤一起提供。';
+      return `<div class="mt-2 rounded-lg border border-amber-200 bg-white/80 p-3 text-xs leading-5"><p class="font-bold text-amber-950">同步當下診斷</p><dl>${rows.map(([label, text]) => `<div><dt class="inline font-bold">${escapeHtml(label)}：</dt><dd class="inline break-all">${escapeHtml(String(text))}</dd></div>`).join('')}</dl><p class="mt-2 text-slate-600">${escapeHtml(hint)}</p></div>`;
+    }
     async function syncNotionTask(syncAll = false) {
       if (notionSyncing) return;
       if (!notionDataReady.roster || !notionDataReady.progress) { $('notion-message').textContent = '名冊與學習紀錄尚未完整載入，請稍候；若持續無法載入，請重新登入教師端。'; return; }
@@ -962,7 +974,7 @@
       const failedStudents = [];
       $('notion-sync-results').replaceChildren();
       const showFailures = () => {
-        $('notion-sync-results').innerHTML = failedStudents.length ? `<details class="rounded-xl border border-amber-200 bg-amber-50 p-4" open><summary class="cursor-pointer font-bold text-amber-900">${failedStudents.length} 筆尚未同步完成，請修正後重新同步原任務</summary><ul class="mt-2 list-disc space-y-1 pl-5">${failedStudents.map(item => `<li>${escapeHtml(item.studentId)}・${escapeHtml(item.name)}｜${escapeHtml(item.taskTitle)}：${escapeHtml(item.message)}</li>`).join('')}</ul></details>` : '';
+        $('notion-sync-results').innerHTML = failedStudents.length ? `<details class="rounded-xl border border-amber-200 bg-amber-50 p-4" open><summary class="cursor-pointer font-bold text-amber-900">${failedStudents.length} 筆尚未同步完成，請修正後重新同步原任務</summary><ul class="mt-2 list-disc space-y-1 pl-5">${failedStudents.map(item => `<li>${escapeHtml(item.studentId)}・${escapeHtml(item.name)}｜${escapeHtml(item.taskTitle)}：${escapeHtml(item.message)}${notionAuthDiagnosticHtml(item.authDiagnostic)}</li>`).join('')}</ul></details>` : '';
       };
       try {
         for (const task of tasks) {

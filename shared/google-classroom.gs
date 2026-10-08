@@ -168,7 +168,10 @@ function syncNotion_(payload) {
       if (student.certificate || student.attachments.length) filesSynced += 1;
     } catch (error) {
       // A single broken card must not prevent later students from being repaired.
-      failedStudents.push({ studentId: student.studentId, name: student.name, message: safeNotionText_(error.message || 'Notion 同步失敗。', 240) });
+      const failure = { studentId: student.studentId, name: student.name, message: safeNotionText_(error.message || 'Notion 同步失敗。', 240) };
+      // Keep diagnostics separate so the normal error limit cannot cut them off.
+      if (error.authDiagnostic) failure.authDiagnostic = error.authDiagnostic;
+      failedStudents.push(failure);
     }
   });
   return { message: failedStudents.length ? '部分學生尚未同步完成，請查看失敗名單後重試。' : 'Notion 同步完成。', studentCreated: studentCreated, studentUpdated: studentUpdated, workCreated: workCreated, workUpdated: workUpdated, filesSynced: filesSynced, failedStudents: failedStudents, skippedTestAccounts: job.skippedTestAccounts };
@@ -338,6 +341,7 @@ function readNotionWorkImage_(job, student) {
         : 'Google Drive 讀取失敗，原作品卡保留，請稍後重試。';
       const error = new Error('無法讀取採認圖片：' + stage + '（HTTP ' + status + '）。' + guidance + (detail ? ' Google 原因：' + detail : '') + (reason ? ' [' + reason + ']' : ''));
       error.httpStatus = status; error.stage = stage; error.reason = reason;
+      if (status === 401) error.authDiagnostic = driveAuthDiagnostic_(stage);
       throw error;
     }
   };
@@ -357,6 +361,35 @@ function readNotionWorkImage_(job, student) {
   if (bytes.length < 32 || ![137,80,78,71,13,10,26,10].every(function(byte, i) { return (bytes[i] & 255) === byte; })) throw new Error('採認附件未取得有效 PNG，未將錯誤頁面匯入 Notion，請確認檔案內容。');
   const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes).map(function(byte) { return ('0' + (byte & 255).toString(16)).slice(-2); }).join('');
   return { filename: job.term + '-' + student.studentId + '-' + job.task.key + '.png', bytes: bytes, hash: hash };
+}
+
+// Read-only, same-execution checks after a persistent 401. No tokens, raw
+// exceptions, authorization URLs, file IDs or script properties are returned.
+function driveAuthDiagnostic_(stage) {
+  const diagnostic = { version: 'drive-auth-diagnostic-v1', checkedAt: new Date().toISOString(), stage: stage,
+    activeUser: '', effectiveUser: '', scopeStatus: 'UNKNOWN', advancedStatus: 'UNAVAILABLE', advancedUser: '', advancedReason: '' };
+  const email = function(value) { const text = String(value || '').trim().toLowerCase(); return /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(text) ? text.slice(0, 254) : ''; };
+  try { diagnostic.activeUser = email(Session.getActiveUser().getEmail()); } catch (_) {}
+  try { diagnostic.effectiveUser = email(Session.getEffectiveUser().getEmail()); } catch (_) {}
+  try {
+    const status = String(ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL, ['https://www.googleapis.com/auth/drive.readonly']).getAuthorizationStatus());
+    if (status === 'REQUIRED' || status === 'NOT_REQUIRED') diagnostic.scopeStatus = status;
+  } catch (_) {}
+  try {
+    if (typeof Drive !== 'undefined' && Drive.About && typeof Drive.About.get === 'function') {
+      diagnostic.advancedStatus = 'FAILED';
+      const about = Drive.About.get({ fields: 'user(emailAddress)' });
+      diagnostic.advancedUser = email(about && about.user && about.user.emailAddress);
+      diagnostic.advancedStatus = diagnostic.advancedUser ? 'SUCCESS' : 'INVALID_RESPONSE';
+    }
+  } catch (error) {
+    // Classify locally; never echo an exception that may contain credentials.
+    const message = String(error && error.message || '');
+    diagnostic.advancedReason = /\b401\b|invalid credentials|invalid authentication|unauthenticated/i.test(message) ? 'AUTHENTICATION_FAILED'
+      : /not enabled|disabled|accessNotConfigured/i.test(message) ? 'SERVICE_DISABLED'
+      : /\b403\b|insufficient|permission|forbidden/i.test(message) ? 'ACCESS_DENIED' : 'UNKNOWN';
+  }
+  return diagnostic;
 }
 
 function isNotionWorkImageBlock_(block, filename) {
