@@ -95,7 +95,7 @@ for (const missing of ['reviewedBy', 'reviewedAt', 'approvedAttachmentUrl']) {
   check(result.filesSynced === 0 && f.driveCalls.length === 0, 'incomplete approval never imports: ' + missing);
 }
 for (const [label, options, expected] of [
-  ['permission', { httpStatus:403 }, /唯讀權限/], ['missing', { httpStatus:404 }, /不存在/],
+  ['permission', { httpStatus:403 }, /檔案下載權限/], ['missing', { httpStatus:404 }, /不存在/],
   ['download disabled', { capabilities:{ canDownload:false } }, /無法下載/], ['trashed', { trashed:true }, /無法下載/],
   ['wrong type', { mimeType:'video/mp4' }, /不是上述格式/], ['too large', { size:11 * 1024 * 1024 }, /超過 10 MB/],
   ['invalid content', { bytes:[...Buffer.from('<html>not an image</html>xxxxxxxxxx')] }, /有效 PNG/]
@@ -147,6 +147,57 @@ for (const url of ['https://evil.invalid/d/approved', 'https://drive.google.com.
   check(result.filesSynced === 1 && !result.failedStudents.length && f.driveCalls.length === 0 && f.work('1510101').cover === null, 'programming remains link-only, no image conversion');
   const skipped = f.context.syncNotion_(job(f, { id:'1510100' }));
   check(skipped.skippedTestAccounts === 1 && skipped.filesSynced === 0 && f.driveCalls.length === 0, '00 test account never downloads/uploads images');
+}
+// Credential failures must be retried at the failing Drive GET, not by replaying sync.
+const unauthorized = { status:401, body:{ error:{ message:'Invalid Credentials', errors:[{reason:'authError'}] } } };
+for (const [stage, label] of [['metadata','檔案資訊讀取'], ['media','PNG 下載'], ['export','Google 繪圖轉檔']]) {
+  const f = fixture(), payload = job(f);
+  if (stage === 'export') file(f, 'approved', { mimeType:'application/vnd.google-apps.drawing' });
+  f.driveResponses.set('approved:' + stage, [unauthorized]);
+  const result = f.context.syncNotion_(payload);
+  check(result.filesSynced === 1 && !result.failedStudents.length && f.driveCalls.length === 3, label + ' recovers one 401');
+  check(f.tokens() === 3 && new Set(f.driveCalls.map(call => call.request.headers.Authorization)).size === 3, 'each metadata/content/retry request reacquires its token');
+  check(f.sleeps.filter(ms => ms === 300).length === 1 && f.driveCalls.every(call => call.request.method === 'get' && call.request.followRedirects === false), 'single bounded retry keeps token on Google API only');
+  check(f.sends() === 1 && f.calls.filter(call => call.method === 'post' && call.url === 'pages' && call.data.parent.data_source_id === 'works').length === 1, 'Drive retry never duplicates Notion image upload/card');
+  const persistent = fixture(), persistentJob = job(persistent);
+  if (stage === 'export') file(persistent, 'approved', { mimeType:'application/vnd.google-apps.drawing' });
+  persistent.driveResponses.set('approved:' + stage, [unauthorized, unauthorized]);
+  const failure = persistent.context.syncNotion_(persistentJob);
+  check(failure.filesSynced === 0 && failure.failedStudents.length === 1 && failure.failedStudents[0].message.includes(label)
+    && /HTTP 401/.test(failure.failedStudents[0].message) && /Invalid Credentials/.test(failure.failedStudents[0].message), label + ' persistent failure preserves stage and Google cause');
+  check(persistent.driveCalls.length === (stage === 'metadata' ? 2 : 3) && persistent.sleeps.length === 1 && persistent.sends() === 0 && !persistent.work('1510101'), 'persistent 401 stops before Notion work writes');
+  check(!JSON.stringify(failure).includes('mock-google-token'), 'failure does not expose OAuth token');
+}
+{
+  const f = fixture();
+  f.driveResponses.set('approved:metadata', [unauthorized]); f.driveResponses.set('approved:media', [unauthorized]);
+  const result = f.context.syncNotion_(job(f));
+  check(result.filesSynced === 1 && f.driveCalls.length === 4 && f.sleeps.filter(ms => ms === 300).length === 2 && f.sends() === 1, 'metadata and content each have a separate bounded retry');
+}
+for (const [status, reason, detail, expected] of [
+  [403,'insufficientPermissions','Request had insufficient authentication scopes.',/drive.readonly/],
+  [403,'forbidden','Access denied',/檔案下載權限/], [404,'notFound','File not found',/不存在/],
+  [429,'rateLimitExceeded','Too many requests',/Google Drive 讀取失敗/], [503,'backendError','Unavailable',/Google Drive 讀取失敗/],
+  [302,'','','Google Drive 讀取失敗']
+]) {
+  const f = fixture(); f.driveResponses.set('approved:media', [{status,body:{error:{message:detail,errors:[{reason}]}}}]);
+  const result = f.context.syncNotion_(job(f)), message = result.failedStudents[0]?.message || '';
+  check(result.filesSynced === 0 && f.driveCalls.length === 2 && f.sleeps.length === 0 && f.sends() === 0, status + ' does not trigger authentication retry or Notion upload');
+  check(message.includes('PNG 下載') && message.includes('HTTP ' + status) && (expected instanceof RegExp ? expected.test(message) : message.includes(expected)), 'non-401 has accurate stage-specific guidance');
+}
+{
+  const f = fixture(), payload = job(f); f.context.syncNotion_(payload);
+  const before = JSON.stringify(f.work('1510101')), sends = f.sends();
+  f.driveResponses.set('approved:media', [unauthorized, unauthorized]);
+  file(f, 'other'); payload.students.push(job(f, {id:'1510102',url:'https://drive.google.com/file/d/other/view'}).students[0]);
+  const result = f.context.syncNotion_(payload);
+  check(result.filesSynced === 1 && result.failedStudents.length === 1 && result.failedStudents[0].studentId === '1510101', 'persistent auth failure is isolated; next student still synchronizes');
+  check(JSON.stringify(f.work('1510101')) === before && f.sends() === sends + 1, 'existing card/image is preserved when source download fails');
+}
+{
+  const f = fixture(); f.driveResponses.set('approved:metadata', [{status:200,body:'<html>not JSON</html>'}]);
+  const result = f.context.syncNotion_(job(f));
+  check(result.filesSynced === 0 && /檔案資訊讀取.*JSON/.test(result.failedStudents[0].message) && f.sends() === 0, 'malformed metadata is not reported as PNG format/auth problem');
 }
 const root = path.resolve(__dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'shared/google-classroom-appsscript.json'), 'utf8'));

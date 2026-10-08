@@ -317,23 +317,42 @@ function readNotionWorkImage_(job, student) {
   const fileId = pathId ? pathId[1] : queryId ? queryId[1] : '';
   if (!fileId) throw new Error('採認附件不是可讀取的 Google Drive／Google 繪圖連結，請回作業檢核確認採認檔案。');
   const root = DRIVE_API_ROOT + 'files/' + encodeURIComponent(fileId);
-  const request = { method: 'get', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true, followRedirects: false };
-  const fetch = function(endpoint) {
-    const response = UrlFetchApp.fetch(endpoint, request);
-    const status = response.getResponseCode();
-    if (status === 401 || status === 403) throw new Error('無法讀取採認圖片（HTTP ' + status + '）。請確認教師可下載此檔案，並以新版 appsscript.json 重新執行 authorizeClassroom，允許 Drive 檔案內容唯讀權限。');
-    if (status === 404) throw new Error('採認圖片不存在或教師無法存取，請確認 Classroom 原始附件及採認紀錄。');
-    if (status < 200 || status >= 300) throw new Error('讀取採認圖片失敗（HTTP ' + status + '），原作品卡保留，請稍後重試。');
-    return response;
+  const fetch = function(endpoint, stage) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // Acquire separately for metadata, content and the single 401 retry.
+      // Never replay a Notion write or forward this token to a redirect target.
+      const response = UrlFetchApp.fetch(endpoint, {
+        method: 'get', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true, followRedirects: false
+      });
+      const status = response.getResponseCode();
+      if (status >= 200 && status < 300) return response;
+      if (status === 401 && attempt === 0) { Utilities.sleep(300); continue; }
+      let googleError = {};
+      try { googleError = JSON.parse(response.getContentText()).error || {}; } catch (_) {}
+      const detail = String(googleError.message || '').replace(/[\u0000-\u001f]/g, ' ').slice(0, 120);
+      const reason = String((googleError.errors && googleError.errors[0] && googleError.errors[0].reason) || googleError.status || '').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 60);
+      const scopesMissing = reason === 'insufficientPermissions' || /insufficient authentication scopes/i.test(detail);
+      const guidance = status === 401 ? '已重新取得憑證重試 1 次，Google 仍拒絕驗證；請確認部署執行帳號與 Drive 唯讀授權。'
+        : status === 403 ? (scopesMissing ? 'Drive 授權範圍不足；請確認 appsscript.json 包含 drive.readonly，並以部署帳號執行 authorizeClassroom。' : 'Google 拒絕存取；請確認部署執行帳號的檔案下載權限或管理員限制。')
+        : status === 404 ? '採認圖片不存在或執行帳號無法存取，請確認 Classroom 原始附件及採認紀錄。'
+        : 'Google Drive 讀取失敗，原作品卡保留，請稍後重試。';
+      const error = new Error('無法讀取採認圖片：' + stage + '（HTTP ' + status + '）。' + guidance + (detail ? ' Google 原因：' + detail : '') + (reason ? ' [' + reason + ']' : ''));
+      error.httpStatus = status; error.stage = stage; error.reason = reason;
+      throw error;
+    }
   };
-  const metadata = JSON.parse(fetch(root + '?fields=id,mimeType,size,trashed,capabilities(canDownload)&supportsAllDrives=true').getContentText());
+  const metadataResponse = fetch(root + '?fields=id,mimeType,size,trashed,capabilities(canDownload)&supportsAllDrives=true', '檔案資訊讀取');
+  let metadata;
+  try { metadata = JSON.parse(metadataResponse.getContentText()); }
+  catch (_) { throw new Error('無法讀取採認圖片：檔案資訊讀取未取得有效 JSON 回應，原作品卡保留，請稍後重試。'); }
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) throw new Error('無法讀取採認圖片：檔案資訊讀取的回應格式不正確，原作品卡保留。');
   if (metadata.trashed || !metadata.capabilities || metadata.capabilities.canDownload !== true) throw new Error('教師無法下載此採認圖片，請確認檔案未刪除且允許下載。');
   const drawing = metadata.mimeType === 'application/vnd.google-apps.drawing';
   if (!drawing && metadata.mimeType !== 'image/png') throw new Error('運算思維圖片同步目前支援 PNG 與 Google 繪圖；此採認附件不是上述格式。');
   const limit = 10 * 1024 * 1024;
   if (Number(metadata.size) > limit) throw new Error('採認圖片超過 10 MB，請縮小圖片後重新採認。');
   const endpoint = drawing ? root + '/export?mimeType=image%2Fpng' : root + '?alt=media&supportsAllDrives=true';
-  const bytes = fetch(endpoint).getBlob().getBytes();
+  const bytes = fetch(endpoint, drawing ? 'Google 繪圖轉檔' : 'PNG 下載').getBlob().getBytes();
   if (bytes.length > limit) throw new Error('採認圖片超過 10 MB，請縮小圖片後重新採認。');
   if (bytes.length < 32 || ![137,80,78,71,13,10,26,10].every(function(byte, i) { return (bytes[i] & 255) === byte; })) throw new Error('採認附件未取得有效 PNG，未將錯誤頁面匯入 Notion，請確認檔案內容。');
   const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes).map(function(byte) { return ('0' + (byte & 255).toString(16)).slice(-2); }).join('');
