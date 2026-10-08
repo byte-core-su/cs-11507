@@ -586,23 +586,53 @@
       const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
       if (!endpoint) setLiveClassroomNote('Classroom 連線尚未設定，暫時無法讀取作業附件。', true);
     }
-    function classroomRequest(action, parameters = {}) {
+    async function classroomRequest(action, parameters = {}, onRetry = null) {
       const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
-      if (!endpoint) return Promise.reject(new Error('請先設定 Apps Script Web App 網址。'));
-      return new Promise((resolve, reject) => {
+      if (!endpoint) throw new Error('Classroom 連線網址尚未設定或格式不正確。');
+      const stage = { courses: '讀取課程', assignments: '讀取作業', submissions: '讀取學生作業附件', 'notion-status': '確認 Notion 連線' }[action];
+      if (!stage) throw new Error('不支援的 Classroom 讀取操作。');
+      const attemptRequest = () => new Promise((resolve, reject) => {
         const callback = `classroomCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const url = new URL(endpoint);
         url.searchParams.set('action', action);
         url.searchParams.set('callback', callback);
         Object.entries(parameters).forEach(([key, value]) => url.searchParams.set(key, value));
         const script = document.createElement('script');
-        const cleanup = () => { clearTimeout(timer); script.remove(); delete window[callback]; };
-        const timer = setTimeout(() => { cleanup(); reject(new Error('Classroom 回應逾時，請確認部署網址與 Google 授權。')); }, 15000);
-        window[callback] = payload => { cleanup(); if (payload?.status === 'success') return resolve(payload); const message = payload?.message === 'Classroom is not defined' ? 'Classroom 服務仍在使用舊版部署，請重新部署本專案更新後的 Apps Script。' : (payload?.message || 'Classroom 讀取失敗。'); reject(new Error(message)); };
-        script.onerror = () => { cleanup(); reject(new Error('無法載入 Classroom 服務，請確認 Web App /exec 網址。')); };
+        let settled = false;
+        const cleanup = late => {
+          clearTimeout(timer); script.onerror = null; script.remove();
+          if (late) {
+            // Ignore a timed-out JSONP response without touching the new attempt.
+            const ignore = () => {}; window[callback] = ignore;
+            setTimeout(() => { if (window[callback] === ignore) delete window[callback]; }, 60000);
+          } else delete window[callback];
+        };
+        const transportFailure = (kind, late = false) => {
+          if (settled) return; settled = true; cleanup(late);
+          const error = new Error(kind); error.retryable = true; reject(error);
+        };
+        const timer = setTimeout(() => transportFailure('回應逾時', true), 15000);
+        window[callback] = payload => {
+          if (settled) return; settled = true; cleanup(false);
+          if (payload?.status === 'success') return resolve(payload);
+          const message = payload?.message === 'Classroom is not defined' ? 'Classroom 服務仍在使用舊版部署，請更新 Apps Script 並新增部署版本。' : (payload?.message || 'Classroom 回應格式不正確。');
+          // API/auth errors have already reached the backend; do not repeat the
+          // whole request (and multiply the backend's single 401 retry).
+          reject(new Error(payload?.stage ? message : `${stage}：${message}`));
+        };
+        script.onerror = () => transportFailure('服務暫時無法載入');
         script.src = url.toString();
         document.head.appendChild(script);
       });
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try { return await attemptRequest(); }
+        catch (error) {
+          if (!error.retryable) throw error;
+          if (attempt === 2) throw new Error(`${stage}：${error.message}，自動重試 2 次後仍未成功。請稍後再試；若持續發生，再確認 Google 登入狀態與 Web App 部署。`);
+          if (onRetry) onRetry(`${stage}：暫時無法連線，正在自動重試（${attempt + 1} / 2）…`);
+          await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)));
+        }
+      }
     }
     function submissionState(row) {
       const labels = { TURNED_IN: '已繳交', RETURNED: '已發還', RECLAIMED_BY_STUDENT: '學生收回', CREATED: '未繳交', NEW: '未繳交' };
@@ -655,12 +685,14 @@
       const matcher = new RegExp(`(^|[^0-9])${String(classRoom).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![0-9])`);
       return courses.find(course => matcher.test(`${course.name || ''} ${course.section || ''}`)) || null;
     }
-    async function autoSelectLiveClassroomCourse() {
-      if (!classroomCourses.length) return;
+    async function autoSelectLiveClassroomCourse(forceReload = false) {
+      if (!classroomCourses.length) return false;
       const course = classroomCourseForClass(activeLiveClass);
       if (!course) { liveClassroomCourse = null; liveClassroomAssignments = []; liveAssignmentWork = null; liveSubmissions = new Map(); ++liveEvidenceVersion; liveEvidenceLoading = false; resetLiveEvidenceStatus(); closeModal(); renderLiveClassroomAssignments(); renderLiveDashboard(); renderMissionDashboard(); $('live-classroom-course-label').textContent = `${activeLiveClass} 班找不到對應課程`; setLiveClassroomNote(`找不到名稱含「${activeLiveClass}」的 Classroom 課程。`, true); return; }
       $('live-classroom-course-label').textContent = `${course.name}${course.section ? `｜${course.section}` : ''}`;
-      if (liveClassroomCourse?.id !== course.id) await selectLiveClassroomCourse(course.id);
+      // Explicit reload must recover a failed assignment read for the same course.
+      if (forceReload || liveClassroomCourse?.id !== course.id) return await selectLiveClassroomCourse(course.id);
+      return true;
     }
     function renderLiveClassroomAssignments() {
       const options = liveClassroomAssignments.length ? `<option value="">選擇作業</option>${liveClassroomAssignments.map(work => `<option value="${escapeHtml(work.id)}">${escapeHtml(work.title)}</option>`).join('')}` : '<option value="">這門課沒有作業</option>';
@@ -668,7 +700,13 @@
     }
     async function loadLiveClassroomCourses() {
       $('live-classroom-load').disabled = true; setLiveClassroomNote('正在讀取 Classroom 課程…');
-      try { classroomCourses = (await classroomRequest('courses')).courses || []; renderLiveClassroomCourses(); await autoSelectLiveClassroomCourse(); if (liveClassroomCourse) setLiveClassroomNote(`已依 ${activeLiveClass} 班自動選取「${liveClassroomCourse.name}」。請指定本節課作業。`); }
+      try {
+        classroomCourses = (await classroomRequest('courses', {}, message => setLiveClassroomNote(message))).courses || [];
+        renderLiveClassroomCourses();
+        if (!classroomCourses.length) { await selectLiveClassroomCourse(''); setLiveClassroomNote('目前沒有可讀取的有效課程。'); return; }
+        const selected = await autoSelectLiveClassroomCourse(true);
+        if (selected && liveClassroomCourse) setLiveClassroomNote(`已依 ${activeLiveClass} 班自動選取「${liveClassroomCourse.name}」。請指定本節課作業。`);
+      }
       catch (error) { setLiveClassroomNote(error.message, true); }
       finally { $('live-classroom-load').disabled = false; }
     }
@@ -680,11 +718,19 @@
       const course = liveClassroomCourse, classRoom = activeLiveClass;
       renderMissionDashboard();
       setLiveClassroomNote('正在讀取這門課的作業…');
+      $('live-assignment-work').innerHTML = '<option value="">正在讀取作業…</option>';
       try {
-        const response = await classroomRequest('assignments', { courseId });
+        const response = await classroomRequest('assignments', { courseId }, message => { if (liveClassroomCourse === course && activeLiveClass === classRoom) setLiveClassroomNote(message); });
         if (liveClassroomCourse !== course || activeLiveClass !== classRoom) return;
         liveClassroomAssignments = response.assignments || []; renderLiveClassroomAssignments(); setLiveClassroomNote(`已讀取 ${liveClassroomAssignments.length} 份作業。請指定本節課要檢核的作業。`);
-      } catch (error) { if (liveClassroomCourse === course && activeLiveClass === classRoom) setLiveClassroomNote(error.message, true); }
+        return true;
+      } catch (error) {
+        if (liveClassroomCourse === course && activeLiveClass === classRoom) {
+          setLiveClassroomNote(error.message, true);
+          $('live-assignment-work').innerHTML = '<option value="">作業讀取失敗，請重新讀取對應課程</option>';
+        }
+        return false;
+      }
     }
     function selectLiveAssignment(workId) {
       liveAssignmentWork = liveClassroomAssignments.find(item => item.id === workId) || null;
@@ -753,7 +799,7 @@
       $('live-evidence-refresh').disabled = true; renderLiveEvidenceStatus();
       if (!silent) setLiveClassroomNote('正在讀取這份作業的附件…');
       try {
-        const response = await classroomRequest('submissions', { courseId: course.id, courseWorkId: work.id });
+        const response = await classroomRequest('submissions', { courseId: course.id, courseWorkId: work.id }, message => { if (current()) setLiveClassroomNote(message); });
         if (!current()) return;
         const submissions = response.submissions || [];
         liveSubmissions = new Map(submissions.map(item => [item.studentId, item]));

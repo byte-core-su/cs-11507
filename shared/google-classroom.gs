@@ -36,7 +36,7 @@ function doGet(event) {
     if (action === 'notion-status') return respond_(event, { status: 'success', notion: notionStatus_() });
     throw new Error('不支援的操作。');
   } catch (error) {
-    return respond_(event, { status: 'error', message: error.message || 'Classroom 服務發生錯誤。' });
+    return respond_(event, { status: 'error', message: error.message || 'Classroom 服務發生錯誤。', httpStatus: error.httpStatus, stage: error.stage, reason: error.reason });
   }
 }
 
@@ -588,18 +588,29 @@ function classroomGet_(path, parameters) {
   }).map(function(key) {
     return encodeURIComponent(key) + '=' + encodeURIComponent(parameters[key]);
   }).join('&');
-  const response = UrlFetchApp.fetch(CLASSROOM_API_ROOT + path + (query ? '?' + query : ''), {
-    method: 'get',
-    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-    muteHttpExceptions: true
-  });
-  const body = response.getContentText();
-  let payload = {};
-  try { payload = body ? JSON.parse(body) : {}; } catch (_) { payload = {}; }
-  if (response.getResponseCode() >= 300) {
-    throw new Error((payload.error && payload.error.message) || 'Classroom API 讀取失敗（HTTP ' + response.getResponseCode() + '）。');
+  const stage = path.indexOf('studentSubmissions') !== -1 ? '讀取學生作業附件'
+    : /\/students(?:\/|$)/.test(path) ? '讀取課程學生名冊'
+    : path.indexOf('courseWork') !== -1 ? '讀取作業' : '讀取課程';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // Reacquire for each attempt. Do not invalidate the teacher's authorization.
+    const response = UrlFetchApp.fetch(CLASSROOM_API_ROOT + path + (query ? '?' + query : ''), {
+      method: 'get', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true
+    });
+    const status = response.getResponseCode();
+    let payload = null;
+    try { payload = JSON.parse(response.getContentText() || '{}'); } catch (_) {}
+    if (status >= 200 && status < 300 && payload && typeof payload === 'object' && !Array.isArray(payload)) return payload;
+    if (status === 401 && attempt === 0) { Utilities.sleep(300); continue; }
+    const googleError = payload && payload.error || {};
+    const detail = String(googleError.message || '').replace(/[\u0000-\u001f]/g, ' ').slice(0, 400);
+    const reason = String((googleError.errors && googleError.errors[0] && googleError.errors[0].reason) || googleError.status || '').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 80);
+    const guidance = status === 401 ? '已重新取得憑證重試，Google 仍拒絕驗證。請確認教師登入帳號及部署授權。'
+      : status === 403 ? 'Google 拒絕存取，請確認該課程權限或授權範圍。'
+      : status >= 200 && status < 300 ? 'Google 回應格式不正確，請稍後重試。' : 'Google API 讀取失敗。';
+    const error = new Error(stage + '（HTTP ' + status + '）：' + guidance + (detail ? ' Google 原因：' + detail : '') + (reason ? ' [' + reason + ']' : ''));
+    error.httpStatus = status; error.stage = stage; error.reason = reason;
+    throw error;
   }
-  return payload;
 }
 
 function authorizeDriveMetadata_() {
