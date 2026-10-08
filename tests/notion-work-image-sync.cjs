@@ -43,6 +43,7 @@ for (const term of ['115-1', '115-2']) for (let unit = 1; unit <= 8; unit++) {
   check(result.filesSynced === 1 && !result.failedStudents.length && page.cover && image.image.type === 'file_upload'
     && page.properties['作品附件'].files.length === 1 && f.sends() === sends, 'matching index still repairs cover, file and body without unnecessary upload');
   f.driveFiles.get('drawing').bytes.push(0);
+  payload.forceRefreshImages = true;
   result = f.context.syncNotion_(payload);
   check(result.filesSynced === 1 && page.cover.file_upload.id !== uploadId && f.live(page).filter(block => f.context.isNotionWorkImageBlock_(block)).length === 1,
     'changed drawing gets refreshed without duplicate image');
@@ -79,6 +80,7 @@ for (const term of ['115-1', '115-2']) for (let unit = 1; unit <= 8; unit++) {
   check(f.live(page).some(block => block.bulleted_list_item?.rich_text?.[0]?.text?.link?.url?.endsWith('replacement')),
     'original link refreshes even when generated image precedes link');
   f.uploads.get(page.cover.file_upload.id).status = 'expired';
+  payload.forceRefreshImages = true;
   const sends = f.sends(); result = f.context.syncNotion_(payload);
   check(result.filesSynced === 1 && !result.failedStudents.length && f.sends() === sends + 1, 'expired upload automatically replaced');
   f.fail.add('verify:1510101'); result = f.context.syncNotion_(payload);
@@ -188,6 +190,7 @@ for (const [status, reason, detail, expected] of [
 {
   const f = fixture(), payload = job(f); f.context.syncNotion_(payload);
   const before = JSON.stringify(f.work('1510101')), sends = f.sends();
+  payload.forceRefreshImages = true;
   f.driveResponses.set('approved:media', [unauthorized, unauthorized]);
   file(f, 'other'); payload.students.push(job(f, {id:'1510102',url:'https://drive.google.com/file/d/other/view'}).students[0]);
   const result = f.context.syncNotion_(payload);
@@ -203,5 +206,5 @@ const root = path.resolve(__dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'shared/google-classroom-appsscript.json'), 'utf8'));
 check(manifest.oauthScopes.includes('https://www.googleapis.com/auth/drive.readonly') && !manifest.oauthScopes.includes('https://www.googleapis.com/auth/drive'), 'Drive content access is read-only, no write scope');
 const teacher = fs.readFileSync(path.join(root, 'shared/teacher.html'), 'utf8');
-check(teacher.includes("syncVersion === 'learning-archive-v5'") && teacher.includes("syncVersion !== 'learning-archive-v5'"), 'teacher UI requires new image-capable deployment');
+check(teacher.includes("syncVersion === 'learning-archive-v6'") && teacher.includes("syncVersion !== 'learning-archive-v6'"), 'teacher UI requires new snapshot-capable deployment');
 console.log(`PASS ${checks} offline approved work-image checks; no network calls or live data changes.`);

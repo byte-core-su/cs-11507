@@ -228,7 +228,7 @@ for (const category of ['flowchart', 'thinking', 'programming']) {
 // Blank card -> later pass, preserving teacher notes and one stable card.
 {
   const f = fixture();
-  check(f.context.notionStatus_().syncVersion === 'learning-archive-v5', 'new deployment marker');
+  check(f.context.notionStatus_().syncVersion === 'learning-archive-v6', 'new deployment marker');
   f.run([f.student('1510101', false)]);
   const page = f.work('1510101'), id = page.id;
   check(f.live(page).filter(f.placeholder).length === 1, 'initial blank card has one placeholder');

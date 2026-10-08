@@ -114,6 +114,7 @@
             <div class="mt-4 flex flex-wrap items-center gap-3"><button id="notion-sync-button" class="rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:bg-slate-400" disabled>同步指定任務到 Notion</button><span class="text-xs leading-5 text-violet-800">系統通關證書＋教師採認作品；尚未完成或未核可者保留空白卡。同一學生與任務更新原卡，不會重複建立。</span></div>
           </div>
           <div class="mt-4 flex flex-wrap items-center gap-3"><button id="notion-sync-all" disabled class="rounded-xl bg-blue-700 px-5 py-2.5 font-bold text-white hover:bg-blue-800 disabled:bg-slate-400">同步本班全部 32 項</button><button id="notion-sync-stop" class="hidden rounded-xl border border-slate-300 px-5 py-2.5 font-bold text-slate-600">完成本批後停止</button><p class="text-xs text-slate-500">首次全班同步需較長時間，請保持此頁開啟。證書 PNG 直接上傳至 Notion，不建立公開圖片網址。</p></div>
+          <label class="mt-4 flex items-start gap-2 text-sm text-slate-600"><input id="notion-refresh-images" type="checkbox" class="mt-1 accent-violet-600"><span>更新已封存的運算思維原圖（重新下載）<span class="block text-xs text-slate-500">平常不勾選：保留既有圖片、補齊缺圖。學生修改原圖後，勾選此項才會刷新。</span></span></label>
           <div id="notion-sync-results" class="mt-3 text-sm text-slate-700" aria-live="polite"></div>
         </section>
       </section>
@@ -178,6 +179,7 @@
     const revisionReasons = ['內容不完整', '上傳錯誤或單元不符', '圖片不清楚', '影片無法播放', '其他'];
     let notionServiceStatus = { configured: false }, activeNotionClass = classes[0];
     let notionSyncing = false, notionStopRequested = false;
+    let notionManualBusy = false, notionFailures = [];
     const notionSelectedTasks = new Map();
     const notionDataReady = { roster: false, progress: false };
 
@@ -867,7 +869,7 @@
       if (!$('notion-source-body')) return;
       const tasks = notionTasks();
       const rows = notionClassRows();
-      const busy = notionSyncing, dataReady = notionDataReady.roster && notionDataReady.progress;
+      const busy = notionSyncing || notionManualBusy, dataReady = notionDataReady.roster && notionDataReady.progress;
       $('notion-class-label').textContent = `${activeNotionClass} 班`;
       $('notion-summary').textContent = dataReady ? `${activeNotionClass} 班｜${rows.length} 位學生｜四類 32 項` : '等待名冊與學習紀錄完整載入…';
       $('notion-note').textContent = '分類與單元沿用作業檢核；直接讀取本學期通關／採認紀錄，不需另設 Classroom 作業對照。學號結尾 00 的測試帳號不計入人數、不匯出或同步。';
@@ -881,17 +883,21 @@
       $('notion-sync-task').innerHTML = tasks.map(task => `<option value="${escapeHtml(task.key)}">${escapeHtml(`${notionCategoryLabel(task.category)}｜${task.title}｜${task.system ? '系統通關紀錄' : '作業檢核採認紀錄'}`)}</option>`).join('');
       const selectedTask = notionSelectedTasks.get(notionClassKey());
       if (tasks.some(task => task.key === selectedTask)) $('notion-sync-task').value = selectedTask;
-      const serviceReady = Boolean(notionServiceStatus.configured && notionServiceStatus.syncVersion === 'learning-archive-v5');
+      const serviceReady = Boolean(notionServiceStatus.configured && notionServiceStatus.syncVersion === 'learning-archive-v6');
       $('notion-sync-button').disabled = !serviceReady || busy || !dataReady;
       $('notion-sync-all').disabled = !serviceReady || busy || !dataReady;
       $('notion-sync-stop').classList.toggle('hidden', !notionSyncing);
       $('notion-sync-task').disabled = busy;
+      $('notion-refresh-images').disabled = !serviceReady || busy;
+      $('notion-sync-results').querySelectorAll('button, input').forEach(control => { control.disabled = busy || !serviceReady || !dataReady; });
       $('notion-class-buttons').querySelectorAll('button').forEach(button => { button.disabled = busy; });
-      $('notion-sync-note').textContent = serviceReady ? 'Notion 連線已完成。運算思維採認圖片會上傳為附件、正文與封面，原始連結保留。「可同步人數」不是圖片成功數；同步後會讀回確認，缺圖可再次同步補齊。' : (notionServiceStatus.configured ? 'Notion 連線已設定；請更新 google-classroom.gs 與 appsscript.json，重新授權 Drive 檔案內容唯讀權限並新增部署版本，以啟用運算思維圖片同步。CSV 匯出仍可使用。' : '尚未完成 Apps Script 的 Notion 連線設定；CSV 匯出仍可使用。');
+      $('notion-sync-note').textContent = serviceReady ? 'Notion 封存模式已啟用：採認未變且圖片完整時，不重讀 Google 原檔。缺圖優先使用既有上傳補回；401 失敗自動補試最多兩輪，仍失敗可由教師手動補傳 PNG。原始採認連結保留。' : (notionServiceStatus.configured ? '請更新 google-classroom.gs 並新增 Web App 部署版本，以啟用 v6 封存與手動補圖；沿用既有 Drive 唯讀授權，不需為此新增權限。CSV 匯出仍可使用。' : '尚未完成 Apps Script 的 Notion 連線設定；CSV 匯出仍可使用。');
     }
     function selectNotionClass(classRoom) {
-      if (!classes.includes(classRoom) || notionSyncing || classRoom === activeNotionClass) return;
+      if (!classes.includes(classRoom) || notionSyncing || notionManualBusy || classRoom === activeNotionClass) return;
       activeNotionClass = classRoom;
+      notionFailures = [];
+      $('notion-refresh-images').checked = false;
       $('notion-message').textContent = '';
       $('notion-sync-results').replaceChildren();
       classButtons('notion-class-buttons', 'notion'); renderNotionWorkspace();
@@ -959,43 +965,97 @@
       const hint = value.advancedStatus === 'SUCCESS' ? '同次執行可透過進階服務讀取帳號資訊，但直接 HTTP 讀取仍遭拒；這不代表原附件已確認可下載。' : '這是失敗當下的檢查結果，並非事後在編輯器另行測試；請連同原始錯誤一起提供。';
       return `<div class="mt-2 rounded-lg border border-amber-200 bg-white/80 p-3 text-xs leading-5"><p class="font-bold text-amber-950">同步當下診斷</p><dl>${rows.map(([label, text]) => `<div><dt class="inline font-bold">${escapeHtml(label)}：</dt><dd class="inline break-all">${escapeHtml(String(text))}</dd></div>`).join('')}</dl><p class="mt-2 text-slate-600">${escapeHtml(hint)}</p></div>`;
     }
+    function renderNotionFailures() {
+      $('notion-sync-results').innerHTML = notionFailures.length ? `<details class="rounded-xl border border-amber-200 bg-amber-50 p-4" open><summary class="cursor-pointer font-bold text-amber-900">${notionFailures.length} 筆尚未同步完成</summary><ul class="mt-2 list-disc space-y-3 pl-5">${notionFailures.map((item, index) => `<li>${escapeHtml(item.studentId)}・${escapeHtml(item.name)}｜${escapeHtml(item.taskTitle)}：${escapeHtml(item.message)}${notionAuthDiagnosticHtml(item.authDiagnostic)}${item.task?.category === 'thinking' && item.sourceStudent?.status === '已核定通關' && item.sourceStudent?.approvedAttachmentUrl ? `<div class="mt-2 rounded-lg border border-slate-200 bg-white p-3 text-xs"><p class="font-bold">教師手動補圖（只更新這位學生的原卡）</p><p class="mt-1">請下載已採認的原圖；Google 繪圖請另存 PNG。補圖不會改變平台通關紀錄。</p><a href="${escapeHtml(item.sourceStudent.approvedAttachmentUrl)}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block font-bold text-blue-700">開啟教師採認原檔 ↗</a><label class="mt-2 block">選擇 PNG（最多 10 MB）<input data-notion-file="${index}" type="file" accept="image/png,.png" class="mt-1 block max-w-full"></label><button data-notion-manual="${index}" class="mt-2 rounded-lg bg-violet-700 px-3 py-2 font-bold text-white">以此 PNG 補齊原卡</button></div>` : ''}</li>`).join('')}</ul></details>` : '';
+      const disabled = notionSyncing || notionManualBusy || !notionDataReady.roster || !notionDataReady.progress || notionServiceStatus.syncVersion !== 'learning-archive-v6';
+      $('notion-sync-results').querySelectorAll('button, input').forEach(control => { control.disabled = disabled; });
+    }
+    async function currentNotionFailureStudent(failure) {
+      const row = notionClassRows(failure.classRoom).find(item => item.profile.studentId === failure.studentId);
+      if (!row) throw new Error('目前名冊沒有這位學生，請重新同步確認。');
+      const student = (await notionStudentsForTask([row], failure.task))[0];
+      if (!student || student.status !== '已核定通關' || student.approvedAttachmentUrl !== failure.sourceStudent?.approvedAttachmentUrl || student.reviewedAt !== failure.sourceStudent?.reviewedAt) throw new Error('教師採認紀錄已變更或取消，請重新同步本任務，不使用舊紀錄補圖。');
+      return student;
+    }
+    async function manualNotionImage(index) {
+      if (notionSyncing || notionManualBusy || !notionDataReady.roster || !notionDataReady.progress || notionServiceStatus.syncVersion !== 'learning-archive-v6') return;
+      const failure = notionFailures[index];
+      if (!failure || failure.classRoom !== activeNotionClass || failure.task?.category !== 'thinking') return;
+      const file = $('notion-sync-results').querySelector(`[data-notion-file="${index}"]`)?.files?.[0];
+      if (!file) { $('notion-message').textContent = '請先選擇採認作品的 PNG 檔。'; return; }
+      if (!/\.png$/i.test(file.name) || file.size > 10 * 1024 * 1024 || file.size < 32) { $('notion-message').textContent = '請選擇 10 MB 以下的有效 PNG 檔。'; return; }
+      if (!confirm(`確認「${failure.studentId}・${failure.name}｜${failure.taskTitle}」的 ${file.name} 是教師採認作品的 PNG？將替換原卡圖片並標示「教師手動補圖」，保留原始採認連結。`)) return;
+      notionManualBusy = true; renderNotionWorkspace();
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (![137,80,78,71,13,10,26,10].every((byte,i) => bytes[i] === byte)) throw new Error('此檔案不是 PNG，未送出補圖。');
+        try { const bitmap = await createImageBitmap(file); bitmap.close(); }
+        catch (_) { throw new Error('PNG 圖片無法解碼，請重新下載採認圖片，未送出補圖。'); }
+        const base64 = await new Promise((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1] || ''); reader.onerror = () => reject(new Error('本機圖片讀取失敗。')); reader.readAsDataURL(file); });
+        const student = await currentNotionFailureStudent(failure);
+        student.manualImage = {base64, approvedAttachmentUrl:student.approvedAttachmentUrl, reviewedAt:student.reviewedAt};
+        $('notion-message').textContent = `正在補傳 ${failure.studentId} 的採認圖片…`;
+        const result = await postNotionSync({term,classRoom:failure.classRoom,task:failure.task,students:[student]});
+        if (result.status !== 'success' || result.failedStudents?.length || Number(result.filesSynced) !== 1) throw new Error(result.failedStudents?.[0]?.message || result.message || '手動補圖未確認完成。');
+        notionFailures.splice(index,1); renderNotionFailures();
+        $('notion-message').textContent = `${failure.studentId}・${failure.name} 手動補圖完成，已讀回確認原卡圖片；${notionFailures.length ? `尚有 ${notionFailures.length} 筆未完成。` : '本次失敗名單已全部補齊。'}`;
+      } catch (error) { $('notion-message').textContent = `手動補圖未完成：${error.message}。原卡保留，可再次補傳。`; }
+      finally { notionManualBusy = false; renderNotionWorkspace(); }
+    }
     async function syncNotionTask(syncAll = false) {
-      if (notionSyncing) return;
+      if (notionSyncing || notionManualBusy) return;
       if (!notionDataReady.roster || !notionDataReady.progress) { $('notion-message').textContent = '名冊與學習紀錄尚未完整載入，請稍候；若持續無法載入，請重新登入教師端。'; return; }
       if (!notionServiceStatus.configured) { $('notion-message').textContent = '請先完成 Apps Script 的 Notion 連線設定。'; return; }
-      if (notionServiceStatus.syncVersion !== 'learning-archive-v5') { $('notion-message').textContent = '請先更新 Apps Script 與 appsscript.json、重新授權 Drive 檔案內容唯讀權限並新增部署版本，再重新開啟教師頁面。'; return; }
+      if (notionServiceStatus.syncVersion !== 'learning-archive-v6') { $('notion-message').textContent = '請先更新 Apps Script 至 v6 封存模式並新增部署版本，再重新整理教師頁面；本次不需新增授權。'; return; }
       const classRoom = activeNotionClass;
       const tasks = syncAll ? notionTasks() : notionTasks().filter(item => item.key === $('notion-sync-task').value);
       if (!tasks.length) return;
       const rows = notionClassRows(classRoom);
       if (!rows.length) { $('notion-message').textContent = '本班沒有可同步的正式學生；學號結尾 00 的測試帳號已排除。'; return; }
+      const forceRefreshImages = $('notion-refresh-images').checked;
+      if (forceRefreshImages && !confirm('本次將重新下載所選範圍的運算思維採認原圖，更新已封存圖片（包含先前手動補圖）。確定繼續？')) return;
+      $('notion-refresh-images').checked = false;
       notionSyncing = true; notionStopRequested = false; renderNotionWorkspace();
       let completed = 0, processed = 0, workCreated = 0, workUpdated = 0, files = 0;
-      const failedStudents = [];
+      const failedStudents = notionFailures = [];
       $('notion-sync-results').replaceChildren();
-      const showFailures = () => {
-        $('notion-sync-results').innerHTML = failedStudents.length ? `<details class="rounded-xl border border-amber-200 bg-amber-50 p-4" open><summary class="cursor-pointer font-bold text-amber-900">${failedStudents.length} 筆尚未同步完成，請修正後重新同步原任務</summary><ul class="mt-2 list-disc space-y-1 pl-5">${failedStudents.map(item => `<li>${escapeHtml(item.studentId)}・${escapeHtml(item.name)}｜${escapeHtml(item.taskTitle)}：${escapeHtml(item.message)}${notionAuthDiagnosticHtml(item.authDiagnostic)}</li>`).join('')}</ul></details>` : '';
+      const applyResult = (result,batch,task) => {
+        if (result.status !== 'success') throw new Error(result.message || 'Notion 同步失敗。');
+        workCreated += Number(result.workCreated) || 0; workUpdated += Number(result.workUpdated) || 0; files += Number(result.filesSynced) || 0;
+        const ids = new Set(batch.map(student=>student.studentId));
+        for (let i=failedStudents.length-1;i>=0;i--) if (failedStudents[i].task.key===task.key && ids.has(failedStudents[i].studentId)) failedStudents.splice(i,1);
+        failedStudents.push(...(Array.isArray(result.failedStudents)?result.failedStudents:[]).map(item=>({...item,taskTitle:task.title,task:{key:task.key,category:task.category,unitId:task.unitId,title:task.title,assignmentTitle:task.system?'系統通關紀錄':'作業檢核採認紀錄'},classRoom,sourceStudent:batch.find(student=>student.studentId===item.studentId)})));
+        renderNotionFailures();
       };
       try {
         for (const task of tasks) {
           if (notionStopRequested) break;
-          let taskFailed = false;
           $('notion-message').textContent = `正在整理 ${classRoom} 班 ${task.title}（${processed + 1} / ${tasks.length} 項）…`;
           const students = await notionStudentsForTask(rows, task);
           for (let offset = 0; offset < students.length; offset += 4) {
             if (notionStopRequested) break;
             const batch = students.slice(offset, offset + 4);
             $('notion-message').textContent = `${classRoom} 班 ${task.title}｜第 ${processed + 1} / ${tasks.length} 項，學生 ${offset + 1}–${offset + batch.length} / ${students.length}；正在上傳／更新…`;
-            const result = await postNotionSync({ term, classRoom, task: { key: task.key, category: task.category, title: task.title, assignmentTitle: task.system ? '系統通關紀錄' : '作業檢核採認紀錄' }, students: batch });
-            if (result.status !== 'success') throw new Error(result.message || 'Notion 同步失敗。');
-            workCreated += Number(result.workCreated) || 0; workUpdated += Number(result.workUpdated) || 0;
-            files += Number(result.filesSynced) || 0;
-            const failures = Array.isArray(result.failedStudents) ? result.failedStudents : [];
-            if (failures.length) taskFailed = true;
-            failedStudents.push(...failures.map(item => ({ ...item, taskTitle: task.title })));
-            showFailures();
+            const result = await postNotionSync({ term, classRoom, forceRefreshImages, task: { key: task.key, category: task.category, title: task.title, assignmentTitle: task.system ? '系統通關紀錄' : '作業檢核採認紀錄' }, students: batch });
+            applyResult(result,batch,task);
           }
-          if (!notionStopRequested) { processed++; if (!taskFailed) completed++; }
+          for (let round=0;round<2 && !notionStopRequested;round++) {
+            const pending = failedStudents.filter(item=>item.task.key===task.key && item.task.category==='thinking' && item.httpStatus===401 && item.authDiagnostic?.version==='drive-auth-diagnostic-v1');
+            if (!pending.length) break;
+            $('notion-message').textContent = `${task.title}：正在等候自動補試 ${round+1} / 2（僅 ${pending.length} 位驗證失敗學生）…`;
+            await new Promise(resolve=>setTimeout(resolve,round===0?1500:4000));
+            for (let offset=0;offset<pending.length && !notionStopRequested;offset+=4) {
+              const batch=[];
+              for (const failure of pending.slice(offset,offset+4)) {
+                try { batch.push(await currentNotionFailureStudent(failure)); }
+                catch (error) { failure.httpStatus=0; failure.message=error.message; }
+              }
+              if (!batch.length) { renderNotionFailures(); continue; }
+              const result=await postNotionSync({term,classRoom,forceRefreshImages,task:{key:task.key,category:task.category,title:task.title},students:batch});
+              applyResult(result,batch,task);
+            }
+          }
+          if (!notionStopRequested) { processed++; if (!failedStudents.some(item=>item.task.key===task.key)) completed++; }
         }
         $('notion-message').textContent = `${classRoom} 班${notionStopRequested ? '已停止，已完成的批次保留' : failedStudents.length ? '部分同步未完成' : '同步完成'}：完成 ${completed} / ${tasks.length} 項，新增 ${workCreated} 張、更新 ${workUpdated} 張；已同步 ${files} 件證書／採認附件${failedStudents.length ? `，${failedStudents.length} 筆失敗（見下方名單）` : ''}。可再次同步補齊原卡，不會重複建卡。`;
       } catch (error) { console.error(error); $('notion-message').textContent = `已完成 ${completed} / ${tasks.length} 項；${error.message || 'Notion 同步失敗'}。已完成的批次保留，可重新同步。`; }
@@ -1238,6 +1298,7 @@
     $('export-notion-roster').addEventListener('click', exportNotionRoster);
     $('export-notion-progress').addEventListener('click', exportNotionProgress);
     $('notion-sync-button').addEventListener('click', () => syncNotionTask(false));
+    $('notion-sync-results').addEventListener('click', event => { const button=event.target.closest('button[data-notion-manual]'); if (button && !button.disabled) manualNotionImage(Number(button.dataset.notionManual)); });
     $('notion-sync-all').addEventListener('click', () => syncNotionTask(true));
     $('notion-sync-stop').addEventListener('click', () => { notionStopRequested = true; $('notion-message').textContent = '會在目前批次完成後停止；已同步資料保留。'; });
     $('notion-sync-task').addEventListener('change', event => { notionSelectedTasks.set(notionClassKey(), event.target.value); });

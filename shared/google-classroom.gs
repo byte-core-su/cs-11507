@@ -69,7 +69,7 @@ function postResult_(payload) {
 function notionStatus_() {
   const properties = PropertiesService.getScriptProperties();
   return {
-    syncVersion: 'learning-archive-v5',
+    syncVersion: 'learning-archive-v6',
     configured: Boolean(properties.getProperty('NOTION_API_TOKEN') && properties.getProperty('NOTION_STUDENTS_DATA_SOURCE_ID') && properties.getProperty('NOTION_WORKS_DATA_SOURCE_ID')),
     hasToken: Boolean(properties.getProperty('NOTION_API_TOKEN')),
     hasStudentsDataSource: Boolean(properties.getProperty('NOTION_STUDENTS_DATA_SOURCE_ID')),
@@ -135,10 +135,15 @@ function syncNotion_(payload) {
       const workKey = [job.term, job.classRoom, student.studentId, job.task.key].join(':');
       const workPage = knownWorks[workKey];
       if (job.task.category === 'thinking' && student.attachments.length) {
-        student.workImage = readNotionWorkImage_(job, student);
-        const index = notionRichTextValue_(workPage && workPage.properties && workPage.properties['作品圖片索引']).match(/^([a-f0-9]{64}):([a-f0-9-]{36})$/);
-        student.workImage.uploadId = index && index[1] === student.workImage.hash && reusableNotionUpload_(config, index[2])
-          ? index[2] : uploadNotionPng_(config, student.workImage);
+        student.workImage = !student.manualImage && !job.forceRefreshImages ? archivedNotionWorkImage_(config, job, student, workPage) : null;
+        if (!student.workImage) {
+          student.workImage = student.manualImage || readNotionWorkImage_(job, student);
+          const index = notionRichTextValue_(workPage && workPage.properties && workPage.properties['作品圖片索引']).match(/^([a-f0-9]{64}):([a-f0-9-]{36})$/);
+          student.workImage.uploadId = index && index[1] === student.workImage.hash && reusableNotionUpload_(config, index[2])
+            ? index[2] : uploadNotionPng_(config, student.workImage);
+          student.workImage.source = student.manualImage ? '教師手動補圖' : 'Google Drive';
+          student.workImage.archivedAt = new Date().toISOString();
+        }
       }
       if (job.task.system && student.certificate) {
         const previousBlocks = workPage ? notionBlockChildren_(config, workPage.id) : [];
@@ -149,12 +154,12 @@ function syncNotion_(payload) {
       }
       const workProperties = workNotionProperties_(job, student, studentPage.id, workKey);
       const image = student.certificate || student.workImage;
-      const cover = job.task.system || job.task.category === 'thinking' ? (image ? { type: 'file_upload', file_upload: { id: image.uploadId } } : null) : undefined;
+      const cover = student.workImage && student.workImage.retained ? undefined : job.task.system || job.task.category === 'thinking' ? (image ? { type: 'file_upload', file_upload: { id: image.uploadId } } : null) : undefined;
       if (workPage) {
         if (job.task.system) syncNotionCertificateBlocks_(config, workPage, student.certificate);
         else {
           syncNotionAttachmentBlocks_(config, workPage, student.attachments);
-          if (job.task.category === 'thinking') syncNotionWorkImageBlock_(config, workPage, student.workImage);
+          if (job.task.category === 'thinking' && !(student.workImage && student.workImage.retained)) syncNotionWorkImageBlock_(config, workPage, student.workImage);
         }
         notionCall_(config, 'patch', 'pages/' + encodeURIComponent(workPage.id), Object.assign({ properties: workProperties }, cover !== undefined ? { cover: cover } : {}));
         workUpdated += 1;
@@ -169,6 +174,7 @@ function syncNotion_(payload) {
     } catch (error) {
       // A single broken card must not prevent later students from being repaired.
       const failure = { studentId: student.studentId, name: student.name, message: safeNotionText_(error.message || 'Notion 同步失敗。', 240) };
+      if (Number.isInteger(error.httpStatus)) failure.httpStatus = error.httpStatus;
       // Keep diagnostics separate so the normal error limit cannot cut them off.
       if (error.authDiagnostic) failure.authDiagnostic = error.authDiagnostic;
       failedStudents.push(failure);
@@ -195,7 +201,8 @@ function validateNotionPayload_(payload) {
     if ('7' + studentId.slice(-4, -2) !== classRoom) throw new Error('同步學生不屬於所選班級。');
   });
   const eligibleStudents = students.filter(function(student) { return !String(student.studentId).endsWith('00'); });
-  return { term: term, classRoom: classRoom, task: { key: String(task.key), category: category, system: system, title: safeNotionText_(task.title, 180), assignmentTitle: safeNotionText_(task.assignmentTitle, 180) }, skippedTestAccounts: students.length - eligibleStudents.length, students: eligibleStudents.map(function(student) {
+  if (students.some(function(student) { return student.manualImage; }) && (category !== 'thinking' || students.length !== 1)) throw new Error('手動補圖僅限一位學生的運算思維採認作品。');
+  return { term: term, classRoom: classRoom, forceRefreshImages: value.forceRefreshImages === true, task: { key: String(task.key), category: category, system: system, title: safeNotionText_(task.title, 180), assignmentTitle: safeNotionText_(task.assignmentTitle, 180) }, skippedTestAccounts: students.length - eligibleStudents.length, students: eligibleStudents.map(function(student) {
     const studentId = String(student.studentId);
     if (system) {
       const completedAt = safeDate_(student.completedAt);
@@ -209,7 +216,8 @@ function validateNotionPayload_(payload) {
     // Only the authenticated teacher's explicitly selected, reviewed attachment
     // may enter Notion. Never fall back to all submitted files or the first file.
     const selected = status === '已核定通關' && student.reviewedBy === TEACHER_EMAIL && reviewedAt && approvedUrl ? candidates.find(function(item) { return item.url === approvedUrl; }) : null;
-    return { studentId: studentId, name: safeNotionText_(student.name, 120) || studentId, seatNo: Math.max(0, Number(student.seatNo) || 0), status: status === '已核定通關' && !selected ? '尚未核定' : status, completedAt: safeDate_(student.completedAt), reviewedAt: reviewedAt, assignmentTitle: safeNotionText_(student.assignmentTitle, 180), attachments: selected ? [selected] : [] };
+    if (student.manualImage && (!selected || safeHttpsUrl_(student.manualImage.approvedAttachmentUrl) !== approvedUrl || safeDate_(student.manualImage.reviewedAt) !== reviewedAt)) throw new Error('手動補圖與目前教師採認紀錄不一致，請重新同步此任務。');
+    return { studentId: studentId, name: safeNotionText_(student.name, 120) || studentId, seatNo: Math.max(0, Number(student.seatNo) || 0), status: status === '已核定通關' && !selected ? '尚未核定' : status, completedAt: safeDate_(student.completedAt), reviewedAt: reviewedAt, assignmentTitle: safeNotionText_(student.assignmentTitle, 180), attachments: selected ? [selected] : [], manualImage: student.manualImage ? validateManualNotionImage_(student.manualImage, term, studentId, String(task.key)) : null };
   }) };
 }
 
@@ -257,11 +265,11 @@ function ensureNotionSelectOptions_(config, dataSourceId, schema, required, labe
 
 function ensureNotionCertificateProperties_(config, schema) {
   const properties = {};
-  const expected = { '證書索引': 'rich_text', '作品圖片索引': 'rich_text', '通關得分': 'number', '正確率': 'number', '作答秒數': 'number' };
+  const expected = { '證書索引': 'rich_text', '作品圖片索引': 'rich_text', '圖片採認索引': 'rich_text', '圖片封存來源': 'rich_text', '圖片封存時間': 'date', '通關得分': 'number', '正確率': 'number', '作答秒數': 'number' };
   Object.keys(expected).forEach(function(name) {
     const existing = schema.properties && schema.properties[name];
     if (existing && existing.type !== expected[name]) throw new Error('Notion 欄位「' + name + '」類型應為 ' + expected[name] + '，請先調整。');
-    if (!existing) properties[name] = expected[name] === 'number' ? { number: { format: 'number' } } : { rich_text: {} };
+    if (!existing) properties[name] = expected[name] === 'number' ? { number: { format: 'number' } } : { [expected[name]]: {} };
   });
   if (Object.keys(properties).length) notionCall_(config, 'patch', 'data_sources/' + encodeURIComponent(config.worksDataSourceId), { properties: properties });
 }
@@ -282,7 +290,7 @@ function studentNotionProperties_(student, syncKey) {
 function workNotionProperties_(job, student, studentPageId, syncKey) {
   const firstUrl = student.attachments.length ? student.attachments[0].url : null;
   const image = student.certificate || student.workImage;
-  return {
+  const properties = {
     '名稱': notionTitle_([job.classRoom, String(student.seatNo).padStart(2, '0'), student.name, job.task.title].join('｜')),
     '學生': { relation: [{ id: studentPageId }] },
     '學期': { select: { name: job.term } }, '班級': { select: { name: job.classRoom } }, '座號': { number: student.seatNo }, '學號': notionText_(student.studentId),
@@ -290,9 +298,38 @@ function workNotionProperties_(job, student, studentPageId, syncKey) {
     '教師狀態': { select: { name: student.status } }, '作品上傳時間': notionDate_(student.completedAt), '教師核定時間': notionDate_(student.reviewedAt), '作品連結': { url: firstUrl },
     '作品附件': { files: image ? [{ name: image.filename, type: 'file_upload', file_upload: { id: image.uploadId } }] : student.attachments.map(function(item) { return { name: item.name, type: 'external', external: { url: item.url } }; }) }, '同步鍵': notionText_(syncKey),
     '作品圖片索引': notionText_(student.workImage ? student.workImage.hash + ':' + student.workImage.uploadId : ''),
+    '圖片採認索引': notionText_(student.workImage ? notionImageApprovalKey_(job, student) : ''),
+    '圖片封存來源': notionText_(student.workImage ? student.workImage.source : ''), '圖片封存時間': notionDate_(student.workImage ? student.workImage.archivedAt : null),
     '證書索引': notionText_(student.certificate ? student.certificate.hash + ':' + student.certificate.uploadId : ''),
     '通關得分': { number: student.certificate ? student.certificate.score : null }, '正確率': { number: student.certificate ? student.certificate.accuracy : null }, '作答秒數': { number: student.certificate ? student.certificate.durationSeconds : null }
   };
+  if (student.workImage && student.workImage.retained) delete properties['作品附件'];
+  return properties;
+}
+
+function notionImageApprovalKey_(job, student) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify([job.term, job.task.key, student.studentId, student.attachments[0].url, student.reviewedAt])).map(function(byte) { return ('0' + (byte & 255).toString(16)).slice(-2); }).join('');
+}
+function validateManualNotionImage_(value, term, studentId, taskKey) {
+  const base64 = String(value.base64 || ''), limit = 10 * 1024 * 1024;
+  if (!base64 || base64.length > Math.ceil(limit / 3) * 4 || base64.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) throw new Error('手動補圖必須為 10 MB 以下的 PNG。');
+  const bytes = Utilities.base64Decode(base64);
+  if (bytes.length > limit || bytes.length < 32 || ![137,80,78,71,13,10,26,10].every(function(byte, i) { return (bytes[i] & 255) === byte; })) throw new Error('手動補圖不是有效 PNG 或超過 10 MB。');
+  const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes).map(function(byte) { return ('0' + (byte & 255).toString(16)).slice(-2); }).join('');
+  return { filename: term + '-' + studentId + '-' + taskKey + '.png', bytes: bytes, hash: hash };
+}
+function archivedNotionWorkImage_(config, job, student, page) {
+  if (!page) return null;
+  const properties = page.properties || {}, index = notionRichTextValue_(properties['作品圖片索引']).match(/^([a-f0-9]{64}):([a-f0-9-]{36})$/);
+  if (!index || ((properties['教師狀態'] || {}).select || {}).name !== '已核定通關'
+    || (properties['作品連結'] || {}).url !== student.attachments[0].url
+    || safeDate_(((properties['教師核定時間'] || {}).date || {}).start) !== student.reviewedAt) return null;
+  const approvalKey = notionRichTextValue_(properties['圖片採認索引']);
+  if (approvalKey && approvalKey !== notionImageApprovalKey_(job, student)) return null;
+  const image = { hash: index[1], uploadId: index[2], filename: job.term + '-' + student.studentId + '-' + job.task.key + '.png',
+    source: notionRichTextValue_(properties['圖片封存來源']) || '既有圖片封存', archivedAt: safeDate_(((properties['圖片封存時間'] || {}).date || {}).start) || new Date().toISOString() };
+  if (notionWorkImageComplete_(config, page.id, Object.assign({}, student, { workImage: image }))) { image.retained = true; return image; }
+  return reusableNotionUpload_(config, index[2]) ? image : null;
 }
 
 function validateCertificateImage_(value, term, task, studentId, completedAt) {
@@ -420,19 +457,21 @@ function syncNotionWorkImageBlock_(config, page, image) {
   }
 }
 function verifyNotionWorkImage_(config, pageId, student) {
+  if (!notionWorkImageComplete_(config, pageId, student)) throw new Error('採認圖片尚未完整掛入 Notion（封面、作品附件或正文），請重新同步此任務補齊。');
+}
+function notionWorkImageComplete_(config, pageId, student) {
   const image = student.workImage;
   const page = notionCall_(config, 'get', 'pages/' + encodeURIComponent(pageId));
   const properties = page.properties || {};
   const files = (properties['作品附件'] || {}).files || [];
   const blocks = notionBlockChildren_(config, pageId);
-  if (page.in_trash || page.archived || !hasNotionCertificateFile_(page.cover, image.uploadId)
+  return !(page.in_trash || page.archived || !hasNotionCertificateFile_(page.cover, image.uploadId)
+    || blocks.filter(function(block) { return isNotionWorkImageBlock_(block, image.filename); }).length !== 1
     || !files.some(function(file) { return file.name === image.filename && hasNotionCertificateFile_(file, image.uploadId); })
     || !blocks.some(function(block) { return isNotionWorkImageBlock_(block, image.filename) && hasNotionCertificateFile_(block.image, image.uploadId); })
     || ((properties['教師狀態'] || {}).select || {}).name !== '已核定通關'
     || (properties['作品連結'] || {}).url !== student.attachments[0].url
-    || notionRichTextValue_(properties['作品圖片索引']) !== image.hash + ':' + image.uploadId) {
-    throw new Error('採認圖片尚未完整掛入 Notion（封面、作品附件或正文），請重新同步此任務補齊。');
-  }
+    || notionRichTextValue_(properties['作品圖片索引']) !== image.hash + ':' + image.uploadId);
 }
 
 function uploadNotionCertificate_(config, certificate) {
