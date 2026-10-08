@@ -13,6 +13,8 @@ let checks = 0;
 function check(condition, message) { assert(condition, message); checks++; }
 function fixture() {
   const pages = new Map(), uploads = new Map(), calls = [], fail = new Set();
+  const driveFiles = new Map([['approved', { mimeType:'image/png', size:Buffer.from(png, 'base64').length,
+    capabilities:{ canDownload:true }, bytes:[...Buffer.from(png, 'base64')] }]]), driveCalls = [];
   const schemas = new Map(['students', 'works'].map(id => [id, { properties: Object.fromEntries(
     Object.entries(id === 'students' ? { '姓名':'title','學號':'rich_text','班級':'select','座號':'number','同步鍵':'rich_text' }
       : { '名稱':'title','學生':'relation','學期':'select','班級':'select','座號':'number','學號':'rich_text','類別':'select','任務鍵':'rich_text','任務名稱':'rich_text','Classroom 作業':'rich_text','教師狀態':'select','作品上傳時間':'date','教師核定時間':'date','作品連結':'url','作品附件':'files','同步鍵':'rich_text' })
@@ -33,8 +35,19 @@ function fixture() {
     base64Decode: value => [...Buffer.from(value, 'base64')],
     computeDigest: (_, bytes) => [...crypto.createHash('sha256').update(Buffer.from(bytes)).digest()],
     DigestAlgorithm: { SHA_256: 'sha256' }, newBlob: () => ({}), sleep() {}
-  }, PropertiesService: { getScriptProperties: () => ({ getProperty: () => 'mock' }) },
-  UrlFetchApp: { fetch: () => { sends++; return { getResponseCode: () => 200, getContentText: () => '{"status":"uploaded"}' }; } } });
+  }, PropertiesService: { getScriptProperties: () => ({ getProperty: () => 'mock' }) }, ScriptApp:{ getOAuthToken:() => 'mock-google-token' },
+  UrlFetchApp: { fetch: (url, request) => {
+    const match = url.match(/^https:\/\/www\.googleapis\.com\/drive\/v3\/files\/([^/?]+)/);
+    if (match) {
+      driveCalls.push({ url, request });
+      const file = driveFiles.get(match[1]);
+      const status = file?.httpStatus || (file ? 200 : 404);
+      return { getResponseCode:() => status, getContentText:() => JSON.stringify(file || {}), getBlob:() => ({ getBytes:() => file.bytes }) };
+    }
+    assert(url.startsWith('https://api.notion.com/v1/file_uploads/'), 'no arbitrary network calls');
+    sends++;
+    return { getResponseCode:() => fail.has('upload-send') ? 400 : 200, getContentText:() => fail.has('upload-send') ? '{"message":"mock upload failed"}' : '{"status":"uploaded"}' };
+  } } });
   vm.runInContext(source, context);
   context.notionConfig_ = () => ({ token: 'mock', studentsDataSourceId: 'students', worksDataSourceId: 'works' });
   const validateSelects = (dataSource, properties) => {
@@ -132,7 +145,7 @@ function fixture() {
   const work = id => [...pages.values()].find(page => page.parent === 'works' && text(page.properties['學號']) === id);
   const live = page => page.blocks.filter(block => !block.in_trash);
   const placeholder = block => block.type === 'paragraph' && context.notionBlockText_(block).startsWith('尚無本學期通關紀錄');
-  return { context, pages, schemas, uploads, calls, fail, student, payload, run, work, live, placeholder, sends: () => sends, rt, text, nextId };
+  return { context, pages, schemas, uploads, calls, fail, driveFiles, driveCalls, student, payload, run, work, live, placeholder, sends: () => sends, rt, text, nextId };
 }
 
 // Missing select choices must be created before filters/pages use them, without deleting old choices.
@@ -197,7 +210,7 @@ for (const category of ['flowchart', 'thinking', 'programming']) {
   else {
     student.status = '已核定通關'; student.certificate = null;
     student.reviewedAt = student.completedAt; student.reviewedBy = 'jimwang@mail.qfm.kh.edu.tw';
-    student.approvedAttachmentUrl = 'https://example.invalid/approved';
+    student.approvedAttachmentUrl = category === 'thinking' ? 'https://drive.google.com/file/d/approved/view' : 'https://example.invalid/approved';
     student.attachments = [{ url:student.approvedAttachmentUrl, name:'教師採認附件' }];
   }
   const result = f.context.syncNotion_(job);
@@ -212,7 +225,7 @@ for (const category of ['flowchart', 'thinking', 'programming']) {
 // Blank card -> later pass, preserving teacher notes and one stable card.
 {
   const f = fixture();
-  check(f.context.notionStatus_().syncVersion === 'learning-archive-v4', 'new deployment marker');
+  check(f.context.notionStatus_().syncVersion === 'learning-archive-v5', 'new deployment marker');
   f.run([f.student('1510101', false)]);
   const page = f.work('1510101'), id = page.id;
   check(f.live(page).filter(f.placeholder).length === 1, 'initial blank card has one placeholder');
@@ -324,3 +337,4 @@ for (const state of ['expired', 'missing', 'pending', 'failed', 'trash', 'past-e
   check(!f.context.hasNotionCertificateFile_({ type:'file', file:{ url:'https://example.invalid/old.png', expiry_time:'2000-01-01T00:00:00Z' } }, 'any'), 'expired signed URL does not verify');
 }
 console.log(`PASS ${checks} offline Notion certificate repair checks; no network calls or live data changes.`);
+module.exports = { fixture, png, clone };

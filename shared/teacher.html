@@ -829,19 +829,19 @@
         const available = rows.filter(row => task.system ? notionSystemCertificate(row, task) : notionApprovedAttachment(row, task)).length;
         const categoryClass = { info: 'bg-blue-50 text-blue-700', flowchart: 'bg-amber-50 text-amber-700', thinking: 'bg-emerald-50 text-emerald-700', programming: 'bg-fuchsia-50 text-fuchsia-700' }[task.category];
         const needsReview = task.system ? 0 : rows.filter(row => teacherTaskRecord(row, task)?.status === 'approved' && !notionApprovedAttachment(row, task)).length;
-        const source = task.system ? '本學期通關紀錄 → 證書 PNG' : '作業檢核 → 教師採認附件';
+        const source = task.system ? '本學期通關紀錄 → 證書 PNG' : (task.category === 'thinking' ? '教師採認 PNG／Google 繪圖 → Notion 圖片與封面' : '作業檢核 → 教師採認影片連結');
         return `<tr class="border-t border-slate-100"><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${categoryClass}">${notionCategoryLabel(task.category)}</span></td><td class="p-3 font-mono text-slate-500">${escapeHtml(task.key)}</td><td class="p-3 font-bold">${escapeHtml(task.title)}</td><td class="p-3"><p class="text-slate-600">${source}</p><p class="mt-1 font-bold text-blue-700">可同步 ${available} / ${rows.length} 人</p>${needsReview ? `<p class="mt-1 text-xs text-amber-700">${needsReview} 人缺少完整採認資訊，請回作業檢核重新採認。</p>` : ''}</td></tr>`;
       }).join('');
       $('notion-sync-task').innerHTML = tasks.map(task => `<option value="${escapeHtml(task.key)}">${escapeHtml(`${notionCategoryLabel(task.category)}｜${task.title}｜${task.system ? '系統通關紀錄' : '作業檢核採認紀錄'}`)}</option>`).join('');
       const selectedTask = notionSelectedTasks.get(notionClassKey());
       if (tasks.some(task => task.key === selectedTask)) $('notion-sync-task').value = selectedTask;
-      const serviceReady = Boolean(notionServiceStatus.configured && notionServiceStatus.syncVersion === 'learning-archive-v4');
+      const serviceReady = Boolean(notionServiceStatus.configured && notionServiceStatus.syncVersion === 'learning-archive-v5');
       $('notion-sync-button').disabled = !serviceReady || busy || !dataReady;
       $('notion-sync-all').disabled = !serviceReady || busy || !dataReady;
       $('notion-sync-stop').classList.toggle('hidden', !notionSyncing);
       $('notion-sync-task').disabled = busy;
       $('notion-class-buttons').querySelectorAll('button').forEach(button => { button.disabled = busy; });
-      $('notion-sync-note').textContent = serviceReady ? 'Notion 連線已完成。「可同步人數」是平台來源紀錄，不是圖片成功數；同步後會確認證書封面、附件與正文，缺圖可再次同步補齊。' : (notionServiceStatus.configured ? 'Notion 連線已設定；請將最新版 google-classroom.gs 貼回 Apps Script 並重新部署，以啟用證書補圖與同步結果確認。CSV 匯出仍可使用。' : '尚未完成 Apps Script 的 Notion 連線設定；CSV 匯出仍可使用。');
+      $('notion-sync-note').textContent = serviceReady ? 'Notion 連線已完成。運算思維採認圖片會上傳為附件、正文與封面，原始連結保留。「可同步人數」不是圖片成功數；同步後會讀回確認，缺圖可再次同步補齊。' : (notionServiceStatus.configured ? 'Notion 連線已設定；請更新 google-classroom.gs 與 appsscript.json，重新授權 Drive 檔案內容唯讀權限並新增部署版本，以啟用運算思維圖片同步。CSV 匯出仍可使用。' : '尚未完成 Apps Script 的 Notion 連線設定；CSV 匯出仍可使用。');
     }
     function selectNotionClass(classRoom) {
       if (!classes.includes(classRoom) || notionSyncing || classRoom === activeNotionClass) return;
@@ -905,7 +905,7 @@
       if (notionSyncing) return;
       if (!notionDataReady.roster || !notionDataReady.progress) { $('notion-message').textContent = '名冊與學習紀錄尚未完整載入，請稍候；若持續無法載入，請重新登入教師端。'; return; }
       if (!notionServiceStatus.configured) { $('notion-message').textContent = '請先完成 Apps Script 的 Notion 連線設定。'; return; }
-      if (notionServiceStatus.syncVersion !== 'learning-archive-v4') { $('notion-message').textContent = '請先更新並重新部署 Apps Script，再重新開啟教師頁面。'; return; }
+      if (notionServiceStatus.syncVersion !== 'learning-archive-v5') { $('notion-message').textContent = '請先更新 Apps Script 與 appsscript.json、重新授權 Drive 檔案內容唯讀權限並新增部署版本，再重新開啟教師頁面。'; return; }
       const classRoom = activeNotionClass;
       const tasks = syncAll ? notionTasks() : notionTasks().filter(item => item.key === $('notion-sync-task').value);
       if (!tasks.length) return;
