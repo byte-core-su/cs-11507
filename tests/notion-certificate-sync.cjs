@@ -8,6 +8,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'shared/google-classroom.gs'), 'utf8');
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jP3cAAAAASUVORK5CYII=';
+const mp4 = Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.from([0,0,0,0]),Buffer.from('isommp42'),Buffer.from([0,0,0,16]),Buffer.from('mdat'),Buffer.alloc(8)]);
 const clone = value => JSON.parse(JSON.stringify(value));
 let checks = 0;
 function check(condition, message) { assert(condition, message); checks++; }
@@ -28,7 +29,7 @@ function fixture() {
   const normalize = properties => Object.fromEntries(Object.entries(properties).map(([key, value]) => [key,
     value.rich_text ? { ...value, rich_text: value.rich_text.map(item => ({ ...item, plain_text: item.text?.content || item.plain_text || '' })) } : clone(value)]));
   const blocks = input => input.map(block => {
-    if (block.type === 'image') assert.equal(block.image.type, 'file_upload', 'image creation keeps its file_upload type');
+    if (block.type === 'image' || block.type === 'video') assert.equal(block[block.type].type, 'file_upload', 'media creation keeps its file_upload type');
     return { ...clone(block), id: nextId() };
   });
   const context = vm.createContext({ console, Utilities: {
@@ -128,12 +129,13 @@ function fixture() {
         const block = page.blocks.find(item => item.id === parts[1]);
         if (block) {
           // Notion's update schema differs from its image creation schema.
-          if (data.image && Object.hasOwn(data.image, 'type')) {
+          if (data.image && Object.hasOwn(data.image, 'type') || data.video && Object.hasOwn(data.video, 'type')) {
             const error = Error('body failed validation: body.image.type should be not present, instead was `"file_upload"`.');
             error.httpStatus = 400; throw error;
           }
           Object.assign(block, clone(data));
           if (data.image?.file_upload) block.image.type = 'file_upload'; // Response schema includes type.
+          if (data.video?.file_upload) block.video.type = 'file_upload';
           return clone(block);
         }
       }
@@ -213,8 +215,9 @@ for (const category of ['flowchart', 'thinking', 'programming']) {
   else {
     student.status = '已核定通關'; student.certificate = null;
     student.reviewedAt = student.completedAt; student.reviewedBy = 'jimwang@mail.qfm.kh.edu.tw';
-    student.approvedAttachmentUrl = category === 'thinking' ? 'https://drive.google.com/file/d/approved/view' : 'https://example.invalid/approved';
+    student.approvedAttachmentUrl = 'https://drive.google.com/file/d/approved/view';
     student.attachments = [{ url:student.approvedAttachmentUrl, name:'教師採認附件' }];
+    if (category==='programming') { const file=f.driveFiles.get('approved');file.mimeType='video/mp4';file.bytes=[...mp4];file.size=mp4.length;student.videoCover={base64:png}; }
   }
   const result = f.context.syncNotion_(job);
   check(result.filesSynced === 1 && !result.failedStudents.length, category + ' category and completion status options prepared');
@@ -228,7 +231,7 @@ for (const category of ['flowchart', 'thinking', 'programming']) {
 // Blank card -> later pass, preserving teacher notes and one stable card.
 {
   const f = fixture();
-  check(f.context.notionStatus_().syncVersion === 'learning-archive-v6', 'new deployment marker');
+  check(f.context.notionStatus_().syncVersion === 'learning-archive-v7', 'new deployment marker');
   f.run([f.student('1510101', false)]);
   const page = f.work('1510101'), id = page.id;
   check(f.live(page).filter(f.placeholder).length === 1, 'initial blank card has one placeholder');
@@ -340,4 +343,4 @@ for (const state of ['expired', 'missing', 'pending', 'failed', 'trash', 'past-e
   check(!f.context.hasNotionCertificateFile_({ type:'file', file:{ url:'https://example.invalid/old.png', expiry_time:'2000-01-01T00:00:00Z' } }, 'any'), 'expired signed URL does not verify');
 }
 console.log(`PASS ${checks} offline Notion certificate repair checks; no network calls or live data changes.`);
-module.exports = { fixture, png, clone };
+module.exports = { fixture, png, mp4, clone };

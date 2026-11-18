@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { fixture, png, clone } = require('./notion-certificate-sync.cjs');
+const { fixture, png, mp4, clone } = require('./notion-certificate-sync.cjs');
 let checks = 0;
 function check(value, message) { assert(value, message); checks++; }
 function job(f, { term = '115-1', unit = 1, id = '1510101', url = 'https://drive.google.com/file/d/approved/view' } = {}) {
@@ -145,10 +145,12 @@ for (const url of ['https://evil.invalid/d/approved', 'https://drive.google.com.
 }
 {
   const f = fixture(), payload = job(f); payload.task = { ...payload.task, key:'programming-1', category:'programming' };
+  Object.assign(f.driveFiles.get('approved'),{mimeType:'video/mp4',bytes:[...mp4],size:mp4.length});payload.students[0].videoCover={base64:png};
   const result = f.context.syncNotion_(payload);
-  check(result.filesSynced === 1 && !result.failedStudents.length && f.driveCalls.length === 0 && f.work('1510101').cover === null, 'programming remains link-only, no image conversion');
+  check(result.filesSynced === 1 && !result.failedStudents.length && f.driveCalls.length === 2 && f.work('1510101').cover && f.live(f.work('1510101')).some(block=>block.type==='video'), 'programming uploads video and cover without image conversion');
+  const reads=f.driveCalls.length;
   const skipped = f.context.syncNotion_(job(f, { id:'1510100' }));
-  check(skipped.skippedTestAccounts === 1 && skipped.filesSynced === 0 && f.driveCalls.length === 0, '00 test account never downloads/uploads images');
+  check(skipped.skippedTestAccounts === 1 && skipped.filesSynced === 0 && f.driveCalls.length === reads, '00 test account never downloads/uploads images');
 }
 // Credential failures must be retried at the failing Drive GET, not by replaying sync.
 const unauthorized = { status:401, body:{ error:{ message:'Invalid Credentials', errors:[{reason:'authError'}] } } };
@@ -206,5 +208,5 @@ const root = path.resolve(__dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'shared/google-classroom-appsscript.json'), 'utf8'));
 check(manifest.oauthScopes.includes('https://www.googleapis.com/auth/drive.readonly') && !manifest.oauthScopes.includes('https://www.googleapis.com/auth/drive'), 'Drive content access is read-only, no write scope');
 const teacher = fs.readFileSync(path.join(root, 'shared/teacher.html'), 'utf8');
-check(teacher.includes("syncVersion === 'learning-archive-v6'") && teacher.includes("syncVersion !== 'learning-archive-v6'"), 'teacher UI requires new snapshot-capable deployment');
+check(teacher.includes("syncVersion === 'learning-archive-v7'") && teacher.includes("syncVersion !== 'learning-archive-v7'"), 'teacher UI requires new video-capable deployment');
 console.log(`PASS ${checks} offline approved work-image checks; no network calls or live data changes.`);

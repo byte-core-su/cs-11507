@@ -11,10 +11,12 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
   <script src="site-shell.js" defer></script>
   <script src="learning-certificates.js"></script>
+  <script src="teacher-data.js"></script>
   <style>
     body.mission-projecting { overflow: hidden; }
     body.mission-projecting #dashboard-view > header,
-    body.mission-projecting #dashboard-view > nav { display: none; }
+    body.mission-projecting #dashboard-view > nav,
+    body.mission-projecting #teacher-read-controls { display: none; }
     body.mission-projecting #mission-tab {
       position: fixed; inset: 0; z-index: 40; overflow: auto; padding: 18px;
       background: #f1f5f9; width: 100%; height: 100dvh;
@@ -56,6 +58,12 @@
         <div><p data-term-label class="text-xs font-black tracking-[.2em] text-indigo-600">115-2 · 下學期</p><h1 class="mt-1 text-2xl font-black">資訊科技學習平台｜教師管理</h1><p class="mt-1 text-sm text-slate-500">以學生學號為唯一識別；班級、座號由學號自動判讀。</p></div>
         <button id="logout-button" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold hover:bg-slate-50">登出</button>
       </header>
+
+      <section id="teacher-read-controls" class="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm" aria-label="資料讀取控制">
+        <p id="teacher-data-status" class="min-w-0 flex-1 font-bold text-blue-900" role="status" aria-live="polite">尚未開始讀取資料。</p>
+        <label class="flex items-center gap-2 text-xs font-bold text-slate-600"><input id="teacher-lesson-mode" type="checkbox" class="accent-blue-700">上課／投影持續更新（最長 45 分鐘）</label>
+        <button id="teacher-data-resume" class="rounded-xl bg-blue-700 px-4 py-2 font-bold text-white">恢復／重新讀取目前班級</button>
+      </section>
 
       <nav class="mb-6 flex gap-2 rounded-2xl bg-white p-2 shadow-sm" aria-label="教師功能">
         <button data-tab="mission" class="tab-button flex-1 rounded-xl bg-violet-600 px-4 py-3 font-bold text-white">任務儀表板</button>
@@ -114,7 +122,7 @@
             <div class="mt-4 flex flex-wrap items-center gap-3"><button id="notion-sync-button" class="rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:bg-slate-400" disabled>同步指定任務到 Notion</button><span class="text-xs leading-5 text-violet-800">系統通關證書＋教師採認作品；尚未完成或未核可者保留空白卡。同一學生與任務更新原卡，不會重複建立。</span></div>
           </div>
           <div class="mt-4 flex flex-wrap items-center gap-3"><button id="notion-sync-all" disabled class="rounded-xl bg-blue-700 px-5 py-2.5 font-bold text-white hover:bg-blue-800 disabled:bg-slate-400">同步本班全部 32 項</button><button id="notion-sync-stop" class="hidden rounded-xl border border-slate-300 px-5 py-2.5 font-bold text-slate-600">完成本批後停止</button><p class="text-xs text-slate-500">首次全班同步需較長時間，請保持此頁開啟。證書 PNG 直接上傳至 Notion，不建立公開圖片網址。</p></div>
-          <label class="mt-4 flex items-start gap-2 text-sm text-slate-600"><input id="notion-refresh-images" type="checkbox" class="mt-1 accent-violet-600"><span>更新已封存的運算思維原圖（重新下載）<span class="block text-xs text-slate-500">平常不勾選：保留既有圖片、補齊缺圖。學生修改原圖後，勾選此項才會刷新。</span></span></label>
+          <label class="mt-4 flex items-start gap-2 text-sm text-slate-600"><input id="notion-refresh-images" type="checkbox" class="mt-1 accent-violet-600"><span>更新已封存的採認圖片／影片（重新下載）<span class="block text-xs text-slate-500">平常不勾選：保留既有作品、補齊缺圖或播放器。學生修改原檔後，勾選此項才會刷新。</span></span></label>
           <div id="notion-sync-results" class="mt-3 text-sm text-slate-700" aria-live="polite"></div>
         </section>
       </section>
@@ -164,9 +172,12 @@
     const formatAttendanceTime = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '—'; };
     const deriveFromStudentId = value => { const studentId = String(value || '').trim(); if (!/^15[12]\d{4}$/.test(studentId)) return null; const suffix = studentId.slice(-4); const classRoom = `7${suffix.slice(0, 2)}`; if (!classes.includes(classRoom)) return null; return { studentId, classRoom, seatNo: String(Number(suffix.slice(2))), gender: studentId[2] === '1' ? '男' : '女' }; };
     const studentEmail = studentId => `${studentId}@${window.SCHOOL_APP.studentEmailDomain}`;
-    let app, auth, db, unsubscribeRoster, unsubscribeProgress, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
-    const questionAttemptListeners = new Map(), questionSourceErrors = { roster: '', progress: '' };
-    let questionAttemptClass = '';
+    let app, auth, db, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
+    const questionAttemptResults = new Map();
+    let questionState = 'idle', questionError = '', questionGeneration = 0, questionLoadedAt = 0;
+    let activeTeacherTab = 'mission', teacherData = null, teacherDataState = {phase:'paused',reason:'尚未開始'};
+    let teacherIdleTimer = null, teacherLessonUntil = 0, teacherLastActivity = Date.now();
+    const teacherIdleMs = 5 * 60 * 1000, teacherLessonMs = 45 * 60 * 1000;
     let activeProgressClass = classes[0], activeRosterClass = classes[0], activeLiveClass = classes[0], activeQuestionClass = classes[0], selectedAttendanceDate = taipeiDateKey(), selectedWeeklyStudentId = '';
     let selectedStampUnit = stampUnits[0][0], selectedFlowchartUnit = flowchartUnits[0][0];
     let classroomEndpoint = String(classroomConfig.endpoint || '').trim(), classroomCourses = [], classroomAssignments = [], selectedClassroomCourse = null, selectedClassroomAssignment = null;
@@ -239,7 +250,7 @@
     }
     function openModal(kicker, title, meta, content) { if (kicker !== '作業檢核') liveReviewSession = null; $('modal-kicker').textContent = kicker; $('modal-title').textContent = title; $('modal-meta').textContent = meta; $('modal-content').innerHTML = content; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); }
     function closeModal() { if (liveReviewBusy) return; $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; liveReviewSession = null; }
-    function refreshAll() { syncQuestionAttempts(); renderRoster(); renderProgress(); renderLiveDashboard(); renderMissionDashboard(); renderQuestionAnalytics(); renderNotionWorkspace(); }
+    function refreshAll() { renderRoster(); renderProgress(); renderLiveDashboard(); renderMissionDashboard(); renderQuestionAnalytics(); renderNotionWorkspace(); renderTeacherDataState(); }
     function certificateForUnit(row, chapterKey) {
       const source = row.data.terms?.[term]?.certificates || row.data.certificates || {};
       const entries = Array.isArray(source) ? source : Object.entries(source).map(([id, value]) => ({ id, ...(value || {}) }));
@@ -475,6 +486,7 @@
       updateLiveReviewControls();
     }
     function manageLiveStudent(studentId, queue = null, position = 0, feedback = '') {
+      if (!requireTeacherData()) return;
       if (liveReviewBusy) return;
       const row = liveClassRows().find(item => item.profile.studentId === studentId); if (!row) return;
       const reviewQueue = queue || liveVisibleRows().map(item => item.profile.studentId);
@@ -520,6 +532,7 @@
       document.querySelectorAll('[data-live-review]').forEach(button => button.addEventListener('click', () => saveLiveReview(row, button.dataset.liveReview, button.dataset.liveStatus)));
     }
     async function saveLiveReview(row, task, status) {
+      if (!requireTeacherData()) return;
       if (liveReviewBusy || !['thinking', 'programming'].includes(task) || !['approved', 'revision'].includes(status)) return;
       const session = liveReviewSession;
       if (!session || session.studentId !== row.profile.studentId || session.rowId !== row.id) return;
@@ -787,6 +800,7 @@
       $('live-evidence-auto').checked = enabled;
       liveEvidenceNextRead = enabled && liveClassroomCourse && liveAssignmentWork ? Date.now() + 60000 : 0;
       if (enabled) liveEvidenceAutoTimer = setInterval(() => {
+        if (!teacherDataUsable() || !['mission','live'].includes(activeTeacherTab)) return;
         if (liveEvidenceNextRead && Date.now() >= liveEvidenceNextRead && !liveEvidenceLoading) refreshLiveEvidence({ silent: true });
         renderLiveEvidenceStatus();
       }, 1000);
@@ -877,13 +891,13 @@
         const available = rows.filter(row => task.system ? notionSystemCertificate(row, task) : notionApprovedAttachment(row, task)).length;
         const categoryClass = { info: 'bg-blue-50 text-blue-700', flowchart: 'bg-amber-50 text-amber-700', thinking: 'bg-emerald-50 text-emerald-700', programming: 'bg-fuchsia-50 text-fuchsia-700' }[task.category];
         const needsReview = task.system ? 0 : rows.filter(row => teacherTaskRecord(row, task)?.status === 'approved' && !notionApprovedAttachment(row, task)).length;
-        const source = task.system ? '本學期通關紀錄 → 證書 PNG' : (task.category === 'thinking' ? '教師採認 PNG／Google 繪圖 → Notion 圖片與封面' : '作業檢核 → 教師採認影片連結');
+        const source = task.system ? '本學期通關紀錄 → 證書 PNG' : (task.category === 'thinking' ? '教師採認 PNG／Google 繪圖 → Notion 圖片與封面' : '教師採認 MP4（20 MB 以下）→ Notion 播放器與封面');
         return `<tr class="border-t border-slate-100"><td class="p-3"><span class="rounded-full px-2 py-1 text-xs font-bold ${categoryClass}">${notionCategoryLabel(task.category)}</span></td><td class="p-3 font-mono text-slate-500">${escapeHtml(task.key)}</td><td class="p-3 font-bold">${escapeHtml(task.title)}</td><td class="p-3"><p class="text-slate-600">${source}</p><p class="mt-1 font-bold text-blue-700">可同步 ${available} / ${rows.length} 人</p>${needsReview ? `<p class="mt-1 text-xs text-amber-700">${needsReview} 人缺少完整採認資訊，請回作業檢核重新採認。</p>` : ''}</td></tr>`;
       }).join('');
       $('notion-sync-task').innerHTML = tasks.map(task => `<option value="${escapeHtml(task.key)}">${escapeHtml(`${notionCategoryLabel(task.category)}｜${task.title}｜${task.system ? '系統通關紀錄' : '作業檢核採認紀錄'}`)}</option>`).join('');
       const selectedTask = notionSelectedTasks.get(notionClassKey());
       if (tasks.some(task => task.key === selectedTask)) $('notion-sync-task').value = selectedTask;
-      const serviceReady = Boolean(notionServiceStatus.configured && notionServiceStatus.syncVersion === 'learning-archive-v6');
+      const serviceReady = Boolean(notionServiceStatus.configured && notionServiceStatus.syncVersion === 'learning-archive-v7');
       $('notion-sync-button').disabled = !serviceReady || busy || !dataReady;
       $('notion-sync-all').disabled = !serviceReady || busy || !dataReady;
       $('notion-sync-stop').classList.toggle('hidden', !notionSyncing);
@@ -891,7 +905,7 @@
       $('notion-refresh-images').disabled = !serviceReady || busy;
       $('notion-sync-results').querySelectorAll('button, input').forEach(control => { control.disabled = busy || !serviceReady || !dataReady; });
       $('notion-class-buttons').querySelectorAll('button').forEach(button => { button.disabled = busy; });
-      $('notion-sync-note').textContent = serviceReady ? 'Notion 封存模式已啟用：採認未變且圖片完整時，不重讀 Google 原檔。缺圖優先使用既有上傳補回；401 失敗自動補試最多兩輪，仍失敗可由教師手動補傳 PNG。原始採認連結保留。' : (notionServiceStatus.configured ? '請更新 google-classroom.gs 並新增 Web App 部署版本，以啟用 v6 封存與手動補圖；沿用既有 Drive 唯讀授權，不需為此新增權限。CSV 匯出仍可使用。' : '尚未完成 Apps Script 的 Notion 連線設定；CSV 匯出仍可使用。');
+      $('notion-sync-note').textContent = serviceReady ? 'Notion 封存模式已啟用：圖片及 20 MB 以下的 MP4 實際上傳至 Notion；作品頁直接播放，不需開 Google Drive。採認未變且作品完整時不重下載。影片逐位處理；Google 401 最多補試兩輪，仍失敗可手動補 PNG／MP4。' : (notionServiceStatus.configured ? '請更新 google-classroom.gs 並新增 Web App 部署版本，以啟用 v7 圖片與影片封存；沿用既有 Drive 唯讀授權，不需新增權限。CSV 匯出仍可使用。' : '尚未完成 Apps Script 的 Notion 連線設定；CSV 匯出仍可使用。');
     }
     function selectNotionClass(classRoom) {
       if (!classes.includes(classRoom) || notionSyncing || notionManualBusy || classRoom === activeNotionClass) return;
@@ -900,7 +914,7 @@
       $('notion-refresh-images').checked = false;
       $('notion-message').textContent = '';
       $('notion-sync-results').replaceChildren();
-      classButtons('notion-class-buttons', 'notion'); renderNotionWorkspace();
+      classButtons('notion-class-buttons', 'notion'); if (activeTeacherTab === 'notion') subscribeData(); renderNotionWorkspace();
     }
     function csvCell(value) { const text = String(value ?? ''); return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; }
     function downloadCsv(filename, headers, rows) {
@@ -919,11 +933,13 @@
     }
     function notionAssignmentTitle(record) { const attachment = record?.attachment; return attachment?.assignmentTitle || (attachment?.courseWorkId ? `作業 ID：${attachment.courseWorkId}` : ''); }
     function exportNotionRoster() {
+      if (!requireTeacherData()) return;
       const rows = notionClassRows();
       downloadCsv(`${term}-${activeNotionClass}-Notion學生名冊.csv`, ['班級', '座號', '學號', '姓名'], rows.map(row => [row.profile.classRoom, row.profile.seatNo, row.profile.studentId, row.profile.name || '']));
       $('notion-message').textContent = `已下載 ${rows.length} 位學生的名冊 CSV。`;
     }
     function exportNotionProgress() {
+      if (!requireTeacherData()) return;
       const rows = notionClassRows();
       const tasks = notionTasks(); const output = rows.flatMap(row => tasks.map(task => {
         const record = task.system ? notionSystemCertificate(row, task) : teacherTaskRecord(row, task);
@@ -939,6 +955,32 @@
     }
     const isoValue = value => { const date = value?.toDate?.() || (value ? new Date(value) : null); return date && !Number.isNaN(date.getTime()) ? date.toISOString() : ''; };
     function notionStatusFor(record, hasApprovedAttachment) { return hasApprovedAttachment ? '已核定通關' : (record?.status === 'revision' ? '需要補件' : '尚未核定'); }
+    function notionVideoPoster(profile,task) {
+      const canvas=document.createElement('canvas'); canvas.width=800; canvas.height=450;
+      const ctx=canvas.getContext('2d'); if (!ctx) throw new Error('此瀏覽器無法產生影片封面。');
+      const gradient=ctx.createLinearGradient(0,0,800,450); gradient.addColorStop(0,'#eff6ff'); gradient.addColorStop(1,'#f5f3ff');
+      ctx.fillStyle=gradient;ctx.fillRect(0,0,800,450);ctx.textAlign='center';ctx.font='bold 28px "Microsoft JhengHei",sans-serif';ctx.fillStyle='#4338ca';ctx.fillText('程式設計 · 成果影片',400,65);
+      ctx.fillStyle='#4f46e5';ctx.beginPath();ctx.arc(400,175,54,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(386,149);ctx.lineTo(427,175);ctx.lineTo(386,201);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#1e293b';ctx.font='bold 28px "Microsoft JhengHei",sans-serif';ctx.fillText(task.title,400,283,730);
+      ctx.font='22px "Microsoft JhengHei",sans-serif';ctx.fillText(`${profile.classRoom} 班 ${profile.seatNo} 號 · ${profile.name || profile.studentId}`,400,333,730);
+      ctx.fillStyle='#64748b';ctx.font='18px "Microsoft JhengHei",sans-serif';ctx.fillText('開啟作品卡即可播放 · 提示封面，非影片截圖',400,404);
+      return {base64:canvas.toDataURL('image/png').split(',')[1]};
+    }
+    function notionFileBase64(file) {
+      return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');reader.onerror=()=>reject(new Error('本機檔案讀取失敗。'));reader.readAsDataURL(file);});
+    }
+    async function notionLocalVideo(file) {
+      const cover=await new Promise((resolve,reject)=>{
+        const video=document.createElement('video'),url=URL.createObjectURL(file);let settled=false;
+        const done=(error,image)=>{if(settled)return;settled=true;clearTimeout(timer);video.onloadeddata=video.onseeked=video.onerror=null;video.removeAttribute('src');video.load();URL.revokeObjectURL(url);error?reject(error):resolve(image);};
+        const capture=()=>{try{if(!video.videoWidth||!video.videoHeight)throw new Error('影片沒有可讀取的畫面。');const canvas=document.createElement('canvas');canvas.width=Math.min(800,video.videoWidth);canvas.height=Math.round(canvas.width*video.videoHeight/video.videoWidth);if(canvas.height>1200){canvas.height=1200;canvas.width=Math.round(canvas.height*video.videoWidth/video.videoHeight);}canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);done(null,{base64:canvas.toDataURL('image/png').split(',')[1]});}catch(error){done(error);}};
+        const timer=setTimeout(()=>done(new Error('本機影片預覽逾時，請確認 MP4 可正常播放。')),20000);
+        video.muted=true;video.preload='auto';video.playsInline=true;
+        video.onerror=()=>done(new Error('此 MP4 無法在瀏覽器播放，請重新輸出為相容的 MP4（建議 H.264）。'));
+        video.onseeked=capture;video.onloadeddata=()=>{const position=Number.isFinite(video.duration)?Math.min(1,video.duration/2):0;if(position>0.01)video.currentTime=position;else capture();};video.src=url;video.load();
+      });
+      return {base64:await notionFileBase64(file),cover};
+    }
     async function notionStudentsForTask(rows, task) {
       rows = rows.filter(row => notionEligibleStudentId(row.profile.studentId));
       if (task.system) return Promise.all(rows.map(async row => {
@@ -950,7 +992,7 @@
         const record = teacherTaskRecord(row, task);
         const approvedAttachment = notionApprovedAttachment(row, task);
         const reviewedAt = isoValue(record?.reviewedAt);
-        return { studentId: row.profile.studentId, name: row.profile.name || '', seatNo: row.profile.seatNo, status: notionStatusFor(record, Boolean(approvedAttachment)), completedAt: isoValue(record?.completedAt) || approvedAttachment?.createdAt || '', reviewedAt, reviewedBy: record?.reviewedBy || '', assignmentTitle: notionAssignmentTitle(record), approvedAttachmentUrl: approvedAttachment?.url || '', attachments: approvedAttachment ? [approvedAttachment] : [] };
+        return { studentId: row.profile.studentId, name: row.profile.name || '', seatNo: row.profile.seatNo, status: notionStatusFor(record, Boolean(approvedAttachment)), completedAt: isoValue(record?.completedAt) || approvedAttachment?.createdAt || '', reviewedAt, reviewedBy: record?.reviewedBy || '', assignmentTitle: notionAssignmentTitle(record), approvedAttachmentUrl: approvedAttachment?.url || '', attachments: approvedAttachment ? [approvedAttachment] : [], videoCover: task.category==='programming' && approvedAttachment ? notionVideoPoster(row.profile,task) : undefined };
       });
     }
     function notionAuthDiagnosticHtml(value) {
@@ -965,12 +1007,18 @@
       const hint = value.advancedStatus === 'SUCCESS' ? '同次執行可透過進階服務讀取帳號資訊，但直接 HTTP 讀取仍遭拒；這不代表原附件已確認可下載。' : '這是失敗當下的檢查結果，並非事後在編輯器另行測試；請連同原始錯誤一起提供。';
       return `<div class="mt-2 rounded-lg border border-amber-200 bg-white/80 p-3 text-xs leading-5"><p class="font-bold text-amber-950">同步當下診斷</p><dl>${rows.map(([label, text]) => `<div><dt class="inline font-bold">${escapeHtml(label)}：</dt><dd class="inline break-all">${escapeHtml(String(text))}</dd></div>`).join('')}</dl><p class="mt-2 text-slate-600">${escapeHtml(hint)}</p></div>`;
     }
+    function notionManualRepairHtml(item,index) {
+      if (!['thinking','programming'].includes(item.task?.category)||item.sourceStudent?.status!=='已核定通關'||!item.sourceStudent?.approvedAttachmentUrl) return '';
+      const video=item.task.category==='programming',kind=video?'影片':'圖',format=video?'MP4':'PNG';
+      return `<div class="mt-2 rounded-lg border border-slate-200 bg-white p-3 text-xs"><p class="font-bold">教師手動補${kind}（只更新這位學生的原卡）</p><p class="mt-1">${video?'請下載已採認的 MP4；系統會擷取畫面作為封面。':'請下載已採認的原圖；Google 繪圖請另存 PNG。'}補傳不會改變平台通關紀錄。</p><a href="${escapeHtml(item.sourceStudent.approvedAttachmentUrl)}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block font-bold text-blue-700">開啟教師採認原檔 ↗</a><label class="mt-2 block">選擇 ${format}（最多 ${video?'20':'10'} MB）<input data-notion-file="${index}" type="file" accept="${video?'video/mp4,.mp4':'image/png,.png'}" class="mt-1 block max-w-full"></label><button data-notion-manual="${index}" class="mt-2 rounded-lg bg-violet-700 px-3 py-2 font-bold text-white">以此 ${format} 補齊原卡</button></div>`;
+    }
     function renderNotionFailures() {
-      $('notion-sync-results').innerHTML = notionFailures.length ? `<details class="rounded-xl border border-amber-200 bg-amber-50 p-4" open><summary class="cursor-pointer font-bold text-amber-900">${notionFailures.length} 筆尚未同步完成</summary><ul class="mt-2 list-disc space-y-3 pl-5">${notionFailures.map((item, index) => `<li>${escapeHtml(item.studentId)}・${escapeHtml(item.name)}｜${escapeHtml(item.taskTitle)}：${escapeHtml(item.message)}${notionAuthDiagnosticHtml(item.authDiagnostic)}${item.task?.category === 'thinking' && item.sourceStudent?.status === '已核定通關' && item.sourceStudent?.approvedAttachmentUrl ? `<div class="mt-2 rounded-lg border border-slate-200 bg-white p-3 text-xs"><p class="font-bold">教師手動補圖（只更新這位學生的原卡）</p><p class="mt-1">請下載已採認的原圖；Google 繪圖請另存 PNG。補圖不會改變平台通關紀錄。</p><a href="${escapeHtml(item.sourceStudent.approvedAttachmentUrl)}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block font-bold text-blue-700">開啟教師採認原檔 ↗</a><label class="mt-2 block">選擇 PNG（最多 10 MB）<input data-notion-file="${index}" type="file" accept="image/png,.png" class="mt-1 block max-w-full"></label><button data-notion-manual="${index}" class="mt-2 rounded-lg bg-violet-700 px-3 py-2 font-bold text-white">以此 PNG 補齊原卡</button></div>` : ''}</li>`).join('')}</ul></details>` : '';
-      const disabled = notionSyncing || notionManualBusy || !notionDataReady.roster || !notionDataReady.progress || notionServiceStatus.syncVersion !== 'learning-archive-v6';
+      $('notion-sync-results').innerHTML = notionFailures.length ? `<details class="rounded-xl border border-amber-200 bg-amber-50 p-4" open><summary class="cursor-pointer font-bold text-amber-900">${notionFailures.length} 筆尚未同步完成</summary><ul class="mt-2 list-disc space-y-3 pl-5">${notionFailures.map((item,index)=>`<li>${escapeHtml(item.studentId)}・${escapeHtml(item.name)}｜${escapeHtml(item.taskTitle)}：${escapeHtml(item.message)}${notionAuthDiagnosticHtml(item.authDiagnostic)}${notionManualRepairHtml(item,index)}</li>`).join('')}</ul></details>` : '';
+      const disabled = notionSyncing || notionManualBusy || !notionDataReady.roster || !notionDataReady.progress || notionServiceStatus.syncVersion !== 'learning-archive-v7';
       $('notion-sync-results').querySelectorAll('button, input').forEach(control => { control.disabled = disabled; });
     }
     async function currentNotionFailureStudent(failure) {
+      if (!teacherDataUsable() || failure.classRoom !== activeNotionClass) throw new Error('班級資料已暫停或切換，請恢復讀取後重新同步。');
       const row = notionClassRows(failure.classRoom).find(item => item.profile.studentId === failure.studentId);
       if (!row) throw new Error('目前名冊沒有這位學生，請重新同步確認。');
       const student = (await notionStudentsForTask([row], failure.task))[0];
@@ -978,42 +1026,47 @@
       return student;
     }
     async function manualNotionImage(index) {
-      if (notionSyncing || notionManualBusy || !notionDataReady.roster || !notionDataReady.progress || notionServiceStatus.syncVersion !== 'learning-archive-v6') return;
+      if (notionSyncing || notionManualBusy || !notionDataReady.roster || !notionDataReady.progress || notionServiceStatus.syncVersion !== 'learning-archive-v7') return;
       const failure = notionFailures[index];
-      if (!failure || failure.classRoom !== activeNotionClass || failure.task?.category !== 'thinking') return;
+      if (!failure || failure.classRoom !== activeNotionClass || !['thinking','programming'].includes(failure.task?.category)) return;
+      const video=failure.task.category==='programming',kind=video?'影片':'圖',format=video?'MP4':'PNG',limit=(video?20:10)*1024*1024;
       const file = $('notion-sync-results').querySelector(`[data-notion-file="${index}"]`)?.files?.[0];
-      if (!file) { $('notion-message').textContent = '請先選擇採認作品的 PNG 檔。'; return; }
-      if (!/\.png$/i.test(file.name) || file.size > 10 * 1024 * 1024 || file.size < 32) { $('notion-message').textContent = '請選擇 10 MB 以下的有效 PNG 檔。'; return; }
-      if (!confirm(`確認「${failure.studentId}・${failure.name}｜${failure.taskTitle}」的 ${file.name} 是教師採認作品的 PNG？將替換原卡圖片並標示「教師手動補圖」，保留原始採認連結。`)) return;
+      if (!file) { $('notion-message').textContent = `請先選擇採認作品的 ${format} 檔。`; return; }
+      if (!(video?/\.mp4$/i:/\.png$/i).test(file.name) || file.size > limit || file.size < 32) { $('notion-message').textContent = `請選擇 ${video?'20':'10'} MB 以下的有效 ${format} 檔。`; return; }
+      if (!confirm(`確認「${failure.studentId}・${failure.name}｜${failure.taskTitle}」的 ${file.name} 是教師採認作品的 ${format}？將替換原卡作品並標示「教師手動補${kind}」，保留原始採認連結。`)) return;
       notionManualBusy = true; renderNotionWorkspace();
       try {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        if (![137,80,78,71,13,10,26,10].every((byte,i) => bytes[i] === byte)) throw new Error('此檔案不是 PNG，未送出補圖。');
-        try { const bitmap = await createImageBitmap(file); bitmap.close(); }
-        catch (_) { throw new Error('PNG 圖片無法解碼，請重新下載採認圖片，未送出補圖。'); }
-        const base64 = await new Promise((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1] || ''); reader.onerror = () => reject(new Error('本機圖片讀取失敗。')); reader.readAsDataURL(file); });
+        let local;
+        if (video) local=await notionLocalVideo(file);
+        else {
+          const bytes=new Uint8Array(await file.arrayBuffer());
+          if (![137,80,78,71,13,10,26,10].every((byte,i)=>bytes[i]===byte)) throw new Error('此檔案不是 PNG，未送出補圖。');
+          try {const bitmap=await createImageBitmap(file);bitmap.close();} catch (_) {throw new Error('PNG 圖片無法解碼，請重新下載採認圖片，未送出補圖。');}
+          local={base64:await notionFileBase64(file)};
+        }
         const student = await currentNotionFailureStudent(failure);
-        student.manualImage = {base64, approvedAttachmentUrl:student.approvedAttachmentUrl, reviewedAt:student.reviewedAt};
-        $('notion-message').textContent = `正在補傳 ${failure.studentId} 的採認圖片…`;
+        student[video?'manualVideo':'manualImage'] = {...local,approvedAttachmentUrl:student.approvedAttachmentUrl,reviewedAt:student.reviewedAt};
+        $('notion-message').textContent = `正在補傳 ${failure.studentId} 的採認${video?'影片':'圖片'}…`;
         const result = await postNotionSync({term,classRoom:failure.classRoom,task:failure.task,students:[student]});
         if (result.status !== 'success' || result.failedStudents?.length || Number(result.filesSynced) !== 1) throw new Error(result.failedStudents?.[0]?.message || result.message || '手動補圖未確認完成。');
         notionFailures.splice(index,1); renderNotionFailures();
-        $('notion-message').textContent = `${failure.studentId}・${failure.name} 手動補圖完成，已讀回確認原卡圖片；${notionFailures.length ? `尚有 ${notionFailures.length} 筆未完成。` : '本次失敗名單已全部補齊。'}`;
-      } catch (error) { $('notion-message').textContent = `手動補圖未完成：${error.message}。原卡保留，可再次補傳。`; }
+        $('notion-message').textContent = `${failure.studentId}・${failure.name} 手動補${kind}完成，已讀回確認原卡${video?'影片及封面':'圖片'}；${notionFailures.length ? `尚有 ${notionFailures.length} 筆未完成。` : '本次失敗名單已全部補齊。'}`;
+      } catch (error) { $('notion-message').textContent = `手動補${kind}未完成：${error.message}。原卡保留，可再次補傳。`; }
       finally { notionManualBusy = false; renderNotionWorkspace(); }
     }
     async function syncNotionTask(syncAll = false) {
+      if (activeTeacherTab !== 'notion' || !requireTeacherData()) return;
       if (notionSyncing || notionManualBusy) return;
       if (!notionDataReady.roster || !notionDataReady.progress) { $('notion-message').textContent = '名冊與學習紀錄尚未完整載入，請稍候；若持續無法載入，請重新登入教師端。'; return; }
       if (!notionServiceStatus.configured) { $('notion-message').textContent = '請先完成 Apps Script 的 Notion 連線設定。'; return; }
-      if (notionServiceStatus.syncVersion !== 'learning-archive-v6') { $('notion-message').textContent = '請先更新 Apps Script 至 v6 封存模式並新增部署版本，再重新整理教師頁面；本次不需新增授權。'; return; }
+      if (notionServiceStatus.syncVersion !== 'learning-archive-v7') { $('notion-message').textContent = '請先更新 Apps Script 至 v7 影片封存模式並新增部署版本，再重新整理教師頁面；本次不需新增授權。'; return; }
       const classRoom = activeNotionClass;
       const tasks = syncAll ? notionTasks() : notionTasks().filter(item => item.key === $('notion-sync-task').value);
       if (!tasks.length) return;
       const rows = notionClassRows(classRoom);
       if (!rows.length) { $('notion-message').textContent = '本班沒有可同步的正式學生；學號結尾 00 的測試帳號已排除。'; return; }
       const forceRefreshImages = $('notion-refresh-images').checked;
-      if (forceRefreshImages && !confirm('本次將重新下載所選範圍的運算思維採認原圖，更新已封存圖片（包含先前手動補圖）。確定繼續？')) return;
+      if (forceRefreshImages && !confirm('本次將重新下載所選範圍的採認圖片與影片，更新已封存作品（包含先前手動補傳）。確定繼續？')) return;
       $('notion-refresh-images').checked = false;
       notionSyncing = true; notionStopRequested = false; renderNotionWorkspace();
       let completed = 0, processed = 0, workCreated = 0, workUpdated = 0, files = 0;
@@ -1032,21 +1085,22 @@
           if (notionStopRequested) break;
           $('notion-message').textContent = `正在整理 ${classRoom} 班 ${task.title}（${processed + 1} / ${tasks.length} 項）…`;
           const students = await notionStudentsForTask(rows, task);
-          for (let offset = 0; offset < students.length; offset += 4) {
+          const batchSize=task.category==='programming'?1:4;
+          for (let offset = 0; offset < students.length; offset += batchSize) {
             if (notionStopRequested) break;
-            const batch = students.slice(offset, offset + 4);
+            const batch = students.slice(offset, offset + batchSize);
             $('notion-message').textContent = `${classRoom} 班 ${task.title}｜第 ${processed + 1} / ${tasks.length} 項，學生 ${offset + 1}–${offset + batch.length} / ${students.length}；正在上傳／更新…`;
             const result = await postNotionSync({ term, classRoom, forceRefreshImages, task: { key: task.key, category: task.category, title: task.title, assignmentTitle: task.system ? '系統通關紀錄' : '作業檢核採認紀錄' }, students: batch });
             applyResult(result,batch,task);
           }
           for (let round=0;round<2 && !notionStopRequested;round++) {
-            const pending = failedStudents.filter(item=>item.task.key===task.key && item.task.category==='thinking' && item.httpStatus===401 && item.authDiagnostic?.version==='drive-auth-diagnostic-v1');
+            const pending = failedStudents.filter(item=>item.task.key===task.key && ['thinking','programming'].includes(item.task.category) && item.httpStatus===401 && item.authDiagnostic?.version==='drive-auth-diagnostic-v1');
             if (!pending.length) break;
             $('notion-message').textContent = `${task.title}：正在等候自動補試 ${round+1} / 2（僅 ${pending.length} 位驗證失敗學生）…`;
             await new Promise(resolve=>setTimeout(resolve,round===0?1500:4000));
-            for (let offset=0;offset<pending.length && !notionStopRequested;offset+=4) {
+            for (let offset=0;offset<pending.length && !notionStopRequested;offset+=batchSize) {
               const batch=[];
-              for (const failure of pending.slice(offset,offset+4)) {
+              for (const failure of pending.slice(offset,offset+batchSize)) {
                 try { batch.push(await currentNotionFailureStudent(failure)); }
                 catch (error) { failure.httpStatus=0; failure.message=error.message; }
               }
@@ -1076,7 +1130,8 @@
           if (event.data?.kind !== 'learning-notion-sync' || event.data?.payload?.requestId !== requestId) return;
           cleanup(); resolve(event.data.payload || { status: 'error', message: 'Notion 回應格式不正確。' });
         };
-        const timer = setTimeout(() => { cleanup(); reject(new Error('Notion 同步逾時。請確認 Apps Script 已重新部署，並查看 Apps Script 執行紀錄。')); }, 120000);
+        const timeout=payload.task?.category==='programming'?240000:120000;
+        const timer = setTimeout(() => { cleanup(); reject(new Error('Notion 同步逾時。請確認 Apps Script 已重新部署，並查看 Apps Script 執行紀錄；不會自動重送此批寫入。')); }, timeout);
         window.addEventListener('message', receive); document.body.appendChild(form); form.submit();
       });
     }
@@ -1091,14 +1146,14 @@
       document.querySelectorAll('.delete-button').forEach(button => button.addEventListener('click', () => deleteRoster(button.dataset.delete)));
     }
 
-    function mergedProgress() {
+    function mergedProgress(rosterData = rosterRows, userData = progressRows) {
       const usersByStudentId = new Map();
-      progressRows.forEach(row => {
+      userData.forEach(row => {
         const profile = row.data.profile || {};
         const studentId = profile.studentId || row.data.studentId || '';
         if (studentId) usersByStudentId.set(studentId, row);
       });
-      return rosterRows.map(roster => {
+      return rosterData.map(roster => {
         const user = usersByStudentId.get(roster.studentId);
         const rawData = user?.data || { terms: {}, teacherProgress: {} };
         const data = { ...rawData, updatedAt: latestTermActivity(rawData) };
@@ -1106,63 +1161,52 @@
         return { id: user?.id || '', data, profile, hasStarted: Object.prototype.hasOwnProperty.call(data.terms || {}, term) };
       });
     }
-    function stopQuestionAttempts() {
-      const listeners = [...questionAttemptListeners.values()];
-      questionAttemptListeners.clear(); questionAttemptClass = '';
-      listeners.forEach(listener => listener.unsubscribe?.());
+    function stopQuestionAttempts(reason = '請按「載入／重新讀取作答紀錄」才會讀取，不會在背景監聽。') {
+      questionGeneration++; questionAttemptResults.clear(); questionState = 'idle'; questionError = reason; questionLoadedAt = 0;
     }
     function questionScopeLabel() { return activeQuestionClass === 'all' ? `全年級（${classes[0]}–${classes[classes.length - 1]} 班）` : `${activeQuestionClass} 班`; }
-    function questionScopeRows() { return statisticalRows(mergedProgress()).filter(row => activeQuestionClass === 'all' ? classes.includes(row.profile.classRoom) : row.profile.classRoom === activeQuestionClass); }
-    function syncQuestionAttempts(force = false) {
-      if (force || questionAttemptClass !== activeQuestionClass) stopQuestionAttempts();
-      questionAttemptClass = activeQuestionClass;
-      if (!db || !notionDataReady.roster || !notionDataReady.progress) return;
-      const uids = new Set(questionScopeRows().filter(row => row.id).map(row => row.id));
-      questionAttemptListeners.forEach((listener, uid) => {
-        if (!uids.has(uid)) { questionAttemptListeners.delete(uid); listener.unsubscribe?.(); }
-      });
-      uids.forEach(uid => {
-        if (questionAttemptListeners.has(uid)) return;
-        const listener = { state: 'loading', rows: [], error: '', unsubscribe: null };
-        questionAttemptListeners.set(uid, listener);
-        const failed = error => {
-          if (questionAttemptListeners.get(uid) !== listener) return;
-          console.error('Unable to read quiz attempts:', error);
-          listener.state = 'error'; listener.rows = [];
-          listener.error = error?.code === 'permission-denied' ? '讀取權限不足，請確認教師登入與 Firestore Rules。' : '作答紀錄暫時無法讀取，請確認網路後重新讀取。';
-          renderQuestionAnalytics();
-        };
-        try {
-          // Read only the selected scope's known student paths. No collection
-          // group query, broader rule, or group index is needed.
-          const unsubscribe = db.collection('quizAttempts').doc(uid).collection('events').where('termId', '==', term).onSnapshot(snapshot => {
-            if (questionAttemptListeners.get(uid) !== listener) return;
-            listener.rows = snapshot.docs.map(doc => ({ ...doc.data(), userId: uid })).filter(item => item.termId === term);
-            listener.state = 'ready'; listener.error = ''; renderQuestionAnalytics();
-          }, failed);
-          if (questionAttemptListeners.get(uid) === listener) listener.unsubscribe = unsubscribe;
-          else unsubscribe();
-        } catch (error) { failed(error); }
-      });
+    async function syncQuestionAttempts() {
+      if (!teacherData || activeTeacherTab !== 'questions' || document.hidden || navigator.onLine === false || questionState === 'loading') return;
+      if (activeQuestionClass === 'all' && !confirm('全年級統計將逐班讀取完整本學期作答歷史，資料多時可能產生大量讀取。這是一次性手動載入，不會自動更新。確定開始？')) return;
+      stopQuestionAttempts(); const token = questionGeneration;
+      questionState = 'loading'; questionError = ''; teacherLastActivity = Date.now(); armTeacherIdle();
+      const current = () => token === questionGeneration && activeTeacherTab === 'questions' && !document.hidden && navigator.onLine !== false;
+      const selectedClasses = activeQuestionClass === 'all' ? classes : [activeQuestionClass];
+      renderQuestionAnalytics();
+      try {
+        for (const classRoom of selectedClasses) {
+          if (!current()) return;
+          questionError = `正在整理 ${classRoom} 班名冊與學生資料…`; renderQuestionAnalytics();
+          const data = await teacherData.fetchClass(classRoom,current);
+          const rows = statisticalRows(mergedProgress(data.rosterRows,data.progressRows)).filter(row => row.id);
+          for (const row of rows) {
+            if (!current()) return;
+            if (questionAttemptResults.has(row.id)) continue;
+            questionError = `${classRoom} 班｜正在讀取 ${row.profile.studentId} 的本學期作答紀錄…`; renderQuestionAnalytics();
+            const snapshot = await teacherData.read(db.collection('quizAttempts').doc(row.id).collection('events').where('termId','==',term),current);
+            questionAttemptResults.set(row.id,{rows:snapshot.docs.map(document => ({...document.data(),userId:row.id})).filter(item => item.termId===term)});
+          }
+        }
+        if (current()) { questionState = 'ready'; questionError = ''; questionLoadedAt = Date.now(); }
+      } catch (error) {
+        if (!current()) return;
+        console.error('Unable to read quiz attempts:',error);
+        questionState = 'error'; questionError = window.TeacherData.errorText(error); questionAttemptResults.clear();
+      } finally { if (current()) renderQuestionAnalytics(); }
     }
     function renderQuestionAnalytics() {
       const scopeLabel = questionScopeLabel();
-      const waitingSources = !notionDataReady.roster || !notionDataReady.progress;
-      const sourceError = questionSourceErrors.roster || questionSourceErrors.progress;
-      const listeners = [...questionAttemptListeners.values()];
-      const failures = listeners.filter(listener => listener.state === 'error');
-      const loaded = listeners.filter(listener => listener.state === 'ready').length;
-      const loading = waitingSources || loaded + failures.length < listeners.length;
-      const failed = Boolean(sourceError || failures.length);
-      $('questions-reload').disabled = loading && !failed;
-      if (failed || loading) {
+      const loading = questionState === 'loading', failed = questionState === 'error', idle = questionState === 'idle';
+      $('questions-reload').textContent = '載入／重新讀取作答紀錄';
+      $('questions-reload').disabled = loading || document.hidden || navigator.onLine === false;
+      if (failed || loading || idle) {
         $('question-student-count').textContent = '—'; $('question-attempt-count').textContent = '—'; $('question-correct-rate').textContent = '—';
-        $('questions-summary').textContent = failed ? '資料讀取失敗' : `載入中（${loaded} / ${listeners.length} 位）`;
-        $('questions-note').textContent = `${scopeLabel}｜${failed ? (sourceError || `${failures.length} 位學生的${failures[0].error}`) : (waitingSources ? '正在讀取名冊與學生資料…' : '正在讀取本學期逐題作答紀錄…')}`;
-        $('questions-body').innerHTML = `<tr><td colspan="8" class="p-8 text-center ${failed ? 'text-rose-600' : 'text-slate-400'}">${failed ? '資料未完整載入，暫不顯示統計。請按「重新讀取作答紀錄」重試。' : '正在載入，請稍候…'}</td></tr>`;
+        $('questions-summary').textContent = failed ? '資料讀取失敗' : idle ? '尚未載入／已暫停' : `已讀取 ${questionAttemptResults.size} 位`;
+        $('questions-note').textContent = `${scopeLabel}｜${questionError || '請手動載入作答紀錄，不會自動更新。'}`;
+        $('questions-body').innerHTML = `<tr><td colspan="8" class="p-8 text-center ${failed ? 'text-rose-600' : 'text-slate-400'}">${failed ? '資料未完整載入，暫不顯示統計；請確認問題後手動重試。' : idle ? '按上方按鈕後才會讀取此範圍；離開分頁即停止後續讀取。' : '正在依序載入；未完整讀取前不顯示部分統計。'}</td></tr>`;
         return;
       }
-      const rows = listeners.flatMap(listener => listener.rows);
+      const rows = [...questionAttemptResults.values()].flatMap(result => result.rows);
       const groups = new Map();
       rows.forEach(item => {
         const group = groups.get(item.questionId) || { questionId: item.questionId, questionText: item.questionText || '題目文字未記錄', sources: new Set(), attempts: [] };
@@ -1186,7 +1230,7 @@
       $('question-student-count').textContent = students.size;
       $('question-attempt-count').textContent = rows.length;
       $('question-correct-rate').textContent = rows.length ? `${Math.round(correct / rows.length * 100)}%` : '—';
-      $('questions-note').textContent = `${scopeLabel}｜依首次答對率由低至高排列；相同題號會合併課程頁與知識大擂台的作答。學號結尾 00 的作答不列入統計。${activeQuestionClass === 'all' ? '全年級答對率依實際作答次數計算，不取各班百分比平均。' : ''}`;
+      $('questions-note').textContent = `${scopeLabel}｜手動資料快照：${formatDate(new Date(questionLoadedAt).toISOString())}，不會自動更新。依首次答對率排列；同題合併課程頁與大擂台；排除測試帳號。${activeQuestionClass === 'all' ? '全年級依實際作答次數計算，不取各班百分比平均。' : ''}`;
       $('questions-summary').textContent = rows.length ? `${summaries.length} 題 · ${rows.length} 次作答` : '尚無作答資料';
       $('questions-body').innerHTML = summaries.length ? summaries.map(item => `<tr class="border-t border-slate-100 align-top"><td class="max-w-md p-3 font-bold leading-6">${escapeHtml(item.questionText)}<p class="mt-1 font-mono text-[10px] font-normal text-slate-400">${escapeHtml(item.questionId)}</p></td><td class="p-3 text-xs text-slate-500">${escapeHtml([...item.sources].join('、'))}</td><td class="p-3 font-bold">${item.studentCount}</td><td class="p-3 font-bold">${item.attempts.length}</td><td class="p-3"><span class="font-black ${item.firstRate < 50 ? 'text-rose-600' : (item.firstRate < 75 ? 'text-amber-600' : 'text-emerald-600')}">${item.firstRate}%</span></td><td class="p-3 font-bold">${item.correctRate}%</td><td class="p-3 text-xs">${item.optionCounts.map((count, index) => `${String.fromCharCode(65 + index)}：${count}`).join('　')}</td><td class="p-3 font-bold">${item.averageSeconds} 秒</td></tr>`).join('') : `<tr><td colspan="8" class="p-8 text-center text-slate-400">${escapeHtml(scopeLabel)}尚無本學期作答紀錄。</td></tr>`;
     }
@@ -1229,6 +1273,7 @@
       $('show-code').addEventListener('change', event => { $('code-input').type = event.target.checked ? 'text' : 'password'; }); $('save-code').addEventListener('click', saveCode);
     }
     async function saveCode() {
+      if (!requireTeacherData()) return;
       const code = $('code-input').value.trim(); const student = rosterRows.find(row => row.studentId === verificationStudentId); if (!student || !/^\d{6}$/.test(code)) { $('code-message').textContent = '請輸入六位數字驗證碼。'; return; }
       if (!/^\d{6}$/.test(student.verificationCode || '')) { $('code-message').textContent = '學生必須先自行完成首次驗證碼設定。'; return; }
       $('save-code').disabled = true; $('code-message').textContent = '正在同步學生帳號…';
@@ -1236,34 +1281,67 @@
       catch (error) { console.error(error); $('code-message').textContent = '儲存失敗。若帳號已存在，請確認名冊中的舊驗證碼正確。'; }
       finally { $('save-code').disabled = false; }
     }
-    async function deleteRoster(studentId) { const row = rosterRows.find(item => item.studentId === studentId); if (!row || !confirm(`確定刪除 ${row.name || studentId} 的名冊資料？學生的學習進度不會被刪除。`)) return; try { await db.collection('rosters').doc(studentId).delete(); } catch (error) { alert('刪除失敗，請確認教師權限。'); } }
+    async function deleteRoster(studentId) { if (!requireTeacherData()) return; const row = rosterRows.find(item => item.studentId === studentId); if (!row || !confirm(`確定刪除 ${row.name || studentId} 的名冊資料？學生的學習進度不會被刪除。`)) return; try { await db.collection('rosters').doc(studentId).delete(); } catch (error) { alert('刪除失敗，請確認教師權限。'); } }
     function manageThinking(studentId) { const row = mergedProgress().find(item => item.profile.studentId === studentId); if (!row) return; thinkingStudent = row; const passed = new Set(completedChallenges(row)); openModal('教師核定', '思考挑戰通關', `${row.profile.name || '未命名'} · ${row.profile.studentId}`, `<p class="text-sm leading-6 text-slate-500">勾選後會寫入教師核定紀錄，學生無法自行修改。</p><div class="mt-4 space-y-2">${thinkingChallenges.map((challenge, index) => `<label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-bold"><input class="challenge-input h-4 w-4" type="checkbox" value="challenge-${index + 1}" ${passed.has(`challenge-${index + 1}`) ? 'checked' : ''}>${challenge}</label>`).join('')}</div><p id="thinking-message" class="mt-3 text-sm text-slate-500"></p><button id="save-thinking" class="mt-5 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">儲存核定結果</button>`); $('save-thinking').addEventListener('click', saveThinking); }
-    async function saveThinking() { if (!thinkingStudent) return; const completedChallenges = [...document.querySelectorAll('.challenge-input:checked')].map(input => input.value); $('save-thinking').disabled = true; try { const update = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() }; update[`teacherProgress.${term}.completedChallenges`] = completedChallenges; update[`teacherProgress.${term}.updatedAt`] = new Date().toISOString(); await db.collection('users').doc(thinkingStudent.id).update(update); $('thinking-message').textContent = '已儲存教師核定結果。'; } catch (error) { console.error(error); $('thinking-message').textContent = '儲存失敗，請確認學生已建立入口網資料。'; } finally { $('save-thinking').disabled = false; } }
+    async function saveThinking() { if (!requireTeacherData()) return; if (!thinkingStudent) return; const completedChallenges = [...document.querySelectorAll('.challenge-input:checked')].map(input => input.value); $('save-thinking').disabled = true; try { const update = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() }; update[`teacherProgress.${term}.completedChallenges`] = completedChallenges; update[`teacherProgress.${term}.updatedAt`] = new Date().toISOString(); await db.collection('users').doc(thinkingStudent.id).update(update); $('thinking-message').textContent = '已儲存教師核定結果。'; } catch (error) { console.error(error); $('thinking-message').textContent = '儲存失敗，請確認學生已建立入口網資料。'; } finally { $('save-thinking').disabled = false; } }
     function showCertificates(studentId) { const row = mergedProgress().find(item => item.profile.studentId === studentId); if (!row) return; const list = certificates(row); openModal('學習證書', `${row.profile.name || '學生'}的證書`, row.profile.studentId, list.length ? `<ul class="space-y-2">${list.map((item, index) => `<li class="rounded-xl bg-indigo-50 p-3 text-sm"><b>${escapeHtml(item?.title || item?.name || `證書 ${index + 1}`)}</b>${item?.issuedAt ? `<span class="ml-2 text-slate-500">${escapeHtml(formatDate(item.issuedAt))}</span>` : ''}</li>`).join('')}</ul>` : '<p class="text-sm text-slate-500">尚無證書資料。</p>'); }
-    async function importRoster() { const lines = $('roster-import').value.split(/\r?\n/).map(line => line.trim()).filter(Boolean); const parsed = []; const invalid = []; lines.forEach((line, index) => { const [id, ...nameParts] = line.split(/[,，]/); const derived = deriveFromStudentId(id); const name = nameParts.join(',').trim(); if (!derived || !name) invalid.push(index + 1); else parsed.push({ ...derived, name }); }); if (!parsed.length) { $('import-message').textContent = '請輸入至少一筆正確的「學號,姓名」資料。'; return; } if (invalid.length && !confirm(`第 ${invalid.join('、')} 行格式不正確，將略過。是否繼續匯入其餘 ${parsed.length} 位學生？`)) return; $('import-message').textContent = '正在寫入名冊…'; try { const batch = db.batch(); parsed.forEach(row => batch.set(db.collection('rosters').doc(row.studentId), { ...row, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })); await batch.commit(); $('import-message').textContent = `已匯入或更新 ${parsed.length} 位學生。`; $('roster-import').value = ''; } catch (error) { console.error(error); $('import-message').textContent = '匯入失敗，請確認教師權限與網路。'; } }
+    async function importRoster() { if (!requireTeacherData()) return; const lines = $('roster-import').value.split(/\r?\n/).map(line => line.trim()).filter(Boolean); const parsed = []; const invalid = []; lines.forEach((line, index) => { const [id, ...nameParts] = line.split(/[,，]/); const derived = deriveFromStudentId(id); const name = nameParts.join(',').trim(); if (!derived || !name) invalid.push(index + 1); else parsed.push({ ...derived, name }); }); if (!parsed.length) { $('import-message').textContent = '請輸入至少一筆正確的「學號,姓名」資料。'; return; } if (invalid.length && !confirm(`第 ${invalid.join('、')} 行格式不正確，將略過。是否繼續匯入其餘 ${parsed.length} 位學生？`)) return; $('import-message').textContent = '正在寫入名冊…'; try { const batch = db.batch(); parsed.forEach(row => batch.set(db.collection('rosters').doc(row.studentId), { ...row, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })); await batch.commit(); $('import-message').textContent = `已匯入或更新 ${parsed.length} 位學生。`; $('roster-import').value = ''; } catch (error) { console.error(error); $('import-message').textContent = '匯入失敗，請確認教師權限與網路。'; } }
+    function currentTeacherClass() {
+      return {mission:activeLiveClass,live:activeLiveClass,progress:activeProgressClass,roster:activeRosterClass,notion:activeNotionClass}[activeTeacherTab] || activeQuestionClass;
+    }
+    function teacherDataUsable() { return teacherDataState.phase === 'ready' && teacherDataState.classRoom === currentTeacherClass() && !document.hidden; }
+    function requireTeacherData() {
+      if (teacherDataUsable()) return true;
+      $('teacher-data-status').textContent = '目前資料未完整載入或已暫停，不能檢核／變更或匯出。請先恢復目前班級讀取。';
+      return false;
+    }
+    function renderTeacherDataState() {
+      const state = teacherDataState, manual = activeTeacherTab === 'questions';
+      const labels = {loading:`正在讀取 ${state.classRoom || currentTeacherClass()} 班名冊與進度…（最多等候 20 秒）`,ready:`${state.classRoom} 班資料更新中；${teacherLessonUntil ? '上課模式最長 45 分鐘' : '閒置 5 分鐘後暫停'}。`,paused:`資料已暫停：${state.reason || '請手動恢復'}`,error:`資料讀取失敗：${state.reason}`};
+      $('teacher-data-status').textContent = manual ? (document.hidden ? '背景已暫停；回來後請手動載入統計。' : '題目分析採手動快照，不監聽全年級；按下方載入按鈕才會讀取。') : labels[state.phase] || '尚未開始讀取';
+      $('teacher-data-resume').hidden = manual;
+      $('teacher-data-resume').disabled = document.hidden || navigator.onLine === false || state.phase === 'loading' || notionSyncing || notionManualBusy;
+      const usable = teacherDataUsable();
+      ['export-notion-roster','export-notion-progress','import-roster'].forEach(id => { if ($(id)) $(id).disabled = !usable; });
+      if (!usable && !manual) {
+        const text = state.phase === 'loading' ? '正在讀取目前班級…' : state.phase === 'error' ? '資料讀取失敗，請查看上方訊息' : '已暫停更新，畫面不是即時資料';
+        $('mission-summary').textContent = text; $('live-summary').textContent = text;
+        $('roster-note').textContent = text; $('progress-note').textContent = text;
+      }
+    }
+    function pauseTeacherReads(reason) {
+      clearTimeout(teacherIdleTimer); teacherIdleTimer = null;
+      teacherLessonUntil = 0; $('teacher-lesson-mode').checked = false;
+      if (questionState !== 'ready') stopQuestionAttempts(reason);
+      teacherData?.pause(reason);
+      clearInterval(liveEvidenceAutoTimer); liveEvidenceAutoTimer = null;
+      notionStopRequested = true;
+      if (liveReviewSession) { liveReviewSession.stale = true; updateLiveReviewControls(); }
+      renderQuestionAnalytics(); renderTeacherDataState();
+    }
+    function armTeacherIdle() {
+      clearTimeout(teacherIdleTimer); teacherIdleTimer = null;
+      if (document.hidden || $('dashboard-view').classList.contains('hidden')) return;
+      if (!['ready','loading'].includes(teacherDataState.phase) && questionState !== 'loading' && !teacherLessonUntil) return;
+      const until = teacherLessonUntil || teacherLastActivity + teacherIdleMs;
+      teacherIdleTimer = setTimeout(() => pauseTeacherReads(teacherLessonUntil ? '45 分鐘上課更新已結束，請手動恢復。' : '已閒置 5 分鐘，請手動恢復。'),Math.max(0,until-Date.now()));
+    }
     function subscribeData() {
-      unsubscribeRoster?.(); unsubscribeProgress?.(); stopQuestionAttempts();
-      notionDataReady.roster = false; notionDataReady.progress = false;
-      questionSourceErrors.roster = ''; questionSourceErrors.progress = '';
-      renderQuestionAnalytics();
-      unsubscribeRoster = db.collection('rosters').onSnapshot(snapshot => {
-        notionDataReady.roster = true; questionSourceErrors.roster = '';
-        rosterRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); refreshAll();
-      }, error => {
-        console.error('Unable to read roster:', error);
-        notionDataReady.roster = false; questionSourceErrors.roster = '名冊讀取失敗，請重新讀取並確認教師權限與網路。';
-        stopQuestionAttempts(); renderQuestionAnalytics(); renderNotionWorkspace();
-        $('roster-note').textContent = '無法讀取名冊，請確認 Firestore Rules。';
-      });
-      unsubscribeProgress = db.collection('users').onSnapshot(snapshot => {
-        notionDataReady.progress = true; questionSourceErrors.progress = '';
-        progressRows = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() })); refreshAll();
-      }, error => {
-        console.error('Unable to read student progress:', error);
-        notionDataReady.progress = false; questionSourceErrors.progress = '學生資料讀取失敗，請重新讀取並確認教師權限與網路。';
-        stopQuestionAttempts(); renderQuestionAnalytics(); renderNotionWorkspace();
-        $('progress-note').textContent = '無法讀取學習進度，請確認 Firestore Rules。';
-      });
+      if (!teacherData || activeTeacherTab === 'questions' || document.hidden || navigator.onLine === false || $('dashboard-view').classList.contains('hidden')) return;
+      teacherLastActivity = Date.now();
+      teacherData.watchClass(currentTeacherClass(),{progress:activeTeacherTab !== 'roster'});
+      armTeacherIdle();
+      if (['mission','live'].includes(activeTeacherTab) && $('live-evidence-auto').checked && !liveEvidenceAutoTimer) setLiveEvidenceAuto(true);
+    }
+    function switchTeacherTab(target) {
+      if (activeTeacherTab === target) return;
+      stopQuestionAttempts();
+      if (activeTeacherTab === 'notion') notionStopRequested = true;
+      activeTeacherTab = target;
+      if (target === 'questions') { teacherData?.pause('題目分析採手動載入'); clearTimeout(teacherIdleTimer); }
+      else subscribeData();
+      if (!['mission','live'].includes(target)) { clearInterval(liveEvidenceAutoTimer); liveEvidenceAutoTimer = null; }
+      renderQuestionAnalytics(); renderTeacherDataState();
     }
     function showDashboard() { if (!$('dashboard-view').classList.contains('hidden')) return; $('login-view').classList.add('hidden'); $('dashboard-view').classList.remove('hidden'); subscribeData(); refreshNotionServiceStatus(); }
     function classButtons(containerId, type) {
@@ -1275,9 +1353,9 @@
         if (type === 'notion') { selectNotionClass(button.dataset.class); return; }
         if (type === 'progress') activeProgressClass = button.dataset.class;
         else if (type === 'live') { activeLiveClass = button.dataset.class; ++liveEvidenceVersion; liveEvidenceLoading = false; liveSubmissions = new Map(); closeModal(); resetLiveEvidenceStatus(); }
-        else if (type === 'questions') activeQuestionClass = button.dataset.class;
+        else if (type === 'questions') { activeQuestionClass = button.dataset.class; stopQuestionAttempts(); }
         else activeRosterClass = button.dataset.class;
-        populateClasses(); refreshAll(); if (type === 'live') autoSelectLiveClassroomCourse();
+        populateClasses(); if (activeTeacherTab !== 'questions') subscribeData(); refreshAll(); if (type === 'live') autoSelectLiveClassroomCourse();
       }));
     }
     function populateClasses() { classButtons('live-class-buttons', 'live'); classButtons('progress-class-buttons', 'progress'); classButtons('questions-class-buttons', 'questions'); classButtons('roster-class-buttons', 'roster'); classButtons('notion-class-buttons', 'notion'); renderNotionWorkspace(); }
@@ -1291,10 +1369,7 @@
     document.addEventListener('fullscreenchange', () => { if (missionProjecting && projectionFullscreenOwned && !document.fullscreenElement) setMissionProjection(false); });
     window.addEventListener('resize', fitMissionProjection);
     document.addEventListener('keydown', event => { if (event.key === 'Escape') { if (missionProjecting) setMissionProjection(false); else if (liveReviewSession) closeModal(); } });
-    $('questions-reload').addEventListener('click', () => {
-      if (questionSourceErrors.roster || questionSourceErrors.progress) subscribeData();
-      else { syncQuestionAttempts(true); renderQuestionAnalytics(); }
-    });
+    $('questions-reload').addEventListener('click', () => { void syncQuestionAttempts(); });
     $('export-notion-roster').addEventListener('click', exportNotionRoster);
     $('export-notion-progress').addEventListener('click', exportNotionProgress);
     $('notion-sync-button').addEventListener('click', () => syncNotionTask(false));
@@ -1303,7 +1378,7 @@
     $('notion-sync-stop').addEventListener('click', () => { notionStopRequested = true; $('notion-message').textContent = '會在目前批次完成後停止；已同步資料保留。'; });
     $('notion-sync-task').addEventListener('change', event => { notionSelectedTasks.set(notionClassKey(), event.target.value); });
     $('close-modal').addEventListener('click', closeModal); $('modal').addEventListener('click', event => { if (event.target === $('modal')) closeModal(); });
-    document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'mission' ? 'bg-violet-600 text-white' : (target === 'live' ? 'bg-amber-500 text-white' : (target === 'progress' ? 'bg-emerald-600 text-white' : (target === 'questions' ? 'bg-cyan-600 text-white' : (target === 'notion' ? 'bg-slate-800 text-white' : 'bg-indigo-600 text-white'))))) : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); if (target === 'notion') renderNotionWorkspace(); }));
+    document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => { const target = button.dataset.tab; document.querySelectorAll('.tab-button').forEach(item => item.className = `tab-button flex-1 rounded-xl px-4 py-3 font-bold ${item.dataset.tab === target ? (target === 'mission' ? 'bg-violet-600 text-white' : (target === 'live' ? 'bg-amber-500 text-white' : (target === 'progress' ? 'bg-emerald-600 text-white' : (target === 'questions' ? 'bg-cyan-600 text-white' : (target === 'notion' ? 'bg-slate-800 text-white' : 'bg-indigo-600 text-white'))))) : 'text-slate-600 hover:bg-slate-100'}`); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `${target}-tab`)); switchTeacherTab(target); if (target === 'notion') renderNotionWorkspace(); }));
     $('import-roster').addEventListener('click', importRoster);
     $('attendance-date').value = selectedAttendanceDate;
     $('attendance-date').addEventListener('change', event => { selectedAttendanceDate = event.target.value || taipeiDateKey(); renderProgress(); });
@@ -1312,10 +1387,31 @@
     $('live-flowchart-unit').value = selectedFlowchartUnit;
     $('live-stamp-unit').addEventListener('change', event => { selectedStampUnit = event.target.value; renderLiveDashboard(); renderMissionDashboard(); });
     $('live-flowchart-unit').addEventListener('change', event => { selectedFlowchartUnit = event.target.value; invalidateOpenLiveReview(); renderLiveFlowchartMatch(); renderLiveDashboard(); renderMissionDashboard(); });
-    $('logout-button').addEventListener('click', async () => { clearInterval(liveEvidenceAutoTimer); unsubscribeRoster?.(); unsubscribeProgress?.(); stopQuestionAttempts(); await auth.signOut(); location.reload(); });
+    $('teacher-data-resume').addEventListener('click', () => { if (notionSyncing || notionManualBusy) return; teacherData?.pause('手動重新讀取'); subscribeData(); });
+    $('teacher-lesson-mode').addEventListener('change', event => {
+      teacherLessonUntil = event.target.checked ? Date.now() + teacherLessonMs : 0;
+      teacherLastActivity = Date.now(); if (activeTeacherTab !== 'questions') subscribeData(); else armTeacherIdle(); renderTeacherDataState();
+    });
+    ['pointerdown','keydown','wheel'].forEach(type => document.addEventListener(type, () => { teacherLastActivity = Date.now(); armTeacherIdle(); },{passive:true}));
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pauseTeacherReads('瀏覽器分頁已隱藏；回來後請手動恢復。'); else { renderQuestionAnalytics(); renderTeacherDataState(); } });
+    window.addEventListener('offline', () => pauseTeacherReads('網路已離線，恢復網路後請手動重新讀取。'));
+    window.addEventListener('online', renderTeacherDataState);
+    window.addEventListener('pagehide', () => pauseTeacherReads('已離開教師頁面。'));
+    $('logout-button').addEventListener('click', async () => { pauseTeacherReads('已登出'); await auth.signOut(); location.reload(); });
     $('login-form').addEventListener('submit', async event => { event.preventDefault(); if (!auth) return; const email = $('teacher-email').value.trim(); try { setLoginMessage('正在登入…'); const credential = await auth.signInWithEmailAndPassword(email, $('teacher-password').value); if (credential.user.email !== teacherEmail) { await auth.signOut(); throw new Error('not-teacher'); } showDashboard(); } catch (error) { console.error(error); setLoginMessage('登入失敗，請確認教師帳號、密碼與 Firestore Rules。', true); } });
-    if (!config || !window.firebase) { setLoginMessage('Firebase 設定尚未完成，無法使用教師端。', true); return; }
-    app = firebase.initializeApp(config); auth = firebase.auth(); db = firebase.firestore(); auth.setPersistence(firebase.auth.Auth.Persistence.SESSION); populateClasses(); updateClassroomConnection(); renderLiveEvidenceStatus(); auth.onAuthStateChanged(user => { if (user?.email === teacherEmail && $('dashboard-view').classList.contains('hidden')) showDashboard(); });
+    if (!config || !window.firebase || !window.TeacherData) { setLoginMessage('Firebase 或教師資料程式尚未完成載入，請重新整理。', true); return; }
+    app = firebase.initializeApp(config); auth = firebase.auth(); db = firebase.firestore(); auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+    teacherData = window.TeacherData.create({db,onData:data => { rosterRows = data.rosterRows; progressRows = data.progressRows; refreshAll(); },onState:state => {
+      teacherDataState = state;
+      notionDataReady.roster = state.phase === 'ready' && state.rosterReady;
+      notionDataReady.progress = state.phase === 'ready' && state.progressReady;
+      if (state.phase === 'error') { clearTimeout(teacherIdleTimer); teacherLessonUntil = 0; $('teacher-lesson-mode').checked = false; notionStopRequested = true; }
+      renderNotionWorkspace(); renderTeacherDataState();
+    }});
+    populateClasses(); updateClassroomConnection(); renderLiveEvidenceStatus(); auth.onAuthStateChanged(user => {
+      if (user?.email === teacherEmail && $('dashboard-view').classList.contains('hidden')) showDashboard();
+      else if (user?.email !== teacherEmail) { pauseTeacherReads('教師登入已失效，請重新登入。'); $('dashboard-view').classList.add('hidden'); $('login-view').classList.remove('hidden'); }
+    });
   })();
   </script>
 </body>
