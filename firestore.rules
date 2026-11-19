@@ -165,6 +165,13 @@ service cloud.firestore {
       allow read, write: if isTeacher();
     }
 
+    // The teacher can list bounded, term-filtered pages across the events
+    // collection group. This does not grant any student read or write access.
+    match /{path=**}/events/{attemptId} {
+      allow list: if isTeacher() && request.query.limit <= 200
+        && arenaTerm(resource.data.termId);
+    }
+
     // Each response is immutable.  The rule compares the student's selected
     // index against the protected answer key, so a learner cannot manufacture
     // a correct result simply by editing browser-side JavaScript.

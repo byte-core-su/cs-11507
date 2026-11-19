@@ -1,6 +1,7 @@
 {
   "indexes": [
     {"collectionGroup":"events","queryScope":"COLLECTION","fields":[{"fieldPath":"termId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"ASCENDING"}]},
+    {"collectionGroup":"events","queryScope":"COLLECTION_GROUP","fields":[{"fieldPath":"termId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"ASCENDING"}]},
     {"collectionGroup":"bests","queryScope":"COLLECTION","fields":[{"fieldPath":"score","order":"DESCENDING"},{"fieldPath":"studentId","order":"ASCENDING"}]},
     {"collectionGroup":"scores","queryScope":"COLLECTION","fields":[{"fieldPath":"studentId","order":"ASCENDING"},{"fieldPath":"score","order":"DESCENDING"}]}
   ],

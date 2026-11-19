@@ -8,6 +8,11 @@ const classRooms=['701','702','703'],termId='115-1';
 const root='quizAnalytics/'+termId,jobPath=root+'/maintenance/grade-refresh';
 const f=fakeFirestore(),fetched=[],updates=[];
 const attemptPath=(classRoom,number)=>`quizAttempts/u${classRoom}/events/a${String(number).padStart(5,'0')}`;
+for(const classRoom of classRooms){
+ const studentId='1510'+classRoom.slice(-1)+'01';
+ f.rows.set('users/u'+classRoom,{studentId});
+ f.rows.set('rosters/'+studentId,{studentId,classRoom});
+}
 function add(classRoom,number,nanoseconds=0){
  f.rows.set(attemptPath(classRoom,number),{termId,questionId:'q_fixture',questionText:'測試題',source:'unit',createdAt:{seconds:number,nanoseconds},correct:true,selectedIndex:0,optionCount:2});
 }
@@ -72,17 +77,21 @@ const aggregate=async api=>mergeQuestions((await api.loadGrade(classRooms,active
  assert.equal(f.reads.find(row=>row.pathname==='quizAttempts/u702/events').after[0].seconds,2101,'resume at saved student cursor');
  assert.deepEqual(created('703'),unchanged,'no-op class does not rewrite its snapshot');
  assert.equal(await aggregate(resumed),5203);
- assert.deepEqual(await resumed.refreshGrade(classRooms,active),{complete:true,scanned:2,completed:3,total:3});
+ assert.deepEqual(await resumed.refreshGrade(classRooms,active),{complete:true,scanned:2,changedClasses:2,completed:2,total:2,phase:'done'});
  assert.equal(await aggregate(resumed),5205,'the next round includes late attempts exactly once');
  const writeStart=f.writes.length;
- assert.deepEqual(await resumed.refreshGrade(classRooms,active),{complete:true,scanned:0,completed:3,total:3});
+ fetched.length=0;f.reads.length=0;
+ assert.deepEqual(await resumed.refreshGrade(classRooms,active),{complete:true,scanned:0,changedClasses:0,completed:0,total:0,phase:'done'});
+ assert.deepEqual(fetched,[],'an empty query must not load any class rosters');
+ assert.equal(f.reads.filter(row=>row.kind==='group').length,1);
+ assert(!f.reads.some(row=>row.pathname.startsWith('users')||row.pathname.startsWith('rosters')||row.pathname.includes('/classes/')||row.pathname.includes('/students/')||row.pathname.startsWith('quizAttempts/')),'no class/roster/student access in empty fast path before rendering');
  assert(f.writes.slice(writeStart).every(row=>row.pathname.startsWith(root+'/maintenance/')),'no new attempts only persist the run metadata, not summaries');
- // A cancel after one finished class leaves the endpoint resumable.
+ // A cancel after the fast-path job starts leaves its fixed window resumable.
  let current=true;
  await assert.rejects(()=>resumed.refreshGrade(classRooms,()=>current,status=>{
-  if(status.completed===1)current=false;
+  if(status.phase==='scan')current=false;
  }),/已停止/);
- assert.equal(f.rows.get(jobPath).nextClass,1);
+ assert.equal(f.rows.get(jobPath).phase,'scan');
  await assert.rejects(()=>resumed.loadGrade(classRooms,active),/增量更新尚未完成/);
  assert.equal((await create(params).refreshGrade(classRooms,active)).scanned,0);
  // An update that completes across a concurrent read cannot mix publications.

@@ -58,18 +58,21 @@ const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'sha
   assert.equal(await page.locator('#question-student-count').textContent(),'3','automatically merges finished grade, keeping original 701 snapshot');
   assert.match(await page.locator('#questions-note').textContent(),/711：/,'all classes included, even those with zero attempts');
   const refreshButton=page.getByRole('button',{name:'增量更新／接續全年級'});
+  page.once('dialog',dialog=>dialog.accept());await refreshButton.click();
+  await page.waitForFunction(()=>document.getElementById('question-attempt-count').textContent==='5006');
+  assert.match(await page.locator('#questions-note').textContent(),/全年級更新基準已確認/);
   await page.evaluate(term=>{
-    window.addAttempt('e',5,true);
+    window.addAttempt('e',21000,true);window.fixtureServerTime=40000;
     for(let i=5002;i<=10002;i++)window.fixture.rows.set('quizAttempts/u702/events/a'+String(i).padStart(5,'0'),{
-      termId:term,questionId:'q_fixture',questionText:'測試題',createdAt:{seconds:i,nanoseconds:0},correct:true,elapsedSeconds:2,source:'fixture',optionCount:3,selectedIndex:0
+      termId:term,questionId:'q_fixture',questionText:'測試題',createdAt:{seconds:21000+i,nanoseconds:0},correct:true,elapsedSeconds:2,source:'fixture',optionCount:3,selectedIndex:0
     });
     window.fixture.reads.length=0;
   },term);
   page.once('dialog',dialog=>dialog.dismiss());await refreshButton.click();
   assert.equal(await page.evaluate(()=>window.fixture.reads.length),0,'no increment until the teacher confirms');
   page.once('dialog',dialog=>dialog.accept());await refreshButton.click();
-  await page.waitForFunction(()=>document.getElementById('questions-note').textContent.includes('本次已掃描 5,000 筆新作答。進度已保存'));
-  assert.match(await page.locator('#questions-note').textContent(),/已完成 1／11 班.*增量更新／接續全年級.*702 班接續/);
+  await page.waitForFunction(()=>document.getElementById('questions-note').textContent.includes('本次已掃描 5,000 筆作答。進度已保存'));
+  assert.match(await page.locator('#questions-note').textContent(),/增量更新／接續全年級.*接續查詢新作答/);
   assert.equal(await page.locator('#question-attempt-count').textContent(),'—');
   await page.locator('#questions-class-buttons [data-class="701"]').click();
   assert.equal(await refreshButton.isVisible(),false,'only available under grade scope');
@@ -77,13 +80,20 @@ const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'sha
   await page.locator('#questions-reload').click();
   await page.waitForFunction(()=>document.getElementById('questions-note').textContent.includes('全年級增量更新尚未完成'));
   assert.equal(await page.locator('#question-attempt-count').textContent(),'—','manual reload must not expose mixed snapshots after changing scope');
-  await page.evaluate(()=>{window.addAttempt('late',20001,true);window.fixtureServerTime=30000;window.fixture.reads.length=0;});
+  await page.evaluate(()=>{window.addAttempt('late',40001,true);window.fixtureServerTime=50000;window.fixture.reads.length=0;});
   page.once('dialog',dialog=>dialog.accept());await refreshButton.click();
   await page.waitForFunction(()=>document.getElementById('question-attempt-count').textContent==='10008');
-  assert.match(await page.locator('#questions-note').textContent(),/全年級增量更新完成，本次操作納入 3 筆新作答/);
-  assert(!await page.evaluate(()=>window.fixture.reads.some(row=>row.pathname==='quizAttempts/u1/events')),'completed class not revisited in this round');
+  assert.match(await page.locator('#questions-note').textContent(),/全年級增量更新完成：已處理 2 個受影響的班級/);
+  assert(!await page.evaluate(()=>window.fixture.reads.some(row=>row.pathname.startsWith('quizAttempts/'))),'normal fast path never reads individual raw histories');
+  assert.deepEqual(await page.evaluate(()=>window.fixture.reads.filter(row=>row.kind==='collection'&&row.pathname==='rosters').map(row=>row.filters[0][2])),['701','702'],'only reload the affected class rosters');
   page.once('dialog',dialog=>dialog.accept());await refreshButton.click();
   await page.waitForFunction(()=>document.getElementById('question-attempt-count').textContent==='10009');
+  await page.evaluate(()=>{window.fixture.reads.length=0;});
+  page.once('dialog',dialog=>dialog.accept());await refreshButton.click();
+  await page.waitForFunction(()=>document.getElementById('questions-note').textContent.includes('沒有新作答，已載入現有彙總'));
+  assert.equal(await page.locator('#question-attempt-count').textContent(),'10009');
+  assert.equal(await page.evaluate(()=>window.fixture.reads.filter(row=>row.kind==='group').length),1);
+  assert(!await page.evaluate(()=>window.fixture.reads.some(row=>row.pathname.includes('/students/')||/^rosters|^users|^quizAttempts/.test(row.pathname))),'no student, roster or prior response reads when there are no new attempts');
   await page.locator('#questions-tab details summary').click();page.once('dialog',dialog=>dialog.accept());await page.locator('#leaderboard-archive').click();await page.waitForFunction(()=>document.getElementById('leaderboard-archive-status').textContent.includes('快照已完成'));
   assert.equal(await page.evaluate(term=>window.fixture.rows.get('leaderboards/'+term+'/difficulties/easy/archive/top20').rows.length,term),1);
   assert.equal(await page.evaluate(()=>window.fixture.writes.some(row=>row.pathname.startsWith('quizAttempts/')||row.pathname.includes('/scores/'))),false,'raw attempts and legacy scores never changed');

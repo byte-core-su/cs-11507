@@ -2,12 +2,16 @@
  * Reads/writes run only after a teacher clicks a button; no background jobs. */
 (function(global){
   'use strict';
-  const schema='quiz-summary-v1',refreshSchema='quiz-grade-refresh-v1',pageSize=200,shardSize=100,maxAttempts=5000;
+  const schema='quiz-summary-v1',refreshSchema='quiz-grade-refresh-v1',groupSchema='quiz-grade-refresh-v2',pageSize=200,shardSize=100,maxAttempts=5000;
   const scanBudget=value=>Math.max(1,Math.min(maxAttempts,Math.floor(Number(value))||maxAttempts));
   const exists=snapshot=>typeof snapshot.exists==='function'?snapshot.exists():snapshot.exists;
   const cancelled=()=>Object.assign(new Error('整理已停止；已完成的進度保留。'),{code:'cancelled'});
   const stamp=value=>({seconds:Number(value?.seconds)||0,nanoseconds:Number(value?.nanoseconds)||0});
   const compare=(a,b)=>a.seconds-b.seconds||a.nanoseconds-b.nanoseconds||(String(a.id||'')===String(b.id||'')?0:String(a.id||'')<String(b.id||'')?-1:1);
+  const isTime=value=>Number.isInteger(value?.seconds)&&Number.isInteger(value?.nanoseconds);
+  const schoolClasses=classes=>[...new Set(classes)];
+  const attemptCursor=document=>({...stamp(document.data().createdAt),id:document.id});
+  const studentNumber=data=>String(data?.profile?.studentId||data?.studentId||'');
   const validStudent=id=>/^15[12]\d{4}$/.test(id)&&!id.endsWith('00');
   const top20=rows=>{
     const best=new Map();
@@ -45,6 +49,7 @@
     if(!/^115-[12]$/.test(termId))throw new Error('學期格式不正確。');
     const root=db.collection('quizAnalytics').doc(termId);
     const classRef=classRoom=>root.collection('classes').doc(classRoom);
+    const studentRef=uid=>root.collection('students').doc(uid);
     const refreshRef=root.collection('maintenance').doc('grade-refresh');
     const guard=current=>{if(!current())throw cancelled();};
     async function loadMeta(ref,current){
@@ -81,10 +86,14 @@
       const snapshot=await read(refreshRef,current);
       if(!exists(snapshot))return null;
       const job=snapshot.data();
-      if(job.schema!==refreshSchema||!Array.isArray(job.classes)||!job.classes.length||!Number.isInteger(job.nextClass)||job.nextClass<0||job.nextClass>job.classes.length||!job.id||!Number.isInteger(job.cutoff?.seconds)||!Number.isInteger(job.cutoff?.nanoseconds))throw new Error('全年級增量更新進度格式不正確，請聯絡管理者。');
+      const basic=Array.isArray(job.classes)&&job.classes.length&&job.id&&isTime(job.cutoff);
+      const legacy=job.schema===refreshSchema&&Number.isInteger(job.nextClass)&&job.nextClass>=0&&job.nextClass<=job.classes?.length;
+      const grouped=job.schema===groupSchema&&isTime(job.from)&&['scan','publish','done'].includes(job.phase)&&Array.isArray(job.dirty)&&Number.isInteger(job.nextClass)&&job.nextClass>=0&&job.nextClass<=job.dirty.length
+        &&(!job.cursor||(isTime(job.cursor)&&typeof job.cursor.path==='string'));
+      if(!basic||(!legacy&&!grouped))throw new Error('全年級增量更新進度格式不正確，請聯絡管理者。');
       return job;
     }
-    const pendingRefresh=job=>job&&job.nextClass<job.classes.length;
+    const pendingRefresh=job=>job&&(job.schema===groupSchema?job.phase!=='done':job.nextClass<job.classes.length);
     function requireRefreshComplete(job){
       if(pendingRefresh(job))throw new Error('全年級增量更新尚未完成，請選「全年級」並按「增量更新／接續全年級」。');
     }
@@ -104,32 +113,18 @@
       if(before?.id!==after?.id)throw new Error('讀取期間有人完成全年級增量更新，請重新載入彙總。');
       return summaries;
     }
-    async function updateClassImpl(classRoom,current,onProgress=()=>{},budget=maxAttempts,{cutoff,previous,extraWrites=[]}={}){
-      guard(current);if(!/^7\d{2}$/.test(classRoom))throw new Error('請逐班整理，不會自動掃描全年級歷史。');
-      budget=scanBudget(budget);
+    async function classMembers(classRoom,current){
       const data=await fetchClass(classRoom,current),byStudent=new Map();
-      data.progressRows.forEach(row=>byStudent.set(String(row.data.profile?.studentId||row.data.studentId||''),row.id));
-      const members=data.rosterRows.filter(row=>validStudent(row.studentId)).map(row=>({studentId:row.studentId,uid:byStudent.get(row.studentId)||''})).sort((a,b)=>a.studentId.localeCompare(b.studentId));
-      const all=[],sourceCursors=[],seen=new Set();let scanned=0,studentsWithAttempts=0;
+      data.progressRows.forEach(row=>byStudent.set(studentNumber(row.data),row.id));
+      return data.rosterRows.filter(row=>validStudent(row.studentId)).map(row=>({studentId:row.studentId,uid:byStudent.get(row.studentId)||''})).sort((a,b)=>a.studentId.localeCompare(b.studentId));
+    }
+    async function publishClass(classRoom,members,previous,current,extraWrites,studentSummary){
+      const all=[],sourceCursors=[],seen=new Set();let studentsWithAttempts=0;
       for(const member of members){
         if(!member.uid||seen.has(member.uid))continue;seen.add(member.uid);guard(current);
-        const ref=root.collection('students').doc(member.uid),stored=await load(ref,current);
-        let entries=stored?.entries||[],cursor=stored?.cursor||null,complete=false,savedComplete=stored?.complete;
-        // A bounded range query resumes after the immutable server timestamp.
-        // No full historical scan is performed when a checkpoint already exists.
-        while(!complete){
-          guard(current);if(scanned>=budget)return{complete:false,scanned,studentId:member.studentId};
-          const limit=Math.min(pageSize,budget-scanned);
-          let query=db.collection('quizAttempts').doc(member.uid).collection('events').where('termId','==',termId).orderBy('createdAt','asc').orderBy(documentId,'asc');
-          if(cutoff)query=query.where('createdAt','<=',timestampFrom(cutoff));
-          if(cursor)query=query.startAfter(timestampFrom(cursor),cursor.id);
-          const snapshot=await read(query.limit(limit),current);scanned+=snapshot.docs.length;
-          entries=addAttempts(entries,snapshot.docs);
-          const last=snapshot.docs.at(-1);if(last)cursor={...stamp(last.data().createdAt),id:last.id};
-          complete=snapshot.docs.length<limit;
-          if(snapshot.docs.length||savedComplete!==complete){await save(ref,{uid:member.uid,studentId:member.studentId,termId,cursor,complete},entries,current);savedComplete=complete;}
-          onProgress({studentId:member.studentId,scanned,complete});
-        }
+        const item=await studentSummary(member);
+        if(item?.complete===false)return false;
+        const entries=item?.entries||[],cursor=item?.cursor||null;
         if(entries.length)studentsWithAttempts++;all.push(entries);
         sourceCursors.push({uid:member.uid,cursor});
       }
@@ -141,11 +136,49 @@
       if(sameCursors&&sameMembers){
         if(extraWrites.length)await commit(extraWrites,current);
       }else await save(classRef(classRoom),{termId,classRoom,complete:true,members,sourceCursors,studentCount:studentsWithAttempts},mergeQuestions(all),current,extraWrites);
-      return{complete:true,scanned};
+      return true;
+    }
+    async function scanStudent(member,current,budget,{cutoff,markThrough,onProgress=()=>{}}={}){
+      const {uid,studentId}=member,ref=studentRef(uid),stored=await load(ref,current);
+      let entries=stored?.entries||[],cursor=stored?.cursor||null,scanned=0,complete=false,savedComplete=stored?.complete;
+      let coveredThrough=stored?.coveredThrough;
+      while(!complete){
+        guard(current);if(scanned>=budget)return{complete:false,scanned,entries,cursor};
+        const limit=Math.min(pageSize,budget-scanned);
+        let query=db.collection('quizAttempts').doc(uid).collection('events').where('termId','==',termId).orderBy('createdAt','asc').orderBy(documentId,'asc');
+        if(cutoff)query=query.where('createdAt','<=',timestampFrom(cutoff));
+        if(cursor)query=query.startAfter(timestampFrom(cursor),cursor.id);
+        const snapshot=await read(query.limit(limit),current);scanned+=snapshot.docs.length;
+        if(snapshot.docs.length){
+          entries=addAttempts(entries,snapshot.docs);cursor=attemptCursor(snapshot.docs.at(-1));
+        }
+        complete=snapshot.docs.length<limit;
+        const mark=complete&&markThrough;
+        if(mark)coveredThrough=stamp(markThrough);
+        if(snapshot.docs.length||savedComplete!==complete||mark){
+          await save(ref,{uid,studentId,termId,cursor,complete,...(coveredThrough?{coveredThrough}:{})},entries,current);
+          savedComplete=complete;
+        }
+        onProgress({scanned,complete});
+      }
+      return{complete:true,scanned,entries,cursor};
+    }
+    async function updateClassImpl(classRoom,current,onProgress=()=>{},budget=maxAttempts,{cutoff,previous,extraWrites=[]}={}){
+      guard(current);if(!/^7\d{2}$/.test(classRoom))throw new Error('請逐班整理，不會自動掃描全年級歷史。');
+      budget=scanBudget(budget);
+      const members=await classMembers(classRoom,current);
+      let scanned=0,studentId='';
+      const complete=await publishClass(classRoom,members,previous,current,extraWrites,async member=>{
+        studentId=member.studentId;
+        const result=await scanStudent(member,current,budget-scanned,{cutoff,onProgress:status=>onProgress({studentId,scanned:scanned+status.scanned,complete:status.complete})});
+        scanned+=result.scanned;
+        return result;
+      });
+      return complete?{complete,scanned}:{complete,scanned,studentId};
     }
     async function updateGradeImpl(classRooms,current,onProgress=()=>{},budget=maxAttempts){
       guard(current);
-      const selected=[...new Set(classRooms)];
+      const selected=schoolClasses(classRooms);
       if(!selected.length||selected.some(classRoom=>!/^7\d{2}$/.test(classRoom)))throw new Error('全年級班級設定不正確。');
       budget=scanBudget(budget);
       const pending=[];let completed=0,scanned=0;
@@ -172,12 +205,11 @@
       }
       return{complete:true,scanned,completed,total};
     }
-    async function refreshGradeImpl(classRooms,current,onProgress=()=>{},budget=maxAttempts){
+    async function legacyRefresh(classRooms,current,onProgress,budget,job){
       guard(current);
-      const selected=[...new Set(classRooms)],total=selected.length;
+      const selected=classRooms,total=selected.length;
       if(!total||selected.some(classRoom=>!/^7\d{2}$/.test(classRoom)))throw new Error('全年級班級設定不正確。');
       budget=scanBudget(budget);
-      let job=await readRefresh(current);
       if(pendingRefresh(job)){
         if(job.classes.join(',')!==selected.join(','))throw new Error('班級設定已變更，無法接續這次全年級更新。');
       }else{
@@ -191,7 +223,7 @@
       }
       let scanned=0,completed=job.nextClass;
       const report=(classRoom='',studentId='',count=scanned)=>{
-        guard(current);onProgress({classRoom,studentId,scanned:count,completed,total,cutoff:job.cutoff});
+        guard(current);onProgress({classRoom,studentId,scanned:count,completed,total,phase:'baseline'});
       };
       report();
       for(let index=job.nextClass;index<total;index++){
@@ -207,6 +239,142 @@
         report();
       }
       return{complete:true,scanned,completed,total};
+    }
+    async function affectedMembers(uids,current){
+      const found=new Map();
+      for(let offset=0;offset<uids.length;offset+=10){
+        const result=await read(db.collection('users').where(documentId,'in',uids.slice(offset,offset+10)),current);
+        for(const document of result.docs){
+          const studentId=studentNumber(document.data());
+          if(!validStudent(studentId))continue;
+          const roster=await read(db.collection('rosters').doc(studentId),current);
+          if(exists(roster))found.set(document.id,{uid:document.id,studentId,classRoom:String(roster.data().classRoom||'')});
+        }
+      }
+      return found;
+    }
+    async function readPublishedMembership(classes,current){
+      const result=new Map();
+      for(const classRoom of classes){
+        const meta=await loadMeta(classRef(classRoom),current);
+        if(meta?.complete!==true)throw new Error(classRoom+' 班尚無完整彙總，請先按「整理／接續全年級」。');
+        for(const member of meta.members||[])if(member.uid){
+          if(!result.has(member.uid))result.set(member.uid,new Set());
+          result.get(member.uid).add(classRoom);
+        }
+      }
+      return result;
+    }
+    async function groupedRefresh(classes,current,onProgress,budget,job){
+      if(job.classes.join(',')!==classes.join(','))throw new Error('班級設定已變更，無法沿用全年級進度。');
+      const selected=new Set(classes);
+      const previousJob=pendingRefresh(job)?null:job;
+      if(!pendingRefresh(job)){
+        // Use the last fully applied server cutoff, never a client clock or the newest event.
+        await commit([[refreshRef,{schema:groupSchema,id:leaseOwner,classes,from:job.cutoff,cutoff:serverTimestamp(),phase:'scan',cursor:null,dirty:[],nextClass:0,bootstrap:null}]],current);
+        job=await readRefresh(current);
+      }
+      let scanned=0,priorClasses=null;
+      const memberCache=new Map();
+      const report=(classRoom='')=>{
+        guard(current);onProgress({classRoom,scanned,phase:job.phase,completed:job.nextClass,total:job.dirty.length});
+      };
+      const saveJob=async next=>{await commit([[refreshRef,next]],current);job=next;};
+      const partial=()=>({complete:false,scanned,phase:job.phase,classRoom:job.bootstrap?.classRoom||'',completed:job.nextClass,total:job.dirty.length});
+      report();
+      while(job.phase==='scan'&&scanned<budget){
+        if(job.bootstrap){
+          // A newly linked student can predate the baseline. Fill only that student's
+          // unprocessed older range; it is disjoint from the collection-group range.
+          const settled=await scanStudent(job.bootstrap,current,budget-scanned,{cutoff:job.from,markThrough:job.from});
+          scanned+=settled.scanned;
+          if(!settled.complete)return partial();
+          await saveJob({...job,bootstrap:null});
+          report();
+          if(scanned>=budget)return partial();
+        }
+        const limit=Math.min(pageSize,budget-scanned);
+        let query=db.collectionGroup('events').where('termId','==',termId)
+          .where('createdAt','>',timestampFrom(job.from)).where('createdAt','<=',timestampFrom(job.cutoff))
+          .orderBy('createdAt','asc').orderBy(documentId,'asc');
+        if(job.cursor)query=query.startAfter(timestampFrom(job.cursor),job.cursor.path);
+        let snapshot;
+        try{snapshot=await read(query.limit(limit),current);}
+        catch(error){
+          const code=String(error?.code||'').replace(/^firestore\//,'');
+          // Missing deployment prerequisites shouldn't block existing snapshots.
+          // Only roll back a new job before any raw page was processed.
+          if(previousJob&&!scanned&&!job.cursor&&!job.bootstrap&&current()&&['permission-denied','failed-precondition'].includes(code))await saveJob(previousJob);
+          throw error;
+        }
+        scanned+=snapshot.docs.length;
+        const groups=new Map();
+        for(const document of snapshot.docs){
+          const match=/^quizAttempts\/([^/]+)\/events\/[^/]+$/.exec(document.ref.path);
+          if(!match)continue; // Other collections called 'events' aren't quiz attempts.
+          if(!groups.has(match[1]))groups.set(match[1],[]);
+          groups.get(match[1]).push(document);
+        }
+        const dirty=new Set(job.dirty);
+        if(groups.size){
+          if(!priorClasses)priorClasses=await readPublishedMembership(classes,current);
+          const missing=[...groups.keys()].filter(uid=>!memberCache.has(uid));
+          const members=await affectedMembers(missing,current);
+          for(const uid of missing)memberCache.set(uid,members.get(uid)||null);
+          for(const [uid,documents] of groups){
+            guard(current);
+            const old=priorClasses.get(uid),member=memberCache.get(uid);
+            if(old)for(const classRoom of old)dirty.add(classRoom);
+            if(!member||!selected.has(member.classRoom))continue;
+            dirty.add(member.classRoom);
+            const ref=studentRef(uid);
+            let stored=await load(ref,current);
+            if((!old||!stored||stored.complete===false)
+              &&(!stored?.cursor||compare(stamp(stored.cursor),stamp(job.from))<=0)
+              &&(!stored?.coveredThrough||compare(stored.coveredThrough,stamp(job.from))<0)){
+              // Persist a resumption target before consuming the rest of this click.
+              // On a pause at most the current raw page needs to be read again.
+              if(scanned>=budget){await saveJob({...job,bootstrap:member});return partial();}
+              const settled=await scanStudent(member,current,budget-scanned,{cutoff:job.from,markThrough:job.from});
+              scanned+=settled.scanned;
+              if(!settled.complete){await saveJob({...job,bootstrap:member});return partial();}
+              stored=settled;
+            }
+            const added=documents.filter(document=>!stored?.cursor||compare(attemptCursor(document),stored.cursor)>0);
+            if(added.length)await save(ref,{uid,studentId:member.studentId,termId,cursor:attemptCursor(added.at(-1)),complete:true},addAttempts(stored?.entries||[],added),current);
+          }
+        }
+        // Student cursors make a replay idempotent if interrupted before this checkpoint.
+        const last=snapshot.docs.at(-1);
+        const cursor=last?{...stamp(last.data().createdAt),path:last.ref.path}:job.cursor;
+        const phase=snapshot.docs.length===limit?'scan':dirty.size?'publish':'done';
+        await saveJob({...job,cursor,dirty:[...dirty].sort(),phase});
+        report();
+      }
+      if(job.phase==='scan')return partial();
+      while(job.phase==='publish'){
+        const classRoom=job.dirty[job.nextClass],nextClass=job.nextClass+1;
+        report(classRoom);
+        const next={...job,nextClass,phase:nextClass===job.dirty.length?'done':'publish'};
+        const meta=await loadMeta(classRef(classRoom),current);
+        const members=await classMembers(classRoom,current);
+        // Rebuild only affected classes, from student summaries, not raw history.
+        await publishClass(classRoom,members,meta,current,[[refreshRef,next]],async member=>{
+          const saved=await load(studentRef(member.uid),current);
+          return saved?{entries:saved.entries,cursor:saved.cursor}:null;
+        });
+        job=next;
+        report();
+      }
+      return{complete:true,scanned,changedClasses:job.dirty.length,completed:job.nextClass,total:job.dirty.length,phase:'done'};
+    }
+    async function refreshGradeImpl(classRooms,current,onProgress=()=>{},budget=maxAttempts){
+      const classes=schoolClasses(classRooms);
+      if(!classes.length||classes.some(classRoom=>!/^7\d{2}$/.test(classRoom)))throw new Error('全年級班級設定不正確。');
+      const job=await readRefresh(current);
+      // Finish any old job, or establish a safe first cutoff if none was ever saved.
+      if(!job||(job.schema===refreshSchema&&pendingRefresh(job)))return legacyRefresh(classes,current,onProgress,budget,job);
+      return groupedRefresh(classes,current,onProgress,scanBudget(budget),job);
     }
     async function archiveLeaderboardImpl(difficulty,current,onProgress=()=>{},budget=5000){
       if(!['easy','normal','hard'].includes(difficulty))throw new Error('難度格式不正確。');
