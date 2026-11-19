@@ -258,8 +258,8 @@
       const timestamp = value => value?.toMillis?.() ?? value?.toDate?.()?.getTime?.() ?? new Date(value).getTime();
       return values.sort((a, b) => timestamp(b) - timestamp(a))[0] || null;
     }
-    function openModal(kicker, title, meta, content) { if (kicker !== '作業檢核') liveReviewSession = null; $('modal-kicker').textContent = kicker; $('modal-title').textContent = title; $('modal-meta').textContent = meta; $('modal-content').innerHTML = content; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); }
-    function closeModal() { if (liveReviewBusy) return; $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; liveReviewSession = null; }
+    function openModal(kicker, title, meta, content) { if (kicker !== '作業檢核') { cancelLiveReviewCheck(); liveReviewSession = null; } $('modal-kicker').textContent = kicker; $('modal-title').textContent = title; $('modal-meta').textContent = meta; $('modal-content').innerHTML = content; $('modal').classList.remove('hidden'); $('modal').classList.add('flex'); }
+    function closeModal() { if (liveReviewBusy) return; cancelLiveReviewCheck(); $('modal').classList.add('hidden'); $('modal').classList.remove('flex'); verificationStudentId = ''; thinkingStudent = null; liveReviewSession = null; }
     function refreshAll() { renderRoster(); renderProgress(); renderLiveDashboard(); renderMissionDashboard(); renderQuestionAnalytics(); renderNotionWorkspace(); renderTeacherDataState(); }
     function certificateForUnit(row, chapterKey) {
       const source = row.data.terms?.[term]?.certificates || row.data.certificates || {};
@@ -448,10 +448,96 @@
       return session && session.context === `${liveEvidenceContext()}|${selectedFlowchartUnit}`;
     }
     function liveRevisionDrafts() {
-      return ['thinking', 'programming'].map(task => ({ task, reason: $(`live-revision-reason-${task}`)?.value || '', note: $(`live-revision-note-${task}`)?.value || '' }));
+      return ['thinking', 'programming'].map(task => ({
+        task, reason: $(`live-revision-reason-${task}`)?.value ?? liveReviewSession?.drafts?.get(task)?.reason ?? '',
+        note: $(`live-revision-note-${task}`)?.value ?? liveReviewSession?.drafts?.get(task)?.note ?? ''
+      }));
     }
     function restoreLiveRevisionDrafts(drafts) {
+      if (liveReviewSession?.scoped) liveReviewSession.drafts = new Map(drafts.map(draft => [draft.task,draft]));
       drafts.forEach(({ task, reason, note }) => { if ($(`live-revision-reason-${task}`)) { $(`live-revision-reason-${task}`).value = reason; $(`live-revision-note-${task}`).value = note; } });
+    }
+    const liveReviewTasks = ['thinking', 'programming'];
+    const reviewSelectedUrl = task => document.querySelector(`input[name="live-review-attachment-${task}"]:checked`)?.value || '';
+    function cancelLiveReviewCheck(session = liveReviewSession) {
+      const check = session?.check;
+      if (check) { session.check = null; check.abort(); }
+    }
+    function liveReviewForeground(session) {
+      return liveReviewSession === session && ['mission','live'].includes(activeTeacherTab)
+        && auth?.currentUser?.email === teacherEmail && !document.hidden && navigator.onLine !== false
+        && !$('modal').classList.contains('hidden') && reviewContextMatches(session);
+    }
+    function reviewRecordStamp(row) {
+      const completions = row.data.teacherProgress?.[term]?.taskCompletions;
+      const stamp = item => item ? [item.status || '', item.reviewedAt || '', item.reviewedBy || '',
+        item.completedAt || '', item.revisionReasonCode || '', item.revisionNote || '',
+        attachmentIdentity(item.attachment), safeExternalUrl(item.attachment?.url)] : null;
+      return JSON.stringify(liveReviewTasks.flatMap(task => [stamp(liveCheck(row, liveReviewKey(task))), stamp(completions?.[`${task}-${selectedFlowchartUnit}`])]));
+    }
+    function reviewEvidenceStamp(submission, task) {
+      const items = submissionEvidence(submission, classroomTaskCategories[task].kind)?.attachments || [];
+      const fields = items.map(item => JSON.stringify([attachmentIdentity(item), safeExternalUrl(item.url), item.name || '',
+        item.mimeType || '', item.createdAt || '', item.modifiedAt || ''])).sort();
+      return JSON.stringify([submission?.classroomUserId || '', submission?.state || '', submission?.updateTime || '', fields]);
+    }
+    async function recheckLiveReview(session, { reload = false } = {}) {
+      if (!session || !liveReviewForeground(session) || session.check || liveReviewBusy) return;
+      const message = $('live-review-message');
+      const previous = liveSubmissions.get(session.studentId), classroomUserId = String(session.classroomUserId || '');
+      if (!session.rowId || !/^\d{1,40}$/.test(classroomUserId) || !liveClassroomCourse || !liveAssignmentWork) {
+        message.textContent = session.rowId && !classroomUserId
+          ? '無法核對單一作業。請更新 Classroom Web App，並重新讀取這份作業的附件。'
+          : '尚未取得這位學生的作業或學習資料，無法核定。';
+        return;
+      }
+      const controller = new AbortController();
+      session.check = controller; session.stale = true; session.checkedRow = null;
+      const current = () => session.check === controller && liveReviewForeground(session);
+      const courseId = String(liveClassroomCourse.id), courseWorkId = String(liveAssignmentWork.id), studentId = session.studentId;
+      message.textContent = '正在核對這位學生的作業與核定紀錄…'; updateLiveReviewControls();
+      try {
+        const [response, roster, users] = await Promise.all([
+          classroomRequest('review-submission', { courseId, courseWorkId, classroomUserId, studentId }, null, controller.signal),
+          teacherData.read(db.collection('rosters').doc(studentId), current),
+          teacherData.read(db.collection('users').where(firebase.firestore.FieldPath.documentId(), '==', session.rowId).limit(1), current)
+        ]);
+        if (!current()) return;
+        const evidence = response.submission, user = users.docs?.[0];
+        if (String(response.courseId) !== courseId || String(response.courseWorkId) !== courseWorkId
+          || evidence?.studentId !== studentId || String(evidence.classroomUserId) !== classroomUserId || !Array.isArray(evidence.attachments)) throw new Error('這不是原先預覽的學生作業。');
+        if (!roster.exists || String(roster.data().studentId || roster.id) !== studentId || roster.data().classRoom !== activeLiveClass
+          || users.docs?.length !== 1 || user?.id !== session.rowId || String(user.data().profile?.studentId || user.data().studentId || '') !== studentId) {
+          throw new Error('學生名冊或帳號對應已變更，不能沿用原檢核。');
+        }
+        const row = mergedProgress([{ ...roster.data(), studentId }], [{ id: user.id, data: user.data() }])[0];
+        const changedTasks = liveReviewTasks.filter(task => session.evidenceStamps[task] !== reviewEvidenceStamp(evidence, task)
+          || reviewEvidenceStamp(previous, task) !== reviewEvidenceStamp(evidence, task));
+        if (!reload && (changedTasks.length || session.recordStamp !== reviewRecordStamp(row))) {
+          message.textContent = '附件或核定紀錄已變更。請按「重新載入此學生」確認新版作業後再核定；補件草稿仍保留。';
+          return;
+        }
+        liveSubmissions.set(studentId, evidence);
+        if (reload) {
+          const drafts = liveRevisionDrafts(), selections = liveReviewTasks.map(task => [task, reviewSelectedUrl(task)]);
+          session.check = null;
+          manageLiveStudent(studentId, session.queue, session.position,
+            changedTasks.length ? '已載入更新後的附件，請重新確認並選擇採認作品。' : '已核對這位學生的最新作業。',
+            { row, verified: true });
+          for (const [task,url] of selections) {
+            const choices = [...document.querySelectorAll(`input[name="live-review-attachment-${task}"]`)];
+            choices.forEach(choice => { choice.checked = !changedTasks.includes(task) && choice.value === url; });
+          }
+          restoreLiveRevisionDrafts(drafts); updateLiveReviewControls();
+        } else {
+          session.scoped = true; session.checkedRow = row; session.checkedAt = Date.now(); session.stale = false;
+          message.textContent = '作業與核定紀錄未變更，可直接核定。';
+        }
+      } catch (error) {
+        if (current()) message.textContent = `暫時無法確認這份作業：${error.message || '請確認網路'}。請按「重新載入此學生」再試；補件草稿仍保留。`;
+      } finally {
+        if (session.check === controller) { session.check = null; controller.abort(); updateLiveReviewControls(); }
+      }
     }
     function updateLiveReviewControls() {
       const session = liveReviewSession;
@@ -463,9 +549,9 @@
         if (approve) approve.disabled = liveReviewBusy || session.stale || !choices.some(choice => choice.checked);
         if (revise) revise.disabled = liveReviewBusy || session.stale;
       });
-      $('live-review-prev').disabled = liveReviewBusy || session.position <= 0;
-      $('live-review-next').disabled = liveReviewBusy || session.position >= session.queue.length - 1;
-      $('live-review-reload').disabled = liveReviewBusy;
+      $('live-review-prev').disabled = liveReviewBusy || !!session.check || session.position <= 0;
+      $('live-review-next').disabled = liveReviewBusy || !!session.check || session.position >= session.queue.length - 1;
+      $('live-review-reload').disabled = liveReviewBusy || !!session.check;
       $('live-review-auto-next').disabled = liveReviewBusy;
       $('close-modal').disabled = liveReviewBusy;
       document.querySelectorAll('#modal-content input[type="radio"], #modal-content [data-revision-input]').forEach(input => { input.disabled = liveReviewBusy; });
@@ -477,8 +563,12 @@
       let position = session.position + direction;
       while (position >= 0 && position < session.queue.length) {
         const id = session.queue[position];
-        if (liveClassRows().some(row => row.profile.studentId === id)) {
-          manageLiveStudent(id, session.queue, position, feedback);
+        const nextRow = liveClassRows().find(row => row.profile.studentId === id);
+        if (nextRow) {
+          if (session.scoped && !teacherDataUsable() && liveReviewForeground(session)) {
+            manageLiveStudent(id, session.queue, position, feedback, {row:nextRow, verified:false});
+            void recheckLiveReview(liveReviewSession, {reload:true});
+          } else manageLiveStudent(id, session.queue, position, feedback);
           return;
         }
         position += direction;
@@ -492,13 +582,15 @@
       const stale = !row || !reviewContextMatches(session) || ['thinking', 'programming'].some(task => evidenceChanged(session.snapshots[task], liveEvidenceSnapshot(row, task)));
       if (!stale) return;
       session.stale = true;
+      session.checkedRow = null;
       $('live-review-message').textContent = '附件或本節課設定已更新。請按「重新載入此學生」確認新版作品後，再核定；原採認紀錄不變。';
       updateLiveReviewControls();
     }
-    function manageLiveStudent(studentId, queue = null, position = 0, feedback = '') {
-      if (!requireTeacherData()) return;
+    function manageLiveStudent(studentId, queue = null, position = 0, feedback = '', scoped = null) {
+      if (!scoped && !requireTeacherData()) return;
       if (liveReviewBusy) return;
-      const row = liveClassRows().find(item => item.profile.studentId === studentId); if (!row) return;
+      const row = scoped?.row || liveClassRows().find(item => item.profile.studentId === studentId); if (!row) return;
+      cancelLiveReviewCheck();
       const reviewQueue = queue || liveVisibleRows().map(item => item.profile.studentId);
       if (!reviewQueue.includes(studentId)) reviewQueue.push(studentId);
       const reviewPosition = queue ? position : reviewQueue.indexOf(studentId);
@@ -521,7 +613,16 @@
         <p id="live-review-message" class="text-xs text-slate-600" role="status">${escapeHtml(feedback)}</p>
       </div>`;
       openModal('作業檢核', `${row.profile.name || '學生'}的任務檢核`, `${row.profile.classRoom} 班 ${row.profile.seatNo} 號 · ${row.profile.studentId}｜${liveAssignmentWork?.title || '尚未指定作業'}｜${flowchartUnits.find(([id]) => id === selectedFlowchartUnit)?.[1] || '尚未確認單元'}`, content);
-      liveReviewSession = { studentId, rowId: row.id, queue: reviewQueue, position: reviewPosition, context: `${liveEvidenceContext()}|${selectedFlowchartUnit}`, snapshots: { thinking: liveEvidenceSnapshot(row, 'thinking'), programming: liveEvidenceSnapshot(row, 'programming') }, stale: false };
+      const evidence = liveSubmissions.get(studentId);
+      liveReviewSession = { studentId, rowId: row.id, queue: reviewQueue, position: reviewPosition, context: `${liveEvidenceContext()}|${selectedFlowchartUnit}`,
+        snapshots: { thinking: liveEvidenceSnapshot(row, 'thinking'), programming: liveEvidenceSnapshot(row, 'programming') },
+        classroomUserId: evidence?.classroomUserId || '', recordStamp: reviewRecordStamp(row),
+        evidenceStamps: Object.fromEntries(liveReviewTasks.map(task => [task, reviewEvidenceStamp(evidence,task)])),
+        stale: Boolean(scoped && !scoped.verified), scoped: Boolean(scoped),
+        checkedRow: scoped?.verified ? row : null, checkedAt: scoped?.verified ? (scoped.checkedAt ?? Date.now()) : null };
+      const activeSession = liveReviewSession;
+      const armPreview = event => { if (liveReviewSession === activeSession && (event.type !== 'auxclick' || event.button === 1)) activeSession.previewOpenedAt = Date.now(); };
+      document.querySelectorAll('[data-live-review-preview]').forEach(link => { link.addEventListener('click', armPreview); link.addEventListener('auxclick', armPreview); });
       ['thinking', 'programming'].forEach(task => {
         const choices = document.querySelectorAll(`input[name="live-review-attachment-${task}"]`);
         const updateApproval = updateLiveReviewControls;
@@ -534,6 +635,7 @@
       $('live-review-reload').addEventListener('click', () => {
         const session = liveReviewSession;
         if (!reviewContextMatches(session)) { closeModal(); return; }
+        if (session.scoped || !teacherDataUsable()) { void recheckLiveReview(session, {reload:true}); return; }
         const drafts = liveRevisionDrafts();
         manageLiveStudent(studentId, session.queue, session.position);
         restoreLiveRevisionDrafts(drafts);
@@ -542,16 +644,24 @@
       document.querySelectorAll('[data-live-review]').forEach(button => button.addEventListener('click', () => saveLiveReview(row, button.dataset.liveReview, button.dataset.liveStatus)));
     }
     async function saveLiveReview(row, task, status) {
-      if (!requireTeacherData()) return;
       if (liveReviewBusy || !['thinking', 'programming'].includes(task) || !['approved', 'revision'].includes(status)) return;
       const session = liveReviewSession;
       if (!session || session.studentId !== row.profile.studentId || session.rowId !== row.id) return;
+      // A checked row is usable only in this review window; it never resumes class reads.
+      if (session.checkedRow && liveReviewForeground(session)) {
+        if (Date.now() - session.checkedAt >= teacherIdleMs) {
+          session.checkedRow = null; session.stale = true;
+          $('live-review-message').textContent = '上次核對已逾時，請按「重新載入此學生」；補件草稿仍保留。';
+          updateLiveReviewControls(); return;
+        }
+        row = session.checkedRow;
+      } else if (!requireTeacherData()) return;
       invalidateOpenLiveReview();
       if (session.stale || !reviewContextMatches(session)) return;
       if (!row.id) { $('live-review-message').textContent = '這位學生尚未登入建立學習資料，暫時無法寫入教師核定。'; return; }
       if (!flowchartUnits.some(([unit]) => unit === selectedFlowchartUnit)) { $('live-review-message').textContent = '請先確認「流程圖指定單元」，再核定作品。'; return; }
       const message = $('live-review-message');
-      const selectedUrl = document.querySelector(`input[name="live-review-attachment-${task}"]:checked`)?.value;
+      const selectedUrl = reviewSelectedUrl(task);
       const submission = liveSubmissionFor(row, task);
       const selectedAttachment = (submission?.attachments || []).find(item => safeExternalUrl(item.url) === selectedUrl);
       if (status === 'approved' && !selectedAttachment) { message.textContent = '請先選定要採認的作品；若附件剛更新，請重新開啟檢核視窗。'; return; }
@@ -581,18 +691,23 @@
         update[`teacherProgress.${term}.taskHistory.${completionKey}.${eventKey}`] = completion;
         await db.collection('users').doc(row.id).update(update);
         const cached = progressRows.find(item => item.id === row.id);
-        if (cached) {
-          const progress = cached.data.teacherProgress ||= {};
+        const applyReview = data => {
+          const progress = data.teacherProgress ||= {};
           const termProgress = progress[term] ||= {};
           (termProgress.liveChecks ||= {})[reviewKey] = review;
           (termProgress.taskCompletions ||= {})[completionKey] = completion;
           ((termProgress.taskHistory ||= {})[completionKey] ||= {})[eventKey] = completion;
-        }
+        };
+        if (cached) applyReview(cached.data);
+        if (row.data !== cached?.data && session.scoped) applyReview(row.data);
         const result = status === 'approved' ? `已核定 ${row.profile.name} 的${classroomTaskCategories[task].label}「${attachment.name}」；成長紀錄採附件時間：${formatDate(completedAt)}。` : `已標示 ${row.profile.name} 的${classroomTaskCategories[task].label}需要補件：${review.revisionReason}。`;
         renderLiveDashboard(); renderMissionDashboard(); renderProgress(); renderNotionWorkspace();
+        if (!teacherDataUsable()) renderTeacherDataState();
         if (liveReviewSession === session) {
           liveReviewBusy = false; updateLiveReviewControls();
-          manageLiveStudent(session.studentId, session.queue, session.position, `${result}${liveReviewAutoNext && hasOtherDraft ? ' 另一項仍有未儲存的補件說明，已保留在此學生，請先處理。' : ''}`);
+          const scoped = session.scoped && !session.stale && liveReviewForeground(session) ? {row, verified:true, checkedAt:session.checkedAt} : null;
+          if (!scoped && !teacherDataUsable()) { message.textContent = result; return; }
+          manageLiveStudent(session.studentId, session.queue, session.position, `${result}${liveReviewAutoNext && hasOtherDraft ? ' 另一項仍有未儲存的補件說明，已保留在此學生，請先處理。' : ''}`, scoped);
           restoreLiveRevisionDrafts(otherDrafts);
           if (advance) navigateLiveReview(1, result);
         }
@@ -611,12 +726,13 @@
       const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
       if (!endpoint) setLiveClassroomNote('Classroom 連線尚未設定，暫時無法讀取作業附件。', true);
     }
-    async function classroomRequest(action, parameters = {}, onRetry = null) {
+    async function classroomRequest(action, parameters = {}, onRetry = null, signal = null) {
       const endpoint = normalizedClassroomEndpoint(classroomEndpoint);
       if (!endpoint) throw new Error('Classroom 連線網址尚未設定或格式不正確。');
-      const stage = { courses: '讀取課程', assignments: '讀取作業', submissions: '讀取學生作業附件', 'notion-status': '確認 Notion 連線' }[action];
+      const stage = { courses: '讀取課程', assignments: '讀取作業', submissions: '讀取學生作業附件', 'review-submission': '核對單一學生作業', 'notion-status': '確認 Notion 連線' }[action];
       if (!stage) throw new Error('不支援的 Classroom 讀取操作。');
       const attemptRequest = () => new Promise((resolve, reject) => {
+        if (signal?.aborted) { reject(new Error('已停止核對。')); return; }
         const callback = `classroomCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const url = new URL(endpoint);
         url.searchParams.set('action', action);
@@ -625,7 +741,7 @@
         const script = document.createElement('script');
         let settled = false;
         const cleanup = late => {
-          clearTimeout(timer); script.onerror = null; script.remove();
+          clearTimeout(timer); signal?.removeEventListener('abort',abort); script.onerror = null; script.remove();
           if (late) {
             // Ignore a timed-out JSONP response without touching the new attempt.
             const ignore = () => {}; window[callback] = ignore;
@@ -636,7 +752,9 @@
           if (settled) return; settled = true; cleanup(late);
           const error = new Error(kind); error.retryable = true; reject(error);
         };
+        const abort = () => { if (!settled) { settled = true; cleanup(true); reject(new Error('已停止核對。')); } };
         const timer = setTimeout(() => transportFailure('回應逾時', true), 15000);
+        signal?.addEventListener('abort',abort,{once:true});
         window[callback] = payload => {
           if (settled) return; settled = true; cleanup(false);
           if (payload?.status === 'success') return resolve(payload);
@@ -653,6 +771,7 @@
         try { return await attemptRequest(); }
         catch (error) {
           if (!error.retryable) throw error;
+          if (action === 'review-submission') throw new Error(`${stage}：${error.message}`);
           if (attempt === 2) throw new Error(`${stage}：${error.message}，自動重試 2 次後仍未成功。請稍後再試；若持續發生，再確認 Google 登入狀態與 Web App 部署。`);
           if (onRetry) onRetry(`${stage}：暫時無法連線，正在自動重試（${attempt + 1} / 2）…`);
           await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)));
@@ -861,7 +980,7 @@
         const modifiedAt = item.modifiedAt ? ` · 最後修改：${formatDate(item.modifiedAt)}` : '';
         const name = escapeHtml(item.name || `附件 ${index + 1}`);
         if (!url) return `<span class="block rounded-xl bg-white px-3 py-2 text-xs text-slate-500">${name}${escapeHtml(createdAt)} · 沒有可開啟的連結</span>`;
-        return `<div class="rounded-xl border border-indigo-200 bg-white p-2"><a target="_blank" rel="noopener" href="${escapeHtml(url)}" class="flex items-center justify-between gap-3 rounded-lg px-1 py-2 text-left text-indigo-800 transition hover:bg-indigo-50"><span><b>${icon} 開啟${expectedType}附件供檢核</b><span class="mt-1 block text-xs font-normal text-slate-500">${name}${escapeHtml(createdAt)}${escapeHtml(modifiedAt)}</span></span><span class="font-black">↗</span></a><label class="mt-1 flex cursor-pointer items-center gap-2 border-t border-indigo-100 px-1 pt-2 text-sm font-bold text-indigo-800"><input type="radio" name="live-review-attachment-${task}" value="${escapeHtml(url)}" ${index === selected ? 'checked' : ''} class="h-4 w-4 accent-indigo-600">採認這件作品</label></div>`;
+        return `<div class="rounded-xl border border-indigo-200 bg-white p-2"><a data-live-review-preview target="_blank" rel="noopener" href="${escapeHtml(url)}" class="flex items-center justify-between gap-3 rounded-lg px-1 py-2 text-left text-indigo-800 transition hover:bg-indigo-50"><span><b>${icon} 開啟${expectedType}附件供檢核</b><span class="mt-1 block text-xs font-normal text-slate-500">${name}${escapeHtml(createdAt)}${escapeHtml(modifiedAt)}</span></span><span class="font-black">↗</span></a><label class="mt-1 flex cursor-pointer items-center gap-2 border-t border-indigo-100 px-1 pt-2 text-sm font-bold text-indigo-800"><input type="radio" name="live-review-attachment-${task}" value="${escapeHtml(url)}" ${index === selected ? 'checked' : ''} class="h-4 w-4 accent-indigo-600">採認這件作品</label></div>`;
       }).join('')}</fieldset>`;
     }
 
@@ -1344,14 +1463,23 @@
         $('roster-note').textContent = text; $('progress-note').textContent = text;
       }
     }
-    function pauseTeacherReads(reason) {
+    function pauseTeacherReads(reason, previewMayReturn = false) {
       clearTimeout(teacherIdleTimer); teacherIdleTimer = null;
       teacherLessonUntil = 0; $('teacher-lesson-mode').checked = false;
       if (questionState !== 'ready') stopQuestionAttempts(reason);
       teacherData?.pause(reason);
       clearInterval(liveEvidenceAutoTimer); liveEvidenceAutoTimer = null;
       notionStopRequested = true;
-      if (liveReviewSession) { liveReviewSession.stale = true; updateLiveReviewControls(); }
+      if (liveReviewSession) {
+        const session = liveReviewSession;
+        session.resumePreview = previewMayReturn && Date.now() - (session.previewOpenedAt || 0) < 30000;
+        session.previewOpenedAt = 0;
+        cancelLiveReviewCheck(session);
+        session.checkedRow = null; session.stale = true;
+        if (session.resumePreview) $('live-review-message').textContent = '作業預覽中；回到教師端後只核對這位學生的作業。';
+        else if (session.scoped) $('live-review-message').textContent = '作業核對已暫停，可按「重新載入此學生」；補件草稿仍保留。';
+        updateLiveReviewControls();
+      }
       renderQuestionAnalytics(); renderTeacherDataState();
     }
     function armTeacherIdle() {
@@ -1373,6 +1501,10 @@
       stopQuestionAttempts();
       if (activeTeacherTab === 'notion') notionStopRequested = true;
       activeTeacherTab = target;
+      if (!['mission','live'].includes(target) && (liveReviewSession?.scoped || liveReviewSession?.check)) {
+        cancelLiveReviewCheck();
+        liveReviewSession.checkedRow = null; liveReviewSession.stale = true; liveReviewSession.resumePreview = false; updateLiveReviewControls();
+      }
       if (target === 'questions') { teacherData?.pause('題目分析採手動載入'); clearTimeout(teacherIdleTimer); }
       else subscribeData();
       if (!['mission','live'].includes(target)) { clearInterval(liveEvidenceAutoTimer); liveEvidenceAutoTimer = null; }
@@ -1432,7 +1564,14 @@
       teacherLastActivity = Date.now(); if (activeTeacherTab !== 'questions') subscribeData(); else armTeacherIdle(); renderTeacherDataState();
     });
     ['pointerdown','keydown','wheel'].forEach(type => document.addEventListener(type, () => { teacherLastActivity = Date.now(); armTeacherIdle(); },{passive:true}));
-    document.addEventListener('visibilitychange', () => { if (document.hidden) pauseTeacherReads('瀏覽器分頁已隱藏；回來後請手動恢復。'); else { renderQuestionAnalytics(); renderTeacherDataState(); } });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) pauseTeacherReads('瀏覽器分頁已隱藏；回來後請手動恢復。',true);
+      else {
+        renderQuestionAnalytics(); renderTeacherDataState();
+        const session = liveReviewSession;
+        if (session?.resumePreview) { session.resumePreview = false; void recheckLiveReview(session); }
+      }
+    });
     window.addEventListener('offline', () => pauseTeacherReads('網路已離線，恢復網路後請手動重新讀取。'));
     window.addEventListener('online', renderTeacherDataState);
     window.addEventListener('pagehide', () => pauseTeacherReads('已離開教師頁面。'));

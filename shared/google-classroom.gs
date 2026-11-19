@@ -33,6 +33,12 @@ function doGet(event) {
       status: 'success',
       submissions: getSubmissions_(requiredParameter_(event, 'courseId'), requiredParameter_(event, 'courseWorkId'))
     });
+    if (action === 'review-submission') {
+      const courseId = requiredParameter_(event, 'courseId');
+      const courseWorkId = requiredParameter_(event, 'courseWorkId');
+      return respond_(event, { status: 'success', courseId, courseWorkId,
+        submission: getReviewSubmission_(courseId, courseWorkId, requiredParameter_(event, 'classroomUserId'), requiredParameter_(event, 'studentId')) });
+    }
     if (action === 'notion-status') return respond_(event, { status: 'success', notion: notionStatus_() });
     throw new Error('不支援的操作。');
   } catch (error) {
@@ -843,8 +849,6 @@ function getAssignments_(courseId) {
 
 function getSubmissions_(courseId, courseWorkId) {
   const students = listStudents_(courseId);
-  const studentsByUserId = {};
-  students.forEach(function(student) { studentsByUserId[String(student.userId)] = student; });
   const response = classroomGet_('courses/' + encodeURIComponent(courseId) + '/courseWork/' + encodeURIComponent(courseWorkId) + '/studentSubmissions', { pageSize: 100 });
   const submissionsByUserId = {};
   (response.studentSubmissions || []).forEach(function(submission) { submissionsByUserId[String(submission.userId)] = submission; });
@@ -857,39 +861,65 @@ function getSubmissions_(courseId, courseWorkId) {
 
   // 以課程名冊為主，確保「未交」的學生也會列出。
   return students.map(function(student) {
-    const submission = submissionsByUserId[String(student.userId)] || {};
-    return {
-      studentId: student.studentId,
-      classRoom: student.classRoom,
-      seatNo: student.seatNo,
-      name: student.name,
-      email: student.email,
-      state: submission.state || 'CREATED',
-      late: submission.late === true,
-      updateTime: submission.updateTime || null,
-      attachments: attachments_(submission.assignmentSubmission && submission.assignmentSubmission.attachments, driveFiles)
-    };
+    return reviewSubmission_(student, submissionsByUserId[String(student.userId)] || {}, driveFiles);
   });
+}
+
+function getReviewSubmission_(courseId, courseWorkId, classroomUserId, studentId) {
+  if (!/^\d{1,40}$/.test(classroomUserId) || !/^15[12]\d{4}$/.test(studentId)
+      || courseWorkId === '-' || courseId.length > 160 || courseWorkId.length > 160) {
+    throw new Error('單一作業檢核的學生或作業識別不正確。');
+  }
+  const coursePath = 'courses/' + encodeURIComponent(courseId);
+  const student = classroomStudent_(classroomGet_(coursePath + '/students/' + encodeURIComponent(classroomUserId), {}));
+  if (String(student.userId) !== classroomUserId || student.studentId !== studentId) {
+    throw new Error('Classroom 學生對應已變更，無法確認原作業。');
+  }
+  const response = classroomGet_(coursePath + '/courseWork/' + encodeURIComponent(courseWorkId) + '/studentSubmissions',
+    { userId: classroomUserId, pageSize: 2 });
+  const submissions = response.studentSubmissions || [];
+  if (!Array.isArray(submissions) || response.nextPageToken || submissions.length > 1 || submissions.some(function(item) {
+    return String(item.userId) !== classroomUserId || String(item.courseId) !== courseId || String(item.courseWorkId) !== courseWorkId;
+  })) throw new Error('Classroom 未回傳指定學生的單一作業，已停止檢核。');
+  const submission = submissions[0] || {};
+  return reviewSubmission_(student, submission, driveFileMetadataMap_(submission.assignmentSubmission && submission.assignmentSubmission.attachments));
+}
+
+function reviewSubmission_(student, submission, driveFiles) {
+  return {
+    classroomUserId: String(student.userId || ''),
+    studentId: student.studentId,
+    classRoom: student.classRoom,
+    seatNo: student.seatNo,
+    name: student.name,
+    email: student.email,
+    state: submission.state || 'CREATED',
+    late: submission.late === true,
+    updateTime: submission.updateTime || null,
+    attachments: attachments_(submission.assignmentSubmission && submission.assignmentSubmission.attachments, driveFiles)
+  };
 }
 
 function listStudents_(courseId) {
   const response = classroomGet_('courses/' + encodeURIComponent(courseId) + '/students', { pageSize: 100 });
-  return (response.students || []).map(function(student) {
-    const profile = student.profile || {};
-    const email = String(profile.emailAddress || '').toLowerCase();
-    const fullName = (profile.name && profile.name.fullName) || '';
-    // 部分 Classroom 帳號的信箱沒有學號，但學校顯示名稱如「00 1510100」。
-    const studentId = studentIdFromEmail_(email) || studentIdFromDisplayName_(fullName);
-    const derived = deriveStudentProfile_(studentId);
-    return {
-      userId: student.userId,
-      email: email,
-      studentId: studentId,
-      classRoom: derived.classRoom,
-      seatNo: derived.seatNo,
-      name: fullName || '未提供姓名'
-    };
-  });
+  return (response.students || []).map(classroomStudent_);
+}
+
+function classroomStudent_(student) {
+  const profile = student.profile || {};
+  const email = String(profile.emailAddress || '').toLowerCase();
+  const fullName = (profile.name && profile.name.fullName) || '';
+  // 部分 Classroom 帳號的信箱沒有學號，但學校顯示名稱如「00 1510100」。
+  const studentId = studentIdFromEmail_(email) || studentIdFromDisplayName_(fullName);
+  const derived = deriveStudentProfile_(studentId);
+  return {
+    userId: student.userId,
+    email: email,
+    studentId: studentId,
+    classRoom: derived.classRoom,
+    seatNo: derived.seatNo,
+    name: fullName || '未提供姓名'
+  };
 }
 
 function studentIdFromEmail_(email) {
