@@ -12,7 +12,7 @@
   <script src="site-shell.js" defer></script>
   <script src="learning-certificates.js"></script>
   <script src="teacher-data.js"></script>
-  <script src="teacher-analytics.js"></script>
+  <script src="teacher-analytics.js?v=grade-resume"></script>
   <style>
     body.mission-projecting { overflow: hidden; }
     body.mission-projecting #dashboard-view > header,
@@ -103,8 +103,8 @@
 
       <section id="questions-tab" class="tab-panel hidden">
         <section class="rounded-2xl bg-white p-6 shadow-sm">
-          <div class="flex flex-wrap items-end justify-between gap-3"><div><p class="font-bold text-cyan-600">QUESTION INSIGHTS</p><h2 class="text-lg font-black">題目作答分析</h2><p id="questions-note" class="mt-1 text-sm text-slate-500" role="status">請載入彙總；不會自動掃描作答歷史。</p></div><div class="flex flex-wrap items-center gap-3"><button id="questions-reload" class="rounded-xl border border-cyan-200 bg-white px-4 py-2 text-sm font-bold text-cyan-800 hover:bg-cyan-50">載入彙總</button><button id="questions-update" class="rounded-xl bg-cyan-700 px-4 py-2 text-sm font-bold text-white">整理／增量更新</button><div id="questions-summary" class="rounded-xl bg-cyan-50 px-4 py-2 text-sm font-bold text-cyan-800">—</div></div></div>
-          <p class="mt-2 text-xs text-slate-500">先逐班整理，再載入全年級彙總。每次最多掃描 5,000 筆新作答；未完成可再次按整理接續，原始紀錄不變更。</p>
+          <div class="flex flex-wrap items-end justify-between gap-3"><div><p class="font-bold text-cyan-600">QUESTION INSIGHTS</p><h2 class="text-lg font-black">題目作答分析</h2><p id="questions-note" class="mt-1 text-sm text-slate-500" role="status">請載入彙總；不會自動掃描作答歷史。</p></div><div class="flex flex-wrap items-center gap-3"><button id="questions-reload" class="rounded-xl border border-cyan-200 bg-white px-4 py-2 text-sm font-bold text-cyan-800 hover:bg-cyan-50">載入彙總</button><button id="questions-update" class="rounded-xl bg-cyan-700 px-4 py-2 text-sm font-bold text-white">整理／增量更新</button><button id="questions-grade-update" type="button" hidden class="rounded-xl bg-cyan-700 px-4 py-2 text-sm font-bold text-white">整理／接續全年級</button><div id="questions-summary" class="rounded-xl bg-cyan-50 px-4 py-2 text-sm font-bold text-cyan-800">—</div></div></div>
+          <p class="mt-2 text-xs text-slate-500">全年級整理會略過已有完整彙總的班級；每按一次全程最多掃描 5,000 筆作答。未完成可按同一個按鈕接續。已完成班級有新作答時，請選該班個別更新。</p>
           <details class="mt-3 rounded-xl border p-3 text-sm"><summary class="cursor-pointer font-bold">英雄榜歷史快照（首次準備）</summary><p class="my-2 text-xs text-slate-500">各學期、各難度各準備一次；保留舊成績，只建立前 20 名快照。未完成可再次按鈕接續。</p><select id="leaderboard-difficulty" class="rounded border p-2"><option value="easy">簡單</option><option value="normal">普通</option><option value="hard">困難</option></select><button id="leaderboard-archive" class="ml-2 rounded border p-2">建立／接續快照</button><span id="leaderboard-archive-status" class="ml-2" role="status"></span></details>
           <div id="questions-class-buttons" class="mt-5 flex flex-wrap gap-2" role="group" aria-label="選擇題目分析範圍：全年級或各班"></div>
           <div class="mt-5 grid gap-4 sm:grid-cols-3"><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">作答學生</p><p id="question-student-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">總作答次數</p><p id="question-attempt-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">整體答對率</p><p id="question-correct-rate" class="mt-1 text-2xl font-black">—</p></article></div>
@@ -1177,10 +1177,11 @@
     function questionScopeLabel() { return activeQuestionClass === 'all' ? `全年級（${classes[0]}–${classes[classes.length - 1]} 班）` : `${activeQuestionClass} 班`; }
     async function syncQuestionAttempts(update = false, archive = false) {
       if (!teacherData || activeTeacherTab !== 'questions' || document.hidden || navigator.onLine === false || questionState === 'loading') return;
-      if (update && activeQuestionClass === 'all') return;
-      if ((update || archive) && !confirm('此動作會讀取尚未整理的歷史紀錄，每次最多 5,000 筆，可接續進度。原始資料保留。確定開始？')) return;
+      const gradeUpdate = update && activeQuestionClass === 'all';
+      const prompt = gradeUpdate ? '略過已完成的班級，依序整理其餘班級。每次合計最多掃描 5,000 筆作答，未完成可接續。確定開始？' : '此動作會讀取尚未整理的歷史紀錄，每次最多 5,000 筆，可接續進度。原始資料保留。確定開始？';
+      if ((update || archive) && !confirm(prompt)) return;
       stopQuestionAttempts(); const token = questionGeneration;
-      questionState = 'loading'; questionError = ''; teacherLastActivity = Date.now(); armTeacherIdle();
+      questionState = 'loading'; questionError = gradeUpdate ? '正在確認哪些班級已有完整彙總…' : ''; teacherLastActivity = Date.now(); armTeacherIdle();
       const current = () => token === questionGeneration && activeTeacherTab === 'questions' && !document.hidden && navigator.onLine !== false;
       const selectedClasses = activeQuestionClass === 'all' ? classes : [activeQuestionClass];
       renderQuestionAnalytics();
@@ -1190,7 +1191,20 @@
           if (current()) { $('leaderboard-archive-status').textContent = result.complete ? '快照已完成；學生可載入前 20 名。' : `本次 ${result.scanned} 筆，請再按按鈕接續。`; stopQuestionAttempts('英雄榜快照處理完成；題目彙總請另按載入。'); renderQuestionAnalytics(); }
           return;
         }
-        if (update) {
+        if (gradeUpdate) {
+          const result = await teacherAnalytics.updateGrade(selectedClasses,current,status => {
+            const work = status.classRoom ? `；正在整理 ${status.classRoom} 班${status.studentId ? '（' + status.studentId + '）' : ''}` : '';
+            questionError = `已完成 ${status.completed}／${status.total} 班${work}；本次已掃描 ${status.scanned.toLocaleString('zh-TW')}／5,000 筆作答。`;
+            renderQuestionAnalytics();
+          });
+          if (!result.complete) {
+            if (current()) {
+              stopQuestionAttempts(`已完成 ${result.completed}／${result.total} 班；本次已掃描 ${result.scanned.toLocaleString('zh-TW')} 筆作答。進度已保存，請再按「整理／接續全年級」從 ${result.classRoom} 班接續；全部完成前不顯示全年級統計。`);
+              renderQuestionAnalytics();
+            }
+            return;
+          }
+        } else if (update) {
           const result = await teacherAnalytics.updateClass(activeQuestionClass,current,status => { questionError = `${status.studentId}｜本次已掃描 ${status.scanned} 筆新作答`; renderQuestionAnalytics(); });
           if (!result.complete) { if (current()) { stopQuestionAttempts(`本次已掃描 ${result.scanned} 筆，進度已保存；請再次按「整理／增量更新」接續。舊班級彙總保留。`); renderQuestionAnalytics(); } return; }
         }
@@ -1213,10 +1227,14 @@
     function renderQuestionAnalytics() {
       const scopeLabel = questionScopeLabel();
       const loading = questionState === 'loading', failed = questionState === 'error', idle = questionState === 'idle';
+      const allClasses = activeQuestionClass === 'all', busy = loading || document.hidden || navigator.onLine === false;
       $('questions-reload').textContent = '載入／重讀彙總';
-      $('questions-reload').disabled = loading || document.hidden || navigator.onLine === false;
-      $('questions-update').disabled = loading || activeQuestionClass === 'all' || document.hidden || navigator.onLine === false;
-      $('leaderboard-archive').disabled = loading || document.hidden || navigator.onLine === false;
+      $('questions-reload').disabled = busy;
+      $('questions-update').hidden = allClasses;
+      $('questions-update').disabled = busy || allClasses;
+      $('questions-grade-update').hidden = !allClasses;
+      $('questions-grade-update').disabled = busy || !allClasses;
+      $('leaderboard-archive').disabled = busy;
       if (failed || loading || idle) {
         $('question-student-count').textContent = '—'; $('question-attempt-count').textContent = '—'; $('question-correct-rate').textContent = '—';
         $('questions-summary').textContent = failed ? '資料讀取失敗' : idle ? '尚未載入／已暫停' : `已讀取 ${questionAttemptResults.size} 班`;
@@ -1371,6 +1389,7 @@
     document.addEventListener('keydown', event => { if (event.key === 'Escape') { if (missionProjecting) setMissionProjection(false); else if (liveReviewSession) closeModal(); } });
     $('questions-reload').addEventListener('click', () => { void syncQuestionAttempts(); });
     $('questions-update').addEventListener('click', () => { void syncQuestionAttempts(true); });
+    $('questions-grade-update').addEventListener('click', () => { void syncQuestionAttempts(true); });
     $('leaderboard-archive').addEventListener('click', () => { void syncQuestionAttempts(false,true); });
     $('export-notion-roster').addEventListener('click', exportNotionRoster);
     $('export-notion-progress').addEventListener('click', exportNotionProgress);

@@ -2,7 +2,8 @@
  * Reads/writes run only after a teacher clicks a button; no background jobs. */
 (function(global){
   'use strict';
-  const schema='quiz-summary-v1',pageSize=200,shardSize=100;
+  const schema='quiz-summary-v1',pageSize=200,shardSize=100,maxAttempts=5000;
+  const scanBudget=value=>Math.max(1,Math.min(maxAttempts,Math.floor(Number(value))||maxAttempts));
   const exists=snapshot=>typeof snapshot.exists==='function'?snapshot.exists():snapshot.exists;
   const cancelled=()=>Object.assign(new Error('整理已停止；已完成的進度保留。'),{code:'cancelled'});
   const stamp=value=>({seconds:Number(value?.seconds)||0,nanoseconds:Number(value?.nanoseconds)||0});
@@ -43,10 +44,15 @@
   function create({db,termId,read,fetchClass,documentId,timestampFrom,now=()=>Date.now()}){
     if(!/^115-[12]$/.test(termId))throw new Error('學期格式不正確。');
     const root=db.collection('quizAnalytics').doc(termId);
+    const classRef=classRoom=>root.collection('classes').doc(classRoom);
     const guard=current=>{if(!current())throw cancelled();};
-    async function load(ref,current){
+    async function loadMeta(ref,current){
       const snapshot=await read(ref,current);if(!exists(snapshot))return null;
       const meta=snapshot.data();if(meta.schema!==schema||!Number.isInteger(meta.pageCount)||meta.pageCount<0||meta.pageCount>400)throw new Error('彙總格式不符，請由教師重新整理。');
+      return meta;
+    }
+    async function load(ref,current){
+      const meta=await loadMeta(ref,current);if(!meta)return null;
       const entries=[];
       for(let index=0;index<meta.pageCount;index++){
         const page=await read(ref.collection('pages').doc(String(index).padStart(4,'0')),current);
@@ -66,13 +72,13 @@
       await commit(writes,current);
     }
     async function loadClass(classRoom,current){
-      const value=await load(root.collection('classes').doc(classRoom),current);
-      if(!value||!value.complete)throw new Error(classRoom+' 班尚無完整彙總，請先選該班按「整理／增量更新」。');
+      const value=await load(classRef(classRoom),current);
+      if(value?.complete!==true)throw new Error(classRoom+' 班尚無完整彙總。可按「整理／接續全年級」，或選該班按「整理／增量更新」。');
       return value;
     }
-    async function updateClassImpl(classRoom,current,onProgress=()=>{},budget=5000){
+    async function updateClassImpl(classRoom,current,onProgress=()=>{},budget=maxAttempts){
       guard(current);if(!/^7\d{2}$/.test(classRoom))throw new Error('請逐班整理，不會自動掃描全年級歷史。');
-      budget=Math.max(1,Math.min(5000,Number(budget)||5000));
+      budget=scanBudget(budget);
       const data=await fetchClass(classRoom,current),byStudent=new Map();
       data.progressRows.forEach(row=>byStudent.set(String(row.data.profile?.studentId||row.data.studentId||''),row.id));
       const members=data.rosterRows.filter(row=>validStudent(row.studentId)).map(row=>({studentId:row.studentId,uid:byStudent.get(row.studentId)||''}));
@@ -97,8 +103,37 @@
         }
         if(entries.length)studentsWithAttempts++;all.push(entries);
       }
-      await save(root.collection('classes').doc(classRoom),{termId,classRoom,complete:true,members,studentCount:studentsWithAttempts},mergeQuestions(all),current);
+      await save(classRef(classRoom),{termId,classRoom,complete:true,members,studentCount:studentsWithAttempts},mergeQuestions(all),current);
       return{complete:true,scanned};
+    }
+    async function updateGradeImpl(classRooms,current,onProgress=()=>{},budget=maxAttempts){
+      guard(current);
+      const selected=[...new Set(classRooms)];
+      if(!selected.length||selected.some(classRoom=>!/^7\d{2}$/.test(classRoom)))throw new Error('全年級班級設定不正確。');
+      budget=scanBudget(budget);
+      const pending=[];let completed=0,scanned=0;
+      for(const classRoom of selected){
+        const meta=await loadMeta(classRef(classRoom),current);
+        if(meta?.complete===true)completed++;
+        else pending.push(classRoom);
+      }
+      const total=selected.length;
+      const report=(classRoom='',studentId='',count=scanned)=>{
+        guard(current);
+        onProgress({classRoom,studentId,scanned:count,completed,total});
+      };
+      report();
+      for(const classRoom of pending){
+        if(scanned>=budget)return{complete:false,scanned,completed,total,classRoom};
+        report(classRoom);
+        // One lease and one remaining budget for the entire click, not one per class.
+        const result=await updateClassImpl(classRoom,current,status=>report(classRoom,status.studentId,scanned+status.scanned),budget-scanned);
+        scanned+=result.scanned;
+        if(!result.complete)return{complete:false,scanned,completed,total,classRoom};
+        completed++;
+        report();
+      }
+      return{complete:true,scanned,completed,total};
     }
     async function archiveLeaderboardImpl(difficulty,current,onProgress=()=>{},budget=5000){
       if(!['easy','normal','hard'].includes(difficulty))throw new Error('難度格式不正確。');
@@ -151,7 +186,7 @@
         try{await db.runTransaction(async transaction=>{const snapshot=await transaction.get(lock);if(exists(snapshot)&&snapshot.data().owner===owner)transaction.set(lock,{owner:'',until:0});},{maxAttempts:1});}catch(_){/* Lease expires without a background retry. */}
       }
     }
-    return Object.freeze({loadClass,updateClass:(...args)=>exclusive(()=>updateClassImpl(...args)),archiveLeaderboard:(...args)=>exclusive(()=>archiveLeaderboardImpl(...args))});
+    return Object.freeze({loadClass,updateClass:(...args)=>exclusive(()=>updateClassImpl(...args)),updateGrade:(...args)=>exclusive(()=>updateGradeImpl(...args)),archiveLeaderboard:(...args)=>exclusive(()=>archiveLeaderboardImpl(...args))});
   }
   global.TeacherAnalytics=Object.freeze({create,mergeQuestions,addAttempts,top20});
 })(typeof window==='undefined'?globalThis:window);

@@ -44,5 +44,47 @@ const attempt=(id,seconds,correct=true)=>({id,data:()=>({termId:'115-1',question
  result=await many.updateClass('701',()=>true);assert.equal(result.scanned,1);assert.equal(result.complete,true);const countBefore=large.reads.length,sharded=await many.loadClass('701',()=>true);assert.equal(sharded.entries.length,130);assert.equal(large.reads.length-countBefore,3,'manifest plus two bounded summary shards');assert.equal(sharded.entries.reduce((sum,item)=>sum+item.attemptCount,0),5001);
  const secondTerm=create({...params,termId:'115-2'});await secondTerm.updateClass('701',()=>true);assert.equal((await secondTerm.loadClass('701',()=>true)).studentCount,0,'terms never mix');
  large.rows.set('quizAttempts/u1/events/nano',{...attempt('nano',5001).data(),createdAt:{seconds:5001,nanoseconds:9}});await many.updateClass('701',()=>true);assert.equal(large.rows.get('quizAnalytics/115-1/students/u1').cursor.nanoseconds,9,'cursor preserves timestamp precision');assert.equal((await many.loadClass('701',()=>true)).entries.reduce((sum,item)=>sum+item.attemptCount,0),5002);
+ const grade=fakeFirestore(),classRooms=['701','702','703','704'],fetchLog=[],trace=[];
+ const gradeParams={db:grade.db,read:async(ref,current)=>{assert(current());const snapshot=await ref.get();assert(current());return snapshot;},fetchClass:async classRoom=>{
+  fetchLog.push(classRoom);if(classRoom==='704')return{rosterRows:[],progressRows:[]};
+  const studentId='1510'+classRoom.slice(-1)+'01';
+  return{rosterRows:[{studentId}],progressRows:[{id:'u'+classRoom,data:{studentId}}]};
+ },documentId:'__name__',timestampFrom:value=>value,termId:'115-1'};
+ for(const [classRoom,total] of [['701',2],['702',3001],['703',2000]]){
+  for(let i=1;i<=total;i++)grade.rows.set('quizAttempts/u'+classRoom+'/events/a'+String(i).padStart(5,'0'),attempt('a',i).data());
+ }
+ const firstGrade=create(gradeParams),snapshotPath='quizAnalytics/115-1/classes/';
+ await firstGrade.updateClass('701',()=>true);
+ const prepared701=structuredClone(grade.rows.get(snapshotPath+'701'));
+ grade.rows.set('quizAttempts/u701/events/new',attempt('new',3).data());
+ fetchLog.length=0;grade.reads.length=0;
+ result=await firstGrade.updateGrade(classRooms,()=>true,status=>trace.push(status),99999);
+ assert.deepEqual(result,{complete:false,scanned:5000,completed:2,total:4,classRoom:'703'});
+ assert.deepEqual(fetchLog,['702','703'],'prepared classes not queried and no next class after hitting budget');
+ assert.equal(trace[0].completed,1,'progress includes already completed classes');
+ assert(trace.some(status=>status.classRoom==='702'&&status.scanned===3001));
+ assert(trace.some(status=>status.classRoom==='703'&&status.scanned===5000));
+ assert.deepEqual(grade.rows.get(snapshotPath+'701'),prepared701,'skip even if prepared class has new attempts');
+ assert(!grade.reads.some(row=>row.pathname.includes('/classes/701/pages/')||row.pathname==='quizAttempts/u701/events'),'skip only reads the class manifest');
+ assert(grade.rows.has(snapshotPath+'702')&&!grade.rows.has(snapshotPath+'703'),'publish only finished class snapshots');
+ assert.equal(grade.reads.filter(row=>row.pathname==='quizAttempts/u703/events').at(-1).limit,199,'last page consumes exactly the remaining grade budget');
+ fetchLog.length=0;grade.reads.length=0;
+ const resumedGrade=create(gradeParams);
+ result=await resumedGrade.updateGrade(classRooms,()=>true);
+ assert.deepEqual(result,{complete:true,scanned:1,completed:4,total:4});
+ assert.deepEqual(fetchLog,['703','704'],'new session only visits unfinished classes');
+ assert.equal(grade.reads.find(row=>row.pathname==='quizAttempts/u703/events').after[0].seconds,1999,'resume from saved student cursor');
+ const verified=await Promise.all(classRooms.map(classRoom=>resumedGrade.loadClass(classRoom,()=>true)));
+ assert.equal(mergeQuestions(verified.map(item=>item.entries))[0].attemptCount,5003,'complete grade keeps every included attempt exactly once');
+ assert.equal(verified[3].studentCount,0,'empty classes still get a complete snapshot');
+ fetchLog.length=0;grade.reads.length=0;
+ assert.deepEqual(await resumedGrade.updateGrade(classRooms,()=>true),{complete:true,scanned:0,completed:4,total:4});
+ assert.deepEqual(fetchLog,[]);assert(!grade.reads.some(row=>row.pathname.startsWith('quizAttempts/')));
+ let current=true;
+ const interrupted=create({...gradeParams,termId:'115-2'});
+ await assert.rejects(()=>interrupted.updateGrade(classRooms,()=>current,status=>{if(status.classRoom==='702')current=false;}),/已停止/);
+ assert(grade.rows.has('quizAnalytics/115-2/classes/701')&&!grade.rows.has('quizAnalytics/115-2/classes/702'),'cancellation preserves completed classes without starting the next one');
+ assert.deepEqual(await interrupted.updateGrade(classRooms,()=>true),{complete:true,scanned:0,completed:4,total:4},'second term can independently resume');
+ console.log('PASS grade analytics: shared hard 5,000 budget, progress across classes, manifest-only skips, resume after reload/cancellation, no partial class snapshots and term isolation.');
  console.log('PASS teacher analytics: bounded paging/resume, incremental counts, first answers, test exclusion, cached read, generation validation, lease, cancellation, immutable history and top-20 archive.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

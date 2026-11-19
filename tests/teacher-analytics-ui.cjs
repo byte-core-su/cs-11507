@@ -26,11 +26,41 @@ const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'sha
   assert.equal(await page.locator('#question-student-count').textContent(),'1');assert.match(await page.locator('#questions-body').textContent(),/0%/,'first wrong answer preserved');
   await page.evaluate(()=>window.addAttempt('c',3,true));await page.locator('#questions-reload').click();await page.waitForFunction(()=>document.getElementById('questions-summary').textContent.includes('次作答'));assert.equal(await page.locator('#question-attempt-count').textContent(),'2','reload never secretly scans new raw attempts');
   page.once('dialog',dialog=>dialog.accept());await page.locator('#questions-update').click();await page.waitForFunction(()=>document.getElementById('question-attempt-count').textContent==='3');
+  assert.equal(await page.locator('#questions-grade-update').isVisible(),false,'grade action is only shown in grade scope');
+  await page.evaluate(term=>{
+    for(const [classRoom,count] of [['702',5001],['703',1]]){
+      const studentId='1510'+classRoom.slice(-1)+'01',uid='u'+classRoom;
+      window.fixture.rows.set('rosters/'+studentId,{studentId,classRoom,seatNo:'1',name:'測試學生'});
+      window.fixture.rows.set('users/'+uid,{studentId});
+      for(let i=1;i<=count;i++)window.fixture.rows.set('quizAttempts/'+uid+'/events/a'+String(i).padStart(5,'0'),{
+        termId:term,questionId:'q_fixture',questionText:'測試題',createdAt:{seconds:i,nanoseconds:0},correct:true,elapsedSeconds:2,source:'fixture',optionCount:3,selectedIndex:0
+      });
+    }
+    window.addAttempt('d',4,true);
+    window.fixture.reads.length=0;
+  },term);
+  await page.locator('#questions-class-buttons [data-class="all"]').click();
+  const gradeButton=page.getByRole('button',{name:'整理／接續全年級'});
+  assert.equal(await page.locator('#questions-update').isVisible(),false);
+  page.once('dialog',dialog=>dialog.dismiss());await gradeButton.click();
+  assert.equal(await page.evaluate(()=>window.fixture.reads.length),0,'cancelling confirmation does not query Firestore');
+  page.once('dialog',dialog=>dialog.accept());await gradeButton.click();
+  await page.waitForFunction(()=>document.getElementById('questions-note').textContent.includes('本次已掃描 5,000 筆作答。進度已保存'));
+  assert.match(await page.locator('#questions-note').textContent(),/已完成 1／11 班.*702 班接續/);
+  assert.equal(await page.locator('#question-attempt-count').textContent(),'—','never displays a partial grade total');
+  assert.equal(await page.evaluate(()=>window.fixture.reads.filter(row=>row.pathname.startsWith('quizAttempts/')).every(row=>row.pathname==='quizAttempts/u702/events')),true,'701 skipped and 703 deferred');
+  await page.locator('#questions-reload').click();
+  await page.waitForFunction(()=>document.getElementById('questions-note').textContent.includes('702 班尚無完整彙總'));
+  assert.equal(await page.locator('#question-attempt-count').textContent(),'—');
+  page.once('dialog',dialog=>dialog.accept());await gradeButton.click();
+  await page.waitForFunction(()=>document.getElementById('question-attempt-count').textContent==='5005');
+  assert.equal(await page.locator('#question-student-count').textContent(),'3','automatically merges finished grade, keeping original 701 snapshot');
+  assert.match(await page.locator('#questions-note').textContent(),/711：/,'all classes included, even those with zero attempts');
   await page.locator('#questions-tab details summary').click();page.once('dialog',dialog=>dialog.accept());await page.locator('#leaderboard-archive').click();await page.waitForFunction(()=>document.getElementById('leaderboard-archive-status').textContent.includes('快照已完成'));
   assert.equal(await page.evaluate(term=>window.fixture.rows.get('leaderboards/'+term+'/difficulties/easy/archive/top20').rows.length,term),1);
   assert.equal(await page.evaluate(()=>window.fixture.writes.some(row=>row.pathname.startsWith('quizAttempts/')||row.pathname.includes('/scores/'))),false,'raw attempts and legacy scores never changed');
   assert.deepEqual(errors,[]);await page.close();
  }
- console.log('PASS teacher analytics UI, both terms: missing-summary guidance, explicit build, cache-only reload, incremental update, first-answer rates, real archive button and separate usage labels; all data local.');
+ console.log('PASS teacher analytics UI, both terms: class/grade scope actions, grade confirmation and 5,000-row resume, hides partial totals, automatic full-grade display, class-only increments, archive and usage labels; all data local.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
