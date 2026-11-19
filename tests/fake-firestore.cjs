@@ -13,7 +13,10 @@ function fakeFirestore(initial={}){
   async get(){
    reads.push({pathname,kind,filters,orders,after,limit:size});
    if(kind==='doc')return doc(pathname,rows.get(pathname));
-   let found=[...rows].filter(([name,data])=>name.startsWith(pathname+'/')&&!name.slice(pathname.length+1).includes('/')&&filters.every(([field,op,expected])=>op==='in'?expected.includes(value(data,field,name.split('/').at(-1))):value(data,field,name.split('/').at(-1))===expected));
+   let found=[...rows].filter(([name,data])=>name.startsWith(pathname+'/')&&!name.slice(pathname.length+1).includes('/')&&filters.every(([field,op,expected])=>{
+    const actual=value(data,field,name.split('/').at(-1));
+    return op==='in'?expected.includes(actual):op==='<='?actual!==undefined&&compare(actual,expected)<=0:actual===expected;
+   }));
    const sorted=orders.length?orders:[['__name__','asc']];
    found=found.filter(([name,data])=>sorted.every(([field])=>value(data,field,name.split('/').at(-1))!==undefined)).sort(([left,a],[right,b])=>{for(const [field,direction]of sorted){const delta=compare(value(a,field,left.split('/').at(-1)),value(b,field,right.split('/').at(-1)));if(delta)return direction==='desc'?-delta:delta;}return 0;});
    if(after)found=found.filter(([name,data])=>{for(let i=0;i<after.length;i++){const delta=compare(value(data,sorted[i][0],name.split('/').at(-1)),after[i]);if(delta)return sorted[i][1]==='desc'?delta<0:delta>0;}return false;});

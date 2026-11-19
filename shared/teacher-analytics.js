@@ -2,7 +2,7 @@
  * Reads/writes run only after a teacher clicks a button; no background jobs. */
 (function(global){
   'use strict';
-  const schema='quiz-summary-v1',pageSize=200,shardSize=100,maxAttempts=5000;
+  const schema='quiz-summary-v1',refreshSchema='quiz-grade-refresh-v1',pageSize=200,shardSize=100,maxAttempts=5000;
   const scanBudget=value=>Math.max(1,Math.min(maxAttempts,Math.floor(Number(value))||maxAttempts));
   const exists=snapshot=>typeof snapshot.exists==='function'?snapshot.exists():snapshot.exists;
   const cancelled=()=>Object.assign(new Error('整理已停止；已完成的進度保留。'),{code:'cancelled'});
@@ -41,10 +41,11 @@
     }
     return [...result.values()];
   }
-  function create({db,termId,read,fetchClass,documentId,timestampFrom,now=()=>Date.now()}){
+  function create({db,termId,read,fetchClass,documentId,timestampFrom,serverTimestamp,now=()=>Date.now()}){
     if(!/^115-[12]$/.test(termId))throw new Error('學期格式不正確。');
     const root=db.collection('quizAnalytics').doc(termId);
     const classRef=classRoom=>root.collection('classes').doc(classRoom);
+    const refreshRef=root.collection('maintenance').doc('grade-refresh');
     const guard=current=>{if(!current())throw cancelled();};
     async function loadMeta(ref,current){
       const snapshot=await read(ref,current);if(!exists(snapshot))return null;
@@ -61,7 +62,7 @@
       }
       return{...meta,entries};
     }
-    async function save(ref,meta,entries,current){
+    async function save(ref,meta,entries,current,extraWrites=[]){
       guard(current);if(leaseOwner)await renew();guard(current);const generation='g_'+now()+'_'+Math.random().toString(36).slice(2);
       const pages=[];for(let offset=0;offset<entries.length;offset+=shardSize)pages.push(entries.slice(offset,offset+shardSize));
       if(pages.length>400)throw new Error('題目彙總超過單次安全容量，原彙總保留，請聯絡管理者。');
@@ -69,20 +70,47 @@
       if(sizes.some(size=>size>700000)||sizes.reduce((sum,size)=>sum+size,0)>7000000)throw new Error('彙總超過安全容量，未覆蓋原資料。');
       const writes=pages.map((items,index)=>[ref.collection('pages').doc(String(index).padStart(4,'0')),{generation,entries:items}]);
       writes.push([ref,{...meta,schema,generation,pageCount:pages.length,updatedAt:new Date(now()).toISOString()}]);
-      await commit(writes,current);
+      await commit([...writes,...extraWrites],current);
     }
     async function loadClass(classRoom,current){
       const value=await load(classRef(classRoom),current);
       if(value?.complete!==true)throw new Error(classRoom+' 班尚無完整彙總。可按「整理／接續全年級」，或選該班按「整理／增量更新」。');
       return value;
     }
-    async function updateClassImpl(classRoom,current,onProgress=()=>{},budget=maxAttempts){
+    async function readRefresh(current){
+      const snapshot=await read(refreshRef,current);
+      if(!exists(snapshot))return null;
+      const job=snapshot.data();
+      if(job.schema!==refreshSchema||!Array.isArray(job.classes)||!job.classes.length||!Number.isInteger(job.nextClass)||job.nextClass<0||job.nextClass>job.classes.length||!job.id||!Number.isInteger(job.cutoff?.seconds)||!Number.isInteger(job.cutoff?.nanoseconds))throw new Error('全年級增量更新進度格式不正確，請聯絡管理者。');
+      return job;
+    }
+    const pendingRefresh=job=>job&&job.nextClass<job.classes.length;
+    function requireRefreshComplete(job){
+      if(pendingRefresh(job))throw new Error('全年級增量更新尚未完成，請選「全年級」並按「增量更新／接續全年級」。');
+    }
+    async function loadGrade(classRooms,current,onClass=()=>{}){
+      const before=await readRefresh(current);requireRefreshComplete(before);
+      const summaries=[],members=new Set();
+      for(const classRoom of classRooms){
+        guard(current);onClass(classRoom,summaries.length);
+        const summary=await loadClass(classRoom,current);
+        for(const member of summary.members||[])if(member.uid){
+          if(members.has(member.uid))throw new Error('各班彙總有重複學生，可能曾轉班；請更新相關班級後重讀，避免重複計算。');
+          members.add(member.uid);
+        }
+        summaries.push(summary);
+      }
+      const after=await readRefresh(current);requireRefreshComplete(after);
+      if(before?.id!==after?.id)throw new Error('讀取期間有人完成全年級增量更新，請重新載入彙總。');
+      return summaries;
+    }
+    async function updateClassImpl(classRoom,current,onProgress=()=>{},budget=maxAttempts,{cutoff,previous,extraWrites=[]}={}){
       guard(current);if(!/^7\d{2}$/.test(classRoom))throw new Error('請逐班整理，不會自動掃描全年級歷史。');
       budget=scanBudget(budget);
       const data=await fetchClass(classRoom,current),byStudent=new Map();
       data.progressRows.forEach(row=>byStudent.set(String(row.data.profile?.studentId||row.data.studentId||''),row.id));
-      const members=data.rosterRows.filter(row=>validStudent(row.studentId)).map(row=>({studentId:row.studentId,uid:byStudent.get(row.studentId)||''}));
-      const all=[],seen=new Set();let scanned=0,studentsWithAttempts=0;
+      const members=data.rosterRows.filter(row=>validStudent(row.studentId)).map(row=>({studentId:row.studentId,uid:byStudent.get(row.studentId)||''})).sort((a,b)=>a.studentId.localeCompare(b.studentId));
+      const all=[],sourceCursors=[],seen=new Set();let scanned=0,studentsWithAttempts=0;
       for(const member of members){
         if(!member.uid||seen.has(member.uid))continue;seen.add(member.uid);guard(current);
         const ref=root.collection('students').doc(member.uid),stored=await load(ref,current);
@@ -93,6 +121,7 @@
           guard(current);if(scanned>=budget)return{complete:false,scanned,studentId:member.studentId};
           const limit=Math.min(pageSize,budget-scanned);
           let query=db.collection('quizAttempts').doc(member.uid).collection('events').where('termId','==',termId).orderBy('createdAt','asc').orderBy(documentId,'asc');
+          if(cutoff)query=query.where('createdAt','<=',timestampFrom(cutoff));
           if(cursor)query=query.startAfter(timestampFrom(cursor),cursor.id);
           const snapshot=await read(query.limit(limit),current);scanned+=snapshot.docs.length;
           entries=addAttempts(entries,snapshot.docs);
@@ -102,8 +131,16 @@
           onProgress({studentId:member.studentId,scanned,complete});
         }
         if(entries.length)studentsWithAttempts++;all.push(entries);
+        sourceCursors.push({uid:member.uid,cursor});
       }
-      await save(classRef(classRoom),{termId,classRoom,complete:true,members,studentCount:studentsWithAttempts},mergeQuestions(all),current);
+      const sameCursors=previous?.sourceCursors?.length===sourceCursors.length&&sourceCursors.every((source,index)=>{
+        const old=previous.sourceCursors[index];
+        return old?.uid===source.uid&&(!old.cursor||!source.cursor?old.cursor===source.cursor:compare(old.cursor,source.cursor)===0);
+      });
+      const sameMembers=previous?.members?.length===members.length&&members.every((member,index)=>previous.members[index].uid===member.uid&&previous.members[index].studentId===member.studentId);
+      if(sameCursors&&sameMembers){
+        if(extraWrites.length)await commit(extraWrites,current);
+      }else await save(classRef(classRoom),{termId,classRoom,complete:true,members,sourceCursors,studentCount:studentsWithAttempts},mergeQuestions(all),current,extraWrites);
       return{complete:true,scanned};
     }
     async function updateGradeImpl(classRooms,current,onProgress=()=>{},budget=maxAttempts){
@@ -128,6 +165,42 @@
         report(classRoom);
         // One lease and one remaining budget for the entire click, not one per class.
         const result=await updateClassImpl(classRoom,current,status=>report(classRoom,status.studentId,scanned+status.scanned),budget-scanned);
+        scanned+=result.scanned;
+        if(!result.complete)return{complete:false,scanned,completed,total,classRoom};
+        completed++;
+        report();
+      }
+      return{complete:true,scanned,completed,total};
+    }
+    async function refreshGradeImpl(classRooms,current,onProgress=()=>{},budget=maxAttempts){
+      guard(current);
+      const selected=[...new Set(classRooms)],total=selected.length;
+      if(!total||selected.some(classRoom=>!/^7\d{2}$/.test(classRoom)))throw new Error('全年級班級設定不正確。');
+      budget=scanBudget(budget);
+      let job=await readRefresh(current);
+      if(pendingRefresh(job)){
+        if(job.classes.join(',')!==selected.join(','))throw new Error('班級設定已變更，無法接續這次全年級更新。');
+      }else{
+        for(const classRoom of selected){
+          const meta=await loadMeta(classRef(classRoom),current);
+          if(meta?.complete!==true)throw new Error(classRoom+' 班尚無完整彙總，請先按「整理／接續全年級」。');
+        }
+        // Fix the cutoff on the server. Later attempts belong to the next run.
+        await commit([[refreshRef,{schema:refreshSchema,id:leaseOwner,classes:selected,nextClass:0,cutoff:serverTimestamp()}]],current);
+        job=await readRefresh(current);
+      }
+      let scanned=0,completed=job.nextClass;
+      const report=(classRoom='',studentId='',count=scanned)=>{
+        guard(current);onProgress({classRoom,studentId,scanned:count,completed,total,cutoff:job.cutoff});
+      };
+      report();
+      for(let index=job.nextClass;index<total;index++){
+        const classRoom=selected[index];
+        if(scanned>=budget)return{complete:false,scanned,completed,total,classRoom};
+        report(classRoom);
+        const previous=await loadMeta(classRef(classRoom),current);
+        const next={...job,nextClass:index+1};
+        const result=await updateClassImpl(classRoom,current,status=>report(classRoom,status.studentId,scanned+status.scanned),budget-scanned,{cutoff:job.cutoff,previous,extraWrites:[[refreshRef,next]]});
         scanned+=result.scanned;
         if(!result.complete)return{complete:false,scanned,completed,total,classRoom};
         completed++;
@@ -186,7 +259,8 @@
         try{await db.runTransaction(async transaction=>{const snapshot=await transaction.get(lock);if(exists(snapshot)&&snapshot.data().owner===owner)transaction.set(lock,{owner:'',until:0});},{maxAttempts:1});}catch(_){/* Lease expires without a background retry. */}
       }
     }
-    return Object.freeze({loadClass,updateClass:(...args)=>exclusive(()=>updateClassImpl(...args)),updateGrade:(...args)=>exclusive(()=>updateGradeImpl(...args)),archiveLeaderboard:(...args)=>exclusive(()=>archiveLeaderboardImpl(...args))});
+    const withoutRefresh=job=>(...args)=>exclusive(async()=>{requireRefreshComplete(await readRefresh(args[1]));return job(...args);});
+    return Object.freeze({loadClass,loadGrade,updateClass:withoutRefresh(updateClassImpl),updateGrade:withoutRefresh(updateGradeImpl),refreshGrade:(...args)=>exclusive(()=>refreshGradeImpl(...args)),archiveLeaderboard:(...args)=>exclusive(()=>archiveLeaderboardImpl(...args))});
   }
   global.TeacherAnalytics=Object.freeze({create,mergeQuestions,addAttempts,top20});
 })(typeof window==='undefined'?globalThis:window);

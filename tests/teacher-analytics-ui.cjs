@@ -18,6 +18,7 @@ const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'sha
    window.fixture.rows.set('leaderboards/'+term+'/difficulties/easy/scores/old',{studentId:'1510101',score:100});
    const auth={setPersistence(){},onAuthStateChanged(fn){fn({email:'jimwang@mail.qfm.kh.edu.tw'});}};
    window.firebase={initializeApp:()=>({}),auth:()=>auth,firestore:()=>window.fixture.db};window.firebase.auth.Auth={Persistence:{SESSION:'session'}};window.firebase.firestore.FieldPath={documentId:()=> '__name__'};window.firebase.firestore.Timestamp=class{constructor(seconds,nanoseconds){Object.assign(this,{seconds,nanoseconds});}};
+   window.fixtureServerTime=20000;window.firebase.firestore.FieldValue={serverTimestamp:()=>({seconds:window.fixtureServerTime,nanoseconds:0})};
   },term);
   await page.addScriptTag({content:script});await page.waitForFunction(()=>document.querySelectorAll('#mission-cards article').length===1);
   await page.locator('[data-tab="progress"]').click();await page.waitForFunction(()=>document.getElementById('progress-note').textContent.includes('無法回溯校正'));assert.match(await page.locator('#progress-body').textContent(),/新版有效/);
@@ -56,11 +57,38 @@ const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'sha
   await page.waitForFunction(()=>document.getElementById('question-attempt-count').textContent==='5005');
   assert.equal(await page.locator('#question-student-count').textContent(),'3','automatically merges finished grade, keeping original 701 snapshot');
   assert.match(await page.locator('#questions-note').textContent(),/711：/,'all classes included, even those with zero attempts');
+  const refreshButton=page.getByRole('button',{name:'增量更新／接續全年級'});
+  await page.evaluate(term=>{
+    window.addAttempt('e',5,true);
+    for(let i=5002;i<=10002;i++)window.fixture.rows.set('quizAttempts/u702/events/a'+String(i).padStart(5,'0'),{
+      termId:term,questionId:'q_fixture',questionText:'測試題',createdAt:{seconds:i,nanoseconds:0},correct:true,elapsedSeconds:2,source:'fixture',optionCount:3,selectedIndex:0
+    });
+    window.fixture.reads.length=0;
+  },term);
+  page.once('dialog',dialog=>dialog.dismiss());await refreshButton.click();
+  assert.equal(await page.evaluate(()=>window.fixture.reads.length),0,'no increment until the teacher confirms');
+  page.once('dialog',dialog=>dialog.accept());await refreshButton.click();
+  await page.waitForFunction(()=>document.getElementById('questions-note').textContent.includes('本次已掃描 5,000 筆新作答。進度已保存'));
+  assert.match(await page.locator('#questions-note').textContent(),/已完成 1／11 班.*增量更新／接續全年級.*702 班接續/);
+  assert.equal(await page.locator('#question-attempt-count').textContent(),'—');
+  await page.locator('#questions-class-buttons [data-class="701"]').click();
+  assert.equal(await refreshButton.isVisible(),false,'only available under grade scope');
+  await page.locator('#questions-class-buttons [data-class="all"]').click();
+  await page.locator('#questions-reload').click();
+  await page.waitForFunction(()=>document.getElementById('questions-note').textContent.includes('全年級增量更新尚未完成'));
+  assert.equal(await page.locator('#question-attempt-count').textContent(),'—','manual reload must not expose mixed snapshots after changing scope');
+  await page.evaluate(()=>{window.addAttempt('late',20001,true);window.fixtureServerTime=30000;window.fixture.reads.length=0;});
+  page.once('dialog',dialog=>dialog.accept());await refreshButton.click();
+  await page.waitForFunction(()=>document.getElementById('question-attempt-count').textContent==='10008');
+  assert.match(await page.locator('#questions-note').textContent(),/全年級增量更新完成，本次操作納入 3 筆新作答/);
+  assert(!await page.evaluate(()=>window.fixture.reads.some(row=>row.pathname==='quizAttempts/u1/events')),'completed class not revisited in this round');
+  page.once('dialog',dialog=>dialog.accept());await refreshButton.click();
+  await page.waitForFunction(()=>document.getElementById('question-attempt-count').textContent==='10009');
   await page.locator('#questions-tab details summary').click();page.once('dialog',dialog=>dialog.accept());await page.locator('#leaderboard-archive').click();await page.waitForFunction(()=>document.getElementById('leaderboard-archive-status').textContent.includes('快照已完成'));
   assert.equal(await page.evaluate(term=>window.fixture.rows.get('leaderboards/'+term+'/difficulties/easy/archive/top20').rows.length,term),1);
   assert.equal(await page.evaluate(()=>window.fixture.writes.some(row=>row.pathname.startsWith('quizAttempts/')||row.pathname.includes('/scores/'))),false,'raw attempts and legacy scores never changed');
   assert.deepEqual(errors,[]);await page.close();
  }
- console.log('PASS teacher analytics UI, both terms: class/grade scope actions, grade confirmation and 5,000-row resume, hides partial totals, automatic full-grade display, class-only increments, archive and usage labels; all data local.');
+ console.log('PASS teacher analytics UI, both terms: explicit initial and incremental grade actions, 5,000-row resume, blocked mixed reload, automatic full-grade display, cutoff isolation, archive and usage labels; all data local.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
