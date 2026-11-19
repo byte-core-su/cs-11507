@@ -57,8 +57,10 @@
       state.progressReady = !withProgress || (state.rosterReady && [...groups.values()].every(group => group.ready));
       state.phase = state.rosterReady && state.progressReady ? 'ready' : 'loading';
       if (state.phase === 'ready') clearWatchdog(); else arm(token);
-      onData({ classRoom: state.classRoom, rosterRows: [...rosters], progressRows: [...progress.values()].map(entry => entry.row) });
       emit();
+      // Consumers must render data against its new readiness, not the previous
+      // loading state (which could otherwise leave "loading" labels stuck).
+      onData({ classRoom: state.classRoom, rosterRows: [...rosters], progressRows: [...progress.values()].map(entry => entry.row) });
     }
     function attach(ref, stops, token, next) {
       try {

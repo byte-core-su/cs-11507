@@ -12,6 +12,7 @@
   <script src="site-shell.js" defer></script>
   <script src="learning-certificates.js"></script>
   <script src="teacher-data.js"></script>
+  <script src="teacher-analytics.js"></script>
   <style>
     body.mission-projecting { overflow: hidden; }
     body.mission-projecting #dashboard-view > header,
@@ -102,7 +103,9 @@
 
       <section id="questions-tab" class="tab-panel hidden">
         <section class="rounded-2xl bg-white p-6 shadow-sm">
-          <div class="flex flex-wrap items-end justify-between gap-3"><div><p class="font-bold text-cyan-600">QUESTION INSIGHTS</p><h2 class="text-lg font-black">題目作答分析</h2><p id="questions-note" class="mt-1 text-sm text-slate-500" role="status">正在讀取本學期的作答紀錄…</p></div><div class="flex flex-wrap items-center gap-3"><button id="questions-reload" class="rounded-xl border border-cyan-200 bg-white px-4 py-2 text-sm font-bold text-cyan-800 hover:bg-cyan-50">重新讀取作答紀錄</button><div id="questions-summary" class="rounded-xl bg-cyan-50 px-4 py-2 text-sm font-bold text-cyan-800">—</div></div></div>
+          <div class="flex flex-wrap items-end justify-between gap-3"><div><p class="font-bold text-cyan-600">QUESTION INSIGHTS</p><h2 class="text-lg font-black">題目作答分析</h2><p id="questions-note" class="mt-1 text-sm text-slate-500" role="status">請載入彙總；不會自動掃描作答歷史。</p></div><div class="flex flex-wrap items-center gap-3"><button id="questions-reload" class="rounded-xl border border-cyan-200 bg-white px-4 py-2 text-sm font-bold text-cyan-800 hover:bg-cyan-50">載入彙總</button><button id="questions-update" class="rounded-xl bg-cyan-700 px-4 py-2 text-sm font-bold text-white">整理／增量更新</button><div id="questions-summary" class="rounded-xl bg-cyan-50 px-4 py-2 text-sm font-bold text-cyan-800">—</div></div></div>
+          <p class="mt-2 text-xs text-slate-500">先逐班整理，再載入全年級彙總。每次最多掃描 5,000 筆新作答；未完成可再次按整理接續，原始紀錄不變更。</p>
+          <details class="mt-3 rounded-xl border p-3 text-sm"><summary class="cursor-pointer font-bold">英雄榜歷史快照（首次準備）</summary><p class="my-2 text-xs text-slate-500">各學期、各難度各準備一次；保留舊成績，只建立前 20 名快照。未完成可再次按鈕接續。</p><select id="leaderboard-difficulty" class="rounded border p-2"><option value="easy">簡單</option><option value="normal">普通</option><option value="hard">困難</option></select><button id="leaderboard-archive" class="ml-2 rounded border p-2">建立／接續快照</button><span id="leaderboard-archive-status" class="ml-2" role="status"></span></details>
           <div id="questions-class-buttons" class="mt-5 flex flex-wrap gap-2" role="group" aria-label="選擇題目分析範圍：全年級或各班"></div>
           <div class="mt-5 grid gap-4 sm:grid-cols-3"><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">作答學生</p><p id="question-student-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">總作答次數</p><p id="question-attempt-count" class="mt-1 text-2xl font-black">—</p></article><article class="rounded-xl bg-slate-50 p-4"><p class="text-sm font-bold text-slate-400">整體答對率</p><p id="question-correct-rate" class="mt-1 text-2xl font-black">—</p></article></div>
           <div class="mt-5 overflow-x-auto"><table class="w-full min-w-[980px] text-left text-sm"><thead class="border-b border-slate-200 text-slate-500"><tr><th class="p-3">題目</th><th class="p-3">來源</th><th class="p-3">作答學生</th><th class="p-3">總作答</th><th class="p-3">首次答對率</th><th class="p-3">總答對率</th><th class="p-3">選項分布</th><th class="p-3">平均秒數</th></tr></thead><tbody id="questions-body"></tbody></table></div>
@@ -174,6 +177,7 @@
     const studentEmail = studentId => `${studentId}@${window.SCHOOL_APP.studentEmailDomain}`;
     let app, auth, db, rosterRows = [], progressRows = [], verificationStudentId = '', thinkingStudent = null;
     const questionAttemptResults = new Map();
+    let teacherAnalytics = null;
     let questionState = 'idle', questionError = '', questionGeneration = 0, questionLoadedAt = 0;
     let activeTeacherTab = 'mission', teacherData = null, teacherDataState = {phase:'paused',reason:'尚未開始'};
     let teacherIdleTimer = null, teacherLessonUntil = 0, teacherLastActivity = Date.now();
@@ -238,6 +242,12 @@
       selector.onchange = event => { selectedWeeklyStudentId = event.target.value; renderWeeklyGrowth(rows); };
     }
     function usageSeconds(row) { return Math.max(0, Number(row.data.terms?.[term]?.usage?.totalActiveSeconds) || 0); }
+    function usageDetail(row) {
+      const usage = row.data.terms?.[term]?.usage || {};
+      const current = Math.max(0,Number(usage.activeV2Seconds)||0);
+      const note = usage.measurementVersion === 'active-v2' ? `新版有效：${formatUsage(current)}<br>起算：${escapeHtml(formatDate(usage.measuredSince))}` : '尚無新版有效時間';
+      return `${formatUsage(usageSeconds(row))}<div class="mt-1 whitespace-nowrap text-[10px] font-normal text-slate-500">${note}</div>`;
+    }
     function formatUsage(seconds) { const totalSeconds = Math.round(Math.max(0, Number(seconds) || 0)); const hours = Math.floor(totalSeconds / 3600); const minutes = Math.floor((totalSeconds % 3600) / 60); return hours ? `${hours} 小時 ${minutes} 分` : `${minutes} 分`; }
     function certificates(row) { const source = row.data.terms?.[term]?.certificates || row.data.certificates || []; return Array.isArray(source) ? source : Object.values(source || {}); }
     function completedChallenges(row) { const source = row.data.teacherProgress?.[term]?.completedChallenges || []; return Array.isArray(source) ? source : Object.keys(source || {}).filter(key => source[key]); }
@@ -1161,77 +1171,67 @@
         return { id: user?.id || '', data, profile, hasStarted: Object.prototype.hasOwnProperty.call(data.terms || {}, term) };
       });
     }
-    function stopQuestionAttempts(reason = '請按「載入／重新讀取作答紀錄」才會讀取，不會在背景監聽。') {
+    function stopQuestionAttempts(reason = '請按「載入彙總」；不會在背景監聽或掃描歷史。') {
       questionGeneration++; questionAttemptResults.clear(); questionState = 'idle'; questionError = reason; questionLoadedAt = 0;
     }
     function questionScopeLabel() { return activeQuestionClass === 'all' ? `全年級（${classes[0]}–${classes[classes.length - 1]} 班）` : `${activeQuestionClass} 班`; }
-    async function syncQuestionAttempts() {
+    async function syncQuestionAttempts(update = false, archive = false) {
       if (!teacherData || activeTeacherTab !== 'questions' || document.hidden || navigator.onLine === false || questionState === 'loading') return;
-      if (activeQuestionClass === 'all' && !confirm('全年級統計將逐班讀取完整本學期作答歷史，資料多時可能產生大量讀取。這是一次性手動載入，不會自動更新。確定開始？')) return;
+      if (update && activeQuestionClass === 'all') return;
+      if ((update || archive) && !confirm('此動作會讀取尚未整理的歷史紀錄，每次最多 5,000 筆，可接續進度。原始資料保留。確定開始？')) return;
       stopQuestionAttempts(); const token = questionGeneration;
       questionState = 'loading'; questionError = ''; teacherLastActivity = Date.now(); armTeacherIdle();
       const current = () => token === questionGeneration && activeTeacherTab === 'questions' && !document.hidden && navigator.onLine !== false;
       const selectedClasses = activeQuestionClass === 'all' ? classes : [activeQuestionClass];
       renderQuestionAnalytics();
       try {
+        if (archive) {
+          const result = await teacherAnalytics.archiveLeaderboard($('leaderboard-difficulty').value,current,status => { $('leaderboard-archive-status').textContent = `本次已掃描 ${status.scanned} 筆`; });
+          if (current()) { $('leaderboard-archive-status').textContent = result.complete ? '快照已完成；學生可載入前 20 名。' : `本次 ${result.scanned} 筆，請再按按鈕接續。`; stopQuestionAttempts('英雄榜快照處理完成；題目彙總請另按載入。'); renderQuestionAnalytics(); }
+          return;
+        }
+        if (update) {
+          const result = await teacherAnalytics.updateClass(activeQuestionClass,current,status => { questionError = `${status.studentId}｜本次已掃描 ${status.scanned} 筆新作答`; renderQuestionAnalytics(); });
+          if (!result.complete) { if (current()) { stopQuestionAttempts(`本次已掃描 ${result.scanned} 筆，進度已保存；請再次按「整理／增量更新」接續。舊班級彙總保留。`); renderQuestionAnalytics(); } return; }
+        }
+        const members = new Set();
         for (const classRoom of selectedClasses) {
           if (!current()) return;
-          questionError = `正在整理 ${classRoom} 班名冊與學生資料…`; renderQuestionAnalytics();
-          const data = await teacherData.fetchClass(classRoom,current);
-          const rows = statisticalRows(mergedProgress(data.rosterRows,data.progressRows)).filter(row => row.id);
-          for (const row of rows) {
-            if (!current()) return;
-            if (questionAttemptResults.has(row.id)) continue;
-            questionError = `${classRoom} 班｜正在讀取 ${row.profile.studentId} 的本學期作答紀錄…`; renderQuestionAnalytics();
-            const snapshot = await teacherData.read(db.collection('quizAttempts').doc(row.id).collection('events').where('termId','==',term),current);
-            questionAttemptResults.set(row.id,{rows:snapshot.docs.map(document => ({...document.data(),userId:row.id})).filter(item => item.termId===term)});
-          }
+          questionError = `正在載入 ${classRoom} 班彙總…`; renderQuestionAnalytics();
+          const summary = await teacherAnalytics.loadClass(classRoom,current);
+          for (const member of summary.members || []) if (member.uid) { if (members.has(member.uid)) throw new Error('各班彙總有重複學生，可能曾轉班；請更新相關班級後重讀，避免重複計算。'); members.add(member.uid); }
+          questionAttemptResults.set(classRoom,summary);
         }
         if (current()) { questionState = 'ready'; questionError = ''; questionLoadedAt = Date.now(); }
       } catch (error) {
         if (!current()) return;
         console.error('Unable to read quiz attempts:',error);
-        questionState = 'error'; questionError = window.TeacherData.errorText(error); questionAttemptResults.clear();
+        questionState = 'error'; questionError = error.code ? window.TeacherData.errorText(error) : error.message; questionAttemptResults.clear();
+        if (archive) $('leaderboard-archive-status').textContent = questionError;
       } finally { if (current()) renderQuestionAnalytics(); }
     }
     function renderQuestionAnalytics() {
       const scopeLabel = questionScopeLabel();
       const loading = questionState === 'loading', failed = questionState === 'error', idle = questionState === 'idle';
-      $('questions-reload').textContent = '載入／重新讀取作答紀錄';
+      $('questions-reload').textContent = '載入／重讀彙總';
       $('questions-reload').disabled = loading || document.hidden || navigator.onLine === false;
+      $('questions-update').disabled = loading || activeQuestionClass === 'all' || document.hidden || navigator.onLine === false;
+      $('leaderboard-archive').disabled = loading || document.hidden || navigator.onLine === false;
       if (failed || loading || idle) {
         $('question-student-count').textContent = '—'; $('question-attempt-count').textContent = '—'; $('question-correct-rate').textContent = '—';
-        $('questions-summary').textContent = failed ? '資料讀取失敗' : idle ? '尚未載入／已暫停' : `已讀取 ${questionAttemptResults.size} 位`;
+        $('questions-summary').textContent = failed ? '資料讀取失敗' : idle ? '尚未載入／已暫停' : `已讀取 ${questionAttemptResults.size} 班`;
         $('questions-note').textContent = `${scopeLabel}｜${questionError || '請手動載入作答紀錄，不會自動更新。'}`;
         $('questions-body').innerHTML = `<tr><td colspan="8" class="p-8 text-center ${failed ? 'text-rose-600' : 'text-slate-400'}">${failed ? '資料未完整載入，暫不顯示統計；請確認問題後手動重試。' : idle ? '按上方按鈕後才會讀取此範圍；離開分頁即停止後續讀取。' : '正在依序載入；未完整讀取前不顯示部分統計。'}</td></tr>`;
         return;
       }
-      const rows = [...questionAttemptResults.values()].flatMap(result => result.rows);
-      const groups = new Map();
-      rows.forEach(item => {
-        const group = groups.get(item.questionId) || { questionId: item.questionId, questionText: item.questionText || '題目文字未記錄', sources: new Set(), attempts: [] };
-        group.sources.add(item.source || '未分類');
-        group.attempts.push(item);
-        groups.set(item.questionId, group);
-      });
-      const summaries = [...groups.values()].map(group => {
-        const attempts = [...group.attempts].sort((a, b) => timestampMs(a.createdAt) - timestampMs(b.createdAt));
-        const firstByStudent = new Map();
-        attempts.forEach(item => { if (!firstByStudent.has(item.userId)) firstByStudent.set(item.userId, item); });
-        const correct = attempts.filter(item => item.correct).length;
-        const firstCorrect = [...firstByStudent.values()].filter(item => item.correct).length;
-        const optionCounts = Array.from({ length: Math.max(0, ...attempts.map(item => Number(item.optionCount) || 0)) }, () => 0);
-        attempts.forEach(item => { if (Number.isInteger(item.selectedIndex) && item.selectedIndex >= 0 && item.selectedIndex < optionCounts.length) optionCounts[item.selectedIndex] += 1; });
-        const seconds = attempts.reduce((total, item) => total + Math.max(0, Number(item.elapsedSeconds) || 0), 0);
-        return { ...group, attempts, studentCount: firstByStudent.size, correctRate: attempts.length ? Math.round(correct / attempts.length * 100) : 0, firstRate: firstByStudent.size ? Math.round(firstCorrect / firstByStudent.size * 100) : 0, optionCounts, averageSeconds: attempts.length ? Math.round(seconds / attempts.length) : 0 };
-      }).sort((a, b) => a.firstRate - b.firstRate || b.attempts.length - a.attempts.length || a.questionText.localeCompare(b.questionText, 'zh-TW'));
-      const students = new Set(rows.map(item => item.userId));
-      const correct = rows.filter(item => item.correct).length;
-      $('question-student-count').textContent = students.size;
-      $('question-attempt-count').textContent = rows.length;
-      $('question-correct-rate').textContent = rows.length ? `${Math.round(correct / rows.length * 100)}%` : '—';
-      $('questions-note').textContent = `${scopeLabel}｜手動資料快照：${formatDate(new Date(questionLoadedAt).toISOString())}，不會自動更新。依首次答對率排列；同題合併課程頁與大擂台；排除測試帳號。${activeQuestionClass === 'all' ? '全年級依實際作答次數計算，不取各班百分比平均。' : ''}`;
-      $('questions-summary').textContent = rows.length ? `${summaries.length} 題 · ${rows.length} 次作答` : '尚無作答資料';
+      const cached = [...questionAttemptResults.values()];
+      const summaries = window.TeacherAnalytics.mergeQuestions(cached.map(result => result.entries)).map(item => ({...item,attempts:{length:item.attemptCount},firstRate:item.studentCount ? Math.round(item.firstCorrectCount/item.studentCount*100) : 0,correctRate:item.attemptCount ? Math.round(item.correctCount/item.attemptCount*100) : 0,averageSeconds:item.attemptCount ? Math.round(item.secondsTotal/item.attemptCount) : 0})).sort((a,b) => a.firstRate-b.firstRate || b.attemptCount-a.attemptCount || a.questionText.localeCompare(b.questionText,'zh-TW'));
+      const count = summaries.reduce((sum,item) => sum+item.attemptCount,0), correct = summaries.reduce((sum,item) => sum+item.correctCount,0);
+      $('question-student-count').textContent = cached.reduce((sum,item) => sum+item.studentCount,0);
+      $('question-attempt-count').textContent = count;
+      $('question-correct-rate').textContent = count ? `${Math.round(correct/count*100)}%` : '—';
+      $('questions-note').textContent = `${scopeLabel}｜彙總快照（非即時）：${cached.map(item => `${item.classRoom}：${formatDate(item.updatedAt)}`).join('；')}。新作答請逐班按「整理／增量更新」，重讀只載入快取。排除測試帳號；全年級依實際人數及作答數計算。`;
+      $('questions-summary').textContent = count ? `${summaries.length} 題 · ${count} 次作答` : '尚無作答資料';
       $('questions-body').innerHTML = summaries.length ? summaries.map(item => `<tr class="border-t border-slate-100 align-top"><td class="max-w-md p-3 font-bold leading-6">${escapeHtml(item.questionText)}<p class="mt-1 font-mono text-[10px] font-normal text-slate-400">${escapeHtml(item.questionId)}</p></td><td class="p-3 text-xs text-slate-500">${escapeHtml([...item.sources].join('、'))}</td><td class="p-3 font-bold">${item.studentCount}</td><td class="p-3 font-bold">${item.attempts.length}</td><td class="p-3"><span class="font-black ${item.firstRate < 50 ? 'text-rose-600' : (item.firstRate < 75 ? 'text-amber-600' : 'text-emerald-600')}">${item.firstRate}%</span></td><td class="p-3 font-bold">${item.correctRate}%</td><td class="p-3 text-xs">${item.optionCounts.map((count, index) => `${String.fromCharCode(65 + index)}：${count}`).join('　')}</td><td class="p-3 font-bold">${item.averageSeconds} 秒</td></tr>`).join('') : `<tr><td colspan="8" class="p-8 text-center text-slate-400">${escapeHtml(scopeLabel)}尚無本學期作答紀錄。</td></tr>`;
     }
     function renderProgress() {
@@ -1246,10 +1246,10 @@
       $('average-count').textContent = countedRows.length ? `${(completeTotal / countedRows.length).toFixed(1)} / ${totalTasks}` : `0 / ${totalTasks}`;
       $('class-rate').textContent = countedRows.length ? `${Math.round(completeTotal / (countedRows.length * totalTasks) * 100)}%` : '—';
       $('average-time').textContent = countedRows.length ? formatUsage(usageTotal / countedRows.length) : '0 分';
-      $('progress-note').textContent = `${classRoom} 班正式學生共 ${countedRows.length} 位；本學期已開始 ${startedCount} 位；${selectedAttendanceDate} 出席 ${presentCount} 位。學號結尾 00 保留供測試，不計入全班統計。`;
+      $('progress-note').textContent = `${classRoom} 班正式學生共 ${countedRows.length} 位；本學期已開始 ${startedCount} 位；${selectedAttendanceDate} 出席 ${presentCount} 位。結尾 00 不計入統計。累計含舊制時間（可能含閒置），新版有效時間另列，無法回溯校正舊值。時間均為本學期累計，不隨出席日期改變。`;
       $('progress-summary').textContent = countedRows.length ? `出席率 ${Math.round(presentCount / countedRows.length * 100)}%` : '此班尚無正式學生';
       renderWeeklyGrowth(rows);
-      $('progress-body').innerHTML = rows.length ? rows.map(row => { const counts = taskCategoryCounts(row); const completed = counts.info + counts.flowchart + counts.programming + counts.thinking; const attendance = row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt; const attendanceCell = attendance ? `<span class="font-bold text-emerald-700">已登入 ${formatAttendanceTime(attendance)}</span>` : '<span class="font-bold text-rose-600">未登入</span>'; const status = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>'; const countCell = value => row.hasStarted ? `<span class="font-bold text-slate-700">${value} / 8</span>` : '<span class="text-slate-400">—</span>'; const updatedCell = row.hasStarted ? escapeHtml(formatDate(row.data.updatedAt)) : '—'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}${testAccountBadge(row.profile.studentId)}</td><td class="p-3">${attendanceCell}</td><td class="p-3 font-bold text-violet-700">${status}</td><td class="p-3">${countCell(counts.info)}</td><td class="p-3">${countCell(counts.flowchart)}</td><td class="p-3">${countCell(counts.programming)}</td><td class="p-3">${countCell(counts.thinking)}</td><td class="p-3 font-bold text-slate-600">${formatUsage(usageSeconds(row))}</td><td class="p-3 text-xs text-slate-500">${updatedCell}</td></tr>`; }).join('') : '<tr><td colspan="11" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
+      $('progress-body').innerHTML = rows.length ? rows.map(row => { const counts = taskCategoryCounts(row); const completed = counts.info + counts.flowchart + counts.programming + counts.thinking; const attendance = row.data.terms?.[term]?.attendance?.[selectedAttendanceDate]?.loginAt; const attendanceCell = attendance ? `<span class="font-bold text-emerald-700">已登入 ${formatAttendanceTime(attendance)}</span>` : '<span class="font-bold text-rose-600">未登入</span>'; const status = row.hasStarted ? `${completed} / ${totalTasks}` : '<span class="font-bold text-slate-400">尚未開始</span>'; const countCell = value => row.hasStarted ? `<span class="font-bold text-slate-700">${value} / 8</span>` : '<span class="text-slate-400">—</span>'; const updatedCell = row.hasStarted ? escapeHtml(formatDate(row.data.updatedAt)) : '—'; return `<tr class="border-t border-slate-100"><td class="p-3 font-bold">${escapeHtml(row.profile.seatNo)}</td><td class="p-3 font-mono">${escapeHtml(row.profile.studentId)}</td><td class="p-3 font-bold">${escapeHtml(row.profile.name || '—')}${testAccountBadge(row.profile.studentId)}</td><td class="p-3">${attendanceCell}</td><td class="p-3 font-bold text-violet-700">${status}</td><td class="p-3">${countCell(counts.info)}</td><td class="p-3">${countCell(counts.flowchart)}</td><td class="p-3">${countCell(counts.programming)}</td><td class="p-3">${countCell(counts.thinking)}</td><td class="p-3 font-bold text-slate-600">${usageDetail(row)}</td><td class="p-3 text-xs text-slate-500">${updatedCell}</td></tr>`; }).join('') : '<tr><td colspan="11" class="p-8 text-center text-slate-400">此班尚未建立名冊。</td></tr>';
     }
 
     async function syncStudentAccountCode(studentId, previousCode, nextCode) {
@@ -1370,6 +1370,8 @@
     window.addEventListener('resize', fitMissionProjection);
     document.addEventListener('keydown', event => { if (event.key === 'Escape') { if (missionProjecting) setMissionProjection(false); else if (liveReviewSession) closeModal(); } });
     $('questions-reload').addEventListener('click', () => { void syncQuestionAttempts(); });
+    $('questions-update').addEventListener('click', () => { void syncQuestionAttempts(true); });
+    $('leaderboard-archive').addEventListener('click', () => { void syncQuestionAttempts(false,true); });
     $('export-notion-roster').addEventListener('click', exportNotionRoster);
     $('export-notion-progress').addEventListener('click', exportNotionProgress);
     $('notion-sync-button').addEventListener('click', () => syncNotionTask(false));
@@ -1399,7 +1401,7 @@
     window.addEventListener('pagehide', () => pauseTeacherReads('已離開教師頁面。'));
     $('logout-button').addEventListener('click', async () => { pauseTeacherReads('已登出'); await auth.signOut(); location.reload(); });
     $('login-form').addEventListener('submit', async event => { event.preventDefault(); if (!auth) return; const email = $('teacher-email').value.trim(); try { setLoginMessage('正在登入…'); const credential = await auth.signInWithEmailAndPassword(email, $('teacher-password').value); if (credential.user.email !== teacherEmail) { await auth.signOut(); throw new Error('not-teacher'); } showDashboard(); } catch (error) { console.error(error); setLoginMessage('登入失敗，請確認教師帳號、密碼與 Firestore Rules。', true); } });
-    if (!config || !window.firebase || !window.TeacherData) { setLoginMessage('Firebase 或教師資料程式尚未完成載入，請重新整理。', true); return; }
+    if (!config || !window.firebase || !window.TeacherData || !window.TeacherAnalytics) { setLoginMessage('Firebase 或教師資料程式尚未完成載入，請重新整理。', true); return; }
     app = firebase.initializeApp(config); auth = firebase.auth(); db = firebase.firestore(); auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
     teacherData = window.TeacherData.create({db,onData:data => { rosterRows = data.rosterRows; progressRows = data.progressRows; refreshAll(); },onState:state => {
       teacherDataState = state;
@@ -1408,6 +1410,7 @@
       if (state.phase === 'error') { clearTimeout(teacherIdleTimer); teacherLessonUntil = 0; $('teacher-lesson-mode').checked = false; notionStopRequested = true; }
       renderNotionWorkspace(); renderTeacherDataState();
     }});
+    teacherAnalytics = window.TeacherAnalytics.create({db,termId:term,read:teacherData.read,fetchClass:teacherData.fetchClass,documentId:firebase.firestore.FieldPath.documentId(),timestampFrom:value => new firebase.firestore.Timestamp(value.seconds,value.nanoseconds)});
     populateClasses(); updateClassroomConnection(); renderLiveEvidenceStatus(); auth.onAuthStateChanged(user => {
       if (user?.email === teacherEmail && $('dashboard-view').classList.contains('hidden')) showDashboard();
       else if (user?.email !== teacherEmail) { pauseTeacherReads('教師登入已失效，請重新登入。'); $('dashboard-view').classList.add('hidden'); $('login-view').classList.remove('hidden'); }

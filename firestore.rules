@@ -143,6 +143,22 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Materialized summaries and resumable checkpoints are teacher-only.
+    match /quizAnalytics/{termId}/{path=**} {
+      allow read, create, update: if isTeacher() && arenaTerm(termId);
+      allow delete: if false;
+    }
+    match /leaderboards/{termId}/difficulties/{difficulty}/archive/{archiveId} {
+      allow get: if signedIn();
+      allow create, update: if isTeacher() && arenaTerm(termId)
+        && difficulty in ['easy','normal','hard'] && archiveId == 'top20';
+      allow delete: if false;
+    }
+    match /leaderboards/{termId}/difficulties/{difficulty}/maintenance/{jobId} {
+      allow read, create, update: if isTeacher() && arenaTerm(termId);
+      allow delete: if false;
+    }
+
     // Answer indexes live in a separate teacher-only collection.  They are
     // intentionally not readable by learners or included in the public site.
     match /quizAnswerKeys/{questionId} {

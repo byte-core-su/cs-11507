@@ -1,128 +1,61 @@
-/* Lightweight, shared "currently in class" signal for the teacher dashboard. */
+/* One foreground, verified learner tab records bounded active-use heartbeats. */
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { deleteField, doc, getFirestore, increment, onSnapshot, serverTimestamp, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import './student-activity.js';
 
-const appSettings = window.SCHOOL_APP;
-const heartbeatIntervalMs = 2 * 60 * 1000;
-const sessionKey = `learning-platform.${appSettings?.currentTermId || 'term'}.usage-session.v1`;
-let currentUser = null;
-let firestore = null;
-let authInstance = null;
-let sessionId = '';
-let isNewSession = false;
-let lastRecordedAt = 0;
-let stopRemoteSessionWatch = () => {};
-let duplicateLoginDetected = false;
-
-function currentStudentId() {
-  const emailId = String(currentUser?.email || '').split('@')[0];
-  const savedId = window.LearnerProfile?.readLocalProfile?.()?.studentId;
-  // Firebase Auth is authoritative.  The page-local profile is only a
-  // fallback while the portal is finishing its initial load.
-  const studentId = appSettings?.studentIdPattern?.test(emailId) ? emailId : savedId;
-  return appSettings?.studentIdPattern?.test(studentId) ? studentId : '';
-}
-
-function getSessionId() {
-  if (sessionId) return sessionId;
-  try {
-    const stored = JSON.parse(window.sessionStorage.getItem(sessionKey) || 'null');
-    sessionId = typeof stored?.id === 'string' ? stored.id : '';
-  } catch (_) { /* Session storage is optional. */ }
-  if (!sessionId) {
-    const randomPart = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    sessionId = `session_${randomPart.replace(/[^a-zA-Z0-9_-]/g, '')}`;
-    isNewSession = true;
-    try { window.sessionStorage.setItem(sessionKey, JSON.stringify({ id: sessionId })); } catch (_) { /* Keep the in-memory ID. */ }
+const settings=window.SCHOOL_APP;
+if(settings?.isFirebaseConfigured?.()){
+  const app=getApps().length?getApp():initializeApp(settings.firebaseConfig),auth=getAuth(app),db=getFirestore(app);
+  let currentUser=null,duplicate=false;
+  const sessionIds=new Map();
+  const initialized=new Set(),started=new Set();
+  function identity(){
+    const studentId=String(currentUser?.email||'').split('@')[0],profile=window.LearnerProfile?.readLocalProfile?.();
+    if(!currentUser||currentUser.isAnonymous||!settings.studentIdPattern.test(studentId)
+      ||currentUser.email!==`${studentId}@${settings.studentEmailDomain}`||profile?.studentId!==studentId
+      ||!window.LearnerProfile?.hasActiveSession?.())return null;
+    return {uid:currentUser.uid,studentId,remoteId:window.LearnerProfile.getRemoteSessionId(),allowed:window.LearnerProfile.checkBrowserStudent(studentId).allowed};
   }
-  return sessionId;
-}
-
-async function handleDuplicateLogin() {
-  if (duplicateLoginDetected) return;
-  duplicateLoginDetected = true;
-  try {
-    window.LearnerProfile?.endSession?.();
-    if (authInstance) await signOut(authInstance);
-  } catch (_) { /* The redirect still protects this page. */ }
-  const root = appSettings?.rootPath || './';
-  window.location.replace(`${root}index.html?duplicateLogin=1`);
-}
-
-function watchRemoteSession() {
-  stopRemoteSessionWatch();
-  if (!currentUser || !firestore || !window.LearnerProfile?.hasActiveSession?.()) return;
-  stopRemoteSessionWatch = onSnapshot(doc(firestore, 'users', currentUser.uid), snapshot => {
-    const remoteId = snapshot.data()?.activeSession?.id;
-    const localId = window.LearnerProfile?.getRemoteSessionId?.();
-    if (remoteId && localId && remoteId !== localId) handleDuplicateLogin();
-  }, error => console.warn('Unable to verify single-login session:', error));
-}
-
-async function recordClassActivity({ closing = false } = {}) {
-  if (!currentUser || (!closing && document.visibilityState !== 'visible')) return;
-  const studentId = currentStudentId();
-  if (!studentId || !firestore) return;
-  if (window.LearnerProfile?.checkBrowserStudent && !window.LearnerProfile.checkBrowserStudent(studentId).allowed) return;
-  const now = Date.now();
-  const elapsedSeconds = lastRecordedAt ? Math.max(0, Math.round((now - lastRecordedAt) / 1000)) : 0;
-  lastRecordedAt = now;
-  const id = getSessionId();
-  const sessionData = {
-    lastSeenAt: serverTimestamp(),
-    activeSeconds: increment(elapsedSeconds),
-    page: window.location.pathname,
-    status: closing ? 'closed' : 'active',
-    endedAt: closing ? serverTimestamp() : deleteField(),
-    ...(isNewSession ? { startedAt: serverTimestamp() } : {})
-  };
-  try {
-    await setDoc(doc(firestore, 'users', currentUser.uid), {
-      studentId,
-      terms: {
-        [appSettings.currentTermId]: {
-          presence: {
-            lastSeenAt: serverTimestamp(),
-            page: window.location.pathname,
-            isActive: !closing
-          },
-          usage: {
-            totalActiveSeconds: increment(elapsedSeconds),
-            sessions: {
-              [id]: sessionData
-            }
-          }
+  function sessionId(owner){
+    const key=`learning-platform.${settings.currentTermId}.${owner.uid}.usage-session.v2`;
+    if(sessionIds.has(key))return sessionIds.get(key);
+    let id='';try{id=sessionStorage.getItem(key)||'';}catch(_){}
+    if(!/^session_[A-Za-z0-9_-]+$/.test(id)){id='session_'+(crypto.randomUUID?.()||`${Date.now()}_${Math.random().toString(36).slice(2)}`);try{sessionStorage.setItem(key,id);}catch(_){}}
+    sessionIds.set(key,id);return id;
+  }
+  const presence=window.StudentActivity.create({
+    env:{projectId:settings.firebaseConfig.projectId,termId:settings.currentTermId,now:()=>Date.now(),clock:()=>performance.now(),
+      visible:()=>document.visibilityState==='visible',focused:()=>document.hasFocus(),online:()=>navigator.onLine!==false,
+      storage:{getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value)},locks:navigator.locks,
+      setTimeout,clearTimeout,setInterval,clearInterval,
+      async duplicate(){if(duplicate)return;duplicate=true;window.LearnerProfile?.endSession?.();try{await signOut(auth);}catch(_){}window.location.replace(`${settings.rootPath||'./'}index.html?duplicateLogin=1`);}},
+    identity,
+    subscribe:(owner,next,error)=>onSnapshot(doc(db,'users',owner.uid),{includeMetadataChanges:true},snapshot=>next(snapshot.data(),snapshot.metadata),error),
+    async write({owner,seconds,closing,legacy}){
+      if(identity()?.uid!==owner.uid||identity()?.remoteId!==owner.remoteId)return;
+      const id=sessionId(owner),first=legacy?.measurementVersion!=='active-v2'&&!initialized.has(owner.uid);
+      await setDoc(doc(db,'users',owner.uid),{studentId:owner.studentId,terms:{[settings.currentTermId]:{
+        presence:{lastSeenAt:serverTimestamp(),page:location.pathname,isActive:!closing},
+        usage:{measurementVersion:'active-v2',totalActiveSeconds:increment(seconds),activeV2Seconds:increment(seconds),
+          ...(first?{measuredSince:serverTimestamp(),legacyActiveSeconds:Math.max(0,Number(legacy?.totalActiveSeconds)||0)}:{}),
+          sessions:{[id]:{...(!legacy?.sessions?.[id]?.startedAt&&!started.has(id)?{startedAt:serverTimestamp()}:{}),lastSeenAt:serverTimestamp(),activeSeconds:increment(seconds),page:location.pathname,status:closing?'closed':'active',endedAt:closing?serverTimestamp():deleteField()}}
         }
-      }
-    }, { merge: true });
-    isNewSession = false;
-  } catch (error) {
-    console.warn('Unable to record class activity:', error);
-  }
-}
-
-if (appSettings?.isFirebaseConfigured?.()) {
-  const firebaseApp = getApps().length ? getApp() : initializeApp(appSettings.firebaseConfig);
-  const auth = getAuth(firebaseApp);
-  authInstance = auth;
-  firestore = getFirestore(firebaseApp);
-  onAuthStateChanged(auth, user => {
-    currentUser = user;
-    if (user) {
-      recordClassActivity();
-      watchRemoteSession();
-    } else {
-      stopRemoteSessionWatch();
-      stopRemoteSessionWatch = () => {};
+      }}},{merge:true});
+      initialized.add(owner.uid);started.add(id);
     }
   });
-  window.addEventListener('portal:authenticated', () => { recordClassActivity(); watchRemoteSession(); });
-  window.addEventListener('focus', () => recordClassActivity());
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') recordClassActivity();
-    else recordClassActivity({ closing: true });
-  });
-  window.addEventListener('pagehide', () => recordClassActivity({ closing: true }));
-  window.setInterval(() => recordClassActivity(), heartbeatIntervalMs);
+  onAuthStateChanged(auth,user=>{currentUser=user;presence.tick();});
+  window.addEventListener('portal:authenticated',()=>presence.activity());
+  window.addEventListener('focus',()=>presence.activity());
+  window.addEventListener('blur',()=>presence.tick());
+  window.addEventListener('online',()=>presence.tick());
+  window.addEventListener('offline',()=>presence.tick());
+  document.addEventListener('visibilitychange',()=>presence.tick());
+  window.addEventListener('pagehide',()=>presence.stop());
+  window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
+  let lastInteraction=0;
+  for(const type of ['pointerdown','keydown','wheel','touchstart','pointermove'])document.addEventListener(type,event=>{
+    if(!event.isTrusted||performance.now()-lastInteraction<1000)return;lastInteraction=performance.now();presence.activity();
+  },{passive:true});
 }
